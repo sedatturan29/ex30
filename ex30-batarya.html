@@ -296,7 +296,7 @@ const PIDS = [
   {id:"avg",  did:"491B", every:3,  f:d => u16(d)/100 - 40},
   {id:"cool", did:"4804", every:3,  f:d => d[d.length-1] - 40},
   {id:"max",  did:"4945", every:6,  f:d => u16(d)/100 - 40},
-  {id:"soc",  did:"4801", every:10, f:d => (0.002*u16(d) - 3)/94*100},
+  {id:"soc",  did:"4801", every:10, f:d => 1.0625*0.002*u16(d) - 3.125},
 ];
 const SERVICES = [0xfff0, 0xffe0, 0x18f0, "e7810a71-73ae-499d-8c15-faa9aef0c3f2"];
 

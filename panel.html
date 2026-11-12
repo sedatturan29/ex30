@@ -109,7 +109,7 @@ const BMS_PIDS = [
   {id:"volt", did:"4803", every:1,  f:d => 0.01*u16(d)},
   {id:"avg",  did:"491B", every:3,  f:d => u16(d)/100 - 40},
   {id:"cin",  did:"4804", every:3,  f:d => d[d.length-1] - 40},
-  {id:"soc",  did:"4801", every:10, f:d => (0.002*u16(d) - 3)/94*100},
+  {id:"soc",  did:"4801", every:10, f:d => 1.0625*0.002*u16(d) - 3.125},
 ];
 // Kaynağı bilinmeyen değerler: kullanıcı/sonraki sürüm tanımlar
 const CUSTOM_KEYS = [
