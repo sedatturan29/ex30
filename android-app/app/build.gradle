@@ -1,0 +1,36 @@
+plugins {
+    id 'com.android.application'
+}
+
+def runNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInteger()
+
+android {
+    namespace 'com.ex30.batarya'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.ex30.batarya'
+        minSdk 26
+        targetSdk 34
+        versionCode runNumber
+        versionName "1." + runNumber
+    }
+
+    // Sabit imza: yeni sürümler eskisinin üzerine kaldırmadan kurulabilsin
+    signingConfigs {
+        fixed {
+            storeFile file('ex30.keystore')
+            storePassword 'ex30batarya'
+            keyAlias 'ex30'
+            keyPassword 'ex30batarya'
+        }
+    }
+    buildTypes {
+        debug { signingConfig signingConfigs.fixed }
+        release { signingConfig signingConfigs.fixed; minifyEnabled false }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

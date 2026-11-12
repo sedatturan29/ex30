@@ -371,6 +371,14 @@ function renderSteps(){ $("stepChecks").innerHTML = STEPS.map(([id,t])=>{ const 
 let envResult = [];
 async function checkEnv(){
   const ua = navigator.userAgent, res = [];
+  if (window.EX30_APP){
+    res.push(["ok","Uygulama: EX30 Batarya (Android)","Bluetooth uygulamanın kendisi üzerinden kullanılıyor"]);
+    let avail=null; try{ avail = await navigator.bluetooth.getAvailability(); }catch{}
+    res.push(avail===false ? ["bad","Bluetooth kapalı","Telefonun Bluetooth'unu açın, sonra bu sayfayı aşağı çekmeden 'IOS-Vlink'i ara'ya basın."] : ["ok","Bluetooth açık",""]);
+    envResult = res; $("envChecks").innerHTML = res.map(r=>chkRow(...r)).join("");
+    $("cnFind").disabled = $("cnAll").disabled = false;
+    return;
+  }
   const isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform==="MacIntel" && navigator.maxTouchPoints>1);
   const isAndroid = /Android/.test(ua), isChrome = /Chrome\//.test(ua) && !/EdgA|OPR|SamsungBrowser|wv\)/.test(ua);
   const inWebView = /; wv\)/.test(ua);
@@ -888,6 +896,7 @@ document.addEventListener("click", e => {
 });
 $("btnSend").onclick = async () => { const c=$("cmd").value.trim(); if(!c) return; const was=!!pollTimer||inPoll; await pausePolling(); const r=await send(c,5000); log(c+" → "+r.replace(/\s+/g," ")); if(was && chW) startPolling(); };
 $("cmd").onkeydown = e => { if (e.key==="Enter") $("btnSend").click(); };
+document.addEventListener("visibilitychange", ()=>{ if (document.visibilityState==="visible" && !chW) checkEnv(); });
 document.addEventListener("visibilitychange", async ()=>{ if (document.visibilityState==="visible" && chW && !wake){ try{ wake=await navigator.wakeLock?.request("screen"); }catch{} } });
 window.addEventListener("resize", renderAll);
 if (active.trip) geoStart();

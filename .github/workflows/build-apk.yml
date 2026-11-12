@@ -1,0 +1,50 @@
+name: APK derle
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: HTML'yi uygulamaya kopyala
+        run: cp ex30-batarya.html android-app/app/src/main/assets/ex30-batarya.html
+
+      - name: APK derle
+        working-directory: android-app
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: APK'yı adlandır
+        run: cp android-app/app/build/outputs/apk/debug/app-debug.apk EX30-Batarya.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EX30-Batarya-apk
+          path: EX30-Batarya.apk
+
+      - name: Release olarak yayınla
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.${{ github.run_number }}
+          name: EX30 Batarya 1.${{ github.run_number }}
+          body: |
+            Telefona kurmak için aşağıdaki EX30-Batarya.apk dosyasını indirip açın.
+            Her zaman son sürüm: https://github.com/${{ github.repository }}/releases/latest/download/EX30-Batarya.apk
+          files: EX30-Batarya.apk
+          make_latest: true
