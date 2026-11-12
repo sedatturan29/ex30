@@ -12,6 +12,7 @@ import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothProfile;
+import android.bluetooth.BluetoothSocket;
 import android.bluetooth.BluetoothStatusCodes;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
@@ -33,11 +34,18 @@ import android.widget.Toast;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Web Bluetooth'un küçük bir alt kümesini Android BLE ile sağlar.
@@ -48,6 +56,20 @@ import java.util.UUID;
 public class BleBridge {
 
     private static final UUID CCCD = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
+
+    // Klasik Bluetooth (SPP, ör. "Android-Vlink"): sayfaya sahte bir BLE servisi gibi görünür
+    private static final UUID SPP = UUID.fromString("00001101-0000-1000-8000-00805f9b34fb");
+    private static final String SPP_PREFIX = "spp:";
+    private static final String SPP_SVC = "0000fff0-0000-1000-8000-00805f9b34fb";
+    private static final String SPP_CHR = "0000fff1-0000-1000-8000-00805f9b34fb";
+    private final Map<String, BluetoothSocket> sockets = new ConcurrentHashMap<>();
+    private final ExecutorService sppWriter = Executors.newSingleThreadExecutor();
+
+    /** Seçim listesindeki bir satır. */
+    private static final class Entry {
+        final String id, name, label;
+        Entry(String id, String name, String label) { this.id = id; this.name = name; this.label = label; }
+    }
 
     private final Activity act;
     private final WebView web;
@@ -128,6 +150,7 @@ public class BleBridge {
 
     @JavascriptInterface
     public void connect(final String id, final String cb) {
+        if (id.startsWith(SPP_PREFIX)) { classicConnect(id, cb); return; }
         main.post(() -> {
             BluetoothAdapter a = adapter();
             if (a == null || !a.isEnabled()) { reject(cb, "NetworkError", "Bluetooth kapalı"); return; }
@@ -150,6 +173,7 @@ public class BleBridge {
 
     @JavascriptInterface
     public void startNotifications(final String id, final String svc, final String chr, final String cb) {
+        if (id.startsWith(SPP_PREFIX)) { resolve(cb, "null"); return; }
         main.post(() -> {
             BluetoothGatt g = gatts.get(id);
             BluetoothGattCharacteristic c = find(g, svc, chr);
@@ -171,11 +195,32 @@ public class BleBridge {
     @JavascriptInterface
     public void write(final String id, final String svc, final String chr, final String b64, final boolean withResponse, final String cb) {
         final byte[] data = Base64.decode(b64, Base64.DEFAULT);
+        if (id.startsWith(SPP_PREFIX)) {
+            sppWriter.execute(() -> {
+                BluetoothSocket s = sockets.get(id);
+                if (s == null) { reject(cb, "NetworkError", "Bağlı değil"); return; }
+                try {
+                    OutputStream out = s.getOutputStream();
+                    out.write(data);
+                    out.flush();
+                    resolve(cb, "null");
+                } catch (Exception e) {
+                    reject(cb, "NetworkError", "Yazılamadı: " + e.getMessage());
+                }
+            });
+            return;
+        }
         main.post(() -> doWrite(id, svc, chr, data, withResponse, cb, 0));
     }
 
     @JavascriptInterface
     public void disconnect(final String id) {
+        if (id.startsWith(SPP_PREFIX)) {
+            BluetoothSocket s = sockets.remove(id);
+            if (s != null) { try { s.close(); } catch (Exception ignored) { } }
+            js("window.__ble&&__ble._disconnected(" + q(id) + ")");
+            return;
+        }
         main.post(() -> {
             BluetoothGatt g = gatts.remove(id);
             if (g != null) { try { g.disconnect(); g.close(); } catch (Exception ignored) { } }
@@ -222,7 +267,7 @@ public class BleBridge {
         } catch (Exception e) { all = true; }
         final boolean acceptAll = all || (prefixes.isEmpty() && services.isEmpty());
 
-        final List<BluetoothDevice> found = new ArrayList<>();
+        final List<Entry> found = new ArrayList<>();
         final List<String> labels = new ArrayList<>();
         final ArrayAdapter<String> listAdapter = new ArrayAdapter<>(act, android.R.layout.simple_list_item_1, labels);
 
@@ -245,10 +290,11 @@ public class BleBridge {
                         if (services.contains(u.getUuid().toString().toLowerCase())) { match = true; break; }
                 }
                 if (!match) return;
-                final String label = (name != null ? name : "(isimsiz)") + "   " + d.getAddress();
+                final String nm = name;
+                final String label = (name != null ? name : "(isimsiz)") + "   Bluetooth LE";
                 main.post(() -> {
-                    for (BluetoothDevice x : found) if (x.getAddress().equals(d.getAddress())) return;
-                    found.add(d);
+                    for (Entry x : found) if (x.id.equals(d.getAddress())) return;
+                    found.add(new Entry(d.getAddress(), nm, label));
                     labels.add(label);
                     listAdapter.notifyDataSetChanged();
                     if (dialog != null) dialog.setTitle("OBD adaptörünü seçin");
@@ -262,18 +308,35 @@ public class BleBridge {
         };
         scanner.startScan(scanCb);
 
+        // Telefonda eşleşmiş klasik Bluetooth adaptörleri (ör. Android-Vlink)
+        try {
+            Set<BluetoothDevice> bonded = a.getBondedDevices();
+            if (bonded != null) for (BluetoothDevice d : bonded) {
+                if (d.getType() == BluetoothDevice.DEVICE_TYPE_LE) continue;
+                String name = d.getName();
+                boolean match = acceptAll;
+                if (!match && name != null) {
+                    String ln = name.toLowerCase();
+                    for (String p : prefixes) if (ln.startsWith(p)) { match = true; break; }
+                }
+                if (!match) continue;
+                String label = (name != null ? name : d.getAddress()) + "   klasik Bluetooth (eşleşmiş)";
+                found.add(new Entry(SPP_PREFIX + d.getAddress(), name, label));
+                labels.add(label);
+            }
+        } catch (Exception ignored) { }
+
         final boolean[] picked = {false};
         dialog = new AlertDialog.Builder(act)
-                .setTitle("Aranıyor… (adaptör takılı, araç açık olmalı)")
+                .setTitle(found.isEmpty() ? "Aranıyor… (adaptör takılı, araç açık olmalı)" : "OBD adaptörünü seçin")
                 .setAdapter(listAdapter, (dlg, which) -> {
                     picked[0] = true;
                     stopScan();
-                    BluetoothDevice d = found.get(which);
+                    Entry d = found.get(which);
                     try {
                         JSONObject res = new JSONObject();
-                        res.put("id", d.getAddress());
-                        String nm = d.getName();
-                        res.put("name", nm == null ? JSONObject.NULL : nm);
+                        res.put("id", d.id);
+                        res.put("name", d.name == null ? JSONObject.NULL : d.name);
                         resolve(cb, res.toString());
                     } catch (Exception e) {
                         reject(cb, "NotFoundError", String.valueOf(e.getMessage()));
@@ -288,6 +351,57 @@ public class BleBridge {
                 .create();
         dialog.show();
         main.postDelayed(this::stopScan, 30000);
+    }
+
+    private void classicConnect(final String id, final String cb) {
+        final String addr = id.substring(SPP_PREFIX.length());
+        new Thread(() -> {
+            BluetoothAdapter a = adapter();
+            if (a == null || !a.isEnabled()) { reject(cb, "NetworkError", "Bluetooth kapalı"); return; }
+            try { a.cancelDiscovery(); } catch (Exception ignored) { }
+            BluetoothDevice d = a.getRemoteDevice(addr);
+            BluetoothSocket s = null;
+            String error = null;
+            for (int attempt = 0; attempt < 2 && s == null; attempt++) {
+                BluetoothSocket t = null;
+                try {
+                    t = attempt == 0 ? d.createRfcommSocketToServiceRecord(SPP) : d.createInsecureRfcommSocketToServiceRecord(SPP);
+                    t.connect();
+                    s = t;
+                } catch (Exception e) {
+                    error = e.getMessage();
+                    if (t != null) { try { t.close(); } catch (Exception ignored) { } }
+                }
+            }
+            if (s == null) {
+                reject(cb, "NetworkError", "Klasik Bluetooth bağlantısı kurulamadı (" + error + "). Car Scanner gibi başka bir uygulama adaptöre bağlı olabilir.");
+                return;
+            }
+            BluetoothSocket old = sockets.put(id, s);
+            if (old != null) { try { old.close(); } catch (Exception ignored) { } }
+            startReader(id, s);
+            resolve(cb, "[{\"uuid\":\"" + SPP_SVC + "\",\"chars\":[{\"uuid\":\"" + SPP_CHR
+                    + "\",\"props\":{\"read\":false,\"write\":true,\"writeWithoutResponse\":true,\"notify\":true,\"indicate\":false}}]}]");
+        }).start();
+    }
+
+    private void startReader(final String id, final BluetoothSocket s) {
+        new Thread(() -> {
+            byte[] buf = new byte[512];
+            try {
+                InputStream in = s.getInputStream();
+                int n;
+                while ((n = in.read(buf)) > 0) {
+                    byte[] chunk = Arrays.copyOf(buf, n);
+                    js("window.__ble&&__ble._notify(" + q(id) + "," + q(SPP_SVC) + "," + q(SPP_CHR) + ","
+                            + q(Base64.encodeToString(chunk, Base64.NO_WRAP)) + ")");
+                }
+            } catch (Exception ignored) { }
+            if (sockets.remove(id, s)) {
+                try { s.close(); } catch (Exception ignored) { }
+                js("window.__ble&&__ble._disconnected(" + q(id) + ")");
+            }
+        }).start();
     }
 
     private void stopScan() {
@@ -441,5 +555,10 @@ public class BleBridge {
             try { g.disconnect(); g.close(); } catch (Exception ignored) { }
         }
         gatts.clear();
+        for (BluetoothSocket s : sockets.values()) {
+            try { s.close(); } catch (Exception ignored) { }
+        }
+        sockets.clear();
+        sppWriter.shutdownNow();
     }
 }

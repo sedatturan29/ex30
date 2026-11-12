@@ -94,8 +94,8 @@
     </div>
     <div class="card">
       <h2>2. Adaptöre bağlan</h2>
-      <p class="note" style="margin:0 0 10px">Aracı açın (ekran açık olsun), Car Scanner'ı kapatın, adaptörü telefonun Bluetooth ayarlarında eşleştirmeyin.</p>
-      <button id="cnFind" class="bigbtn">IOS-Vlink'i ara ve bağlan</button>
+      <p class="note" style="margin:0 0 10px">Aracı açın (ekran açık olsun) ve Car Scanner'ı kapatın. Adaptörünüz listede <b>IOS-Vlink</b> (Bluetooth LE) ya da <b>Android-Vlink</b> (klasik Bluetooth) olarak görünür. <span id="cnHint"></span></p>
+      <button id="cnFind" class="bigbtn">OBD adaptörünü ara ve bağlan</button>
       <div class="row" style="margin-top:8px"><button class="sec" id="cnAll">Listede yoksa: tüm cihazları göster</button></div>
       <div id="stepChecks" style="margin-top:10px"></div>
     </div>
@@ -371,10 +371,13 @@ function renderSteps(){ $("stepChecks").innerHTML = STEPS.map(([id,t])=>{ const 
 let envResult = [];
 async function checkEnv(){
   const ua = navigator.userAgent, res = [];
+  $("cnHint").textContent = window.EX30_APP
+    ? "IOS-Vlink'i eşleştirmeniz gerekmez. Android-Vlink'in telefonun Bluetooth ayarlarında eşleşmiş olması gerekir; Car Scanner'la kullandıysanız zaten eşleşmiştir."
+    : "Web sürümü yalnızca IOS-Vlink ile çalışır; Android-Vlink (klasik Bluetooth) için EX30 Batarya uygulamasını kullanın. IOS-Vlink'i telefonun Bluetooth ayarlarında eşleştirmeyin.";
   if (window.EX30_APP){
     res.push(["ok","Uygulama: EX30 Batarya (Android)","Bluetooth uygulamanın kendisi üzerinden kullanılıyor"]);
     let avail=null; try{ avail = await navigator.bluetooth.getAvailability(); }catch{}
-    res.push(avail===false ? ["bad","Bluetooth kapalı","Telefonun Bluetooth'unu açın, sonra bu sayfayı aşağı çekmeden 'IOS-Vlink'i ara'ya basın."] : ["ok","Bluetooth açık",""]);
+    res.push(avail===false ? ["bad","Bluetooth kapalı","Telefonun Bluetooth'unu açın, sonra bu sayfayı aşağı çekmeden 'OBD adaptörünü ara'ya basın."] : ["ok","Bluetooth açık",""]);
     envResult = res; $("envChecks").innerHTML = res.map(r=>chkRow(...r)).join("");
     $("cnFind").disabled = $("cnAll").disabled = false;
     return;
@@ -406,9 +409,9 @@ async function checkEnv(){
 async function connect(all=false){
   if (!navigator.bluetooth){ goTab("conn"); checkEnv(); return; }
   for (const k in stepState) delete stepState[k]; renderSteps();
-  setPill("busy","Cihaz aranıyor"); setStep("pick","run","Açılan listeden IOS-Vlink'i seçin");
+  setPill("busy","Cihaz aranıyor"); setStep("pick","run","Açılan listeden IOS-Vlink ya da Android-Vlink'i seçin");
   try{
-    const filters = [{namePrefix:"IOS-Vlink"},{namePrefix:"iOS-Vlink"},{namePrefix:"V-LINK"},{namePrefix:"vLinker"},{namePrefix:"OBD"},{namePrefix:"Vgate"},
+    const filters = [{namePrefix:"IOS-Vlink"},{namePrefix:"iOS-Vlink"},{namePrefix:"Android-Vlink"},{namePrefix:"V-LINK"},{namePrefix:"vLinker"},{namePrefix:"OBD"},{namePrefix:"Vgate"},
       ...SERVICES.map(u=>({services:[u]}))];
     try{
       dev = await navigator.bluetooth.requestDevice(all ? {acceptAllDevices:true, optionalServices:SERVICES} : {filters, optionalServices:SERVICES});
