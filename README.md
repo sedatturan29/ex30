@@ -7,6 +7,7 @@ park kaybı ve ısıtma testi. OBD adaptörüyle (ör. Vgate iCar Pro) yalnızca
 - **Android-Vlink** (klasik Bluetooth): yalnızca Android uygulaması; adaptör telefonda eşleşmiş olmalı
 
 - **Web:** https://sedatturan29.github.io/ex30/ex30-batarya.html (Android'de Chrome)
+- **Canlı panel:** https://sedatturan29.github.io/ex30/panel.html (tüm değerler tek ekranda)
 - **Android uygulaması:** https://github.com/sedatturan29/ex30/releases/latest/download/EX30-Batarya.apk
 
 `ex30-batarya.html` her değiştiğinde GitHub Actions APK'yı yeniden derleyip

@@ -5,11 +5,16 @@ import android.app.Activity;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.view.WindowManager;
+import android.net.Uri;
 import android.webkit.GeolocationPermissions;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
+import android.webkit.WebViewClient;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -63,12 +68,40 @@ public class MainActivity extends Activity {
             }
         });
 
-        String html = readAsset("ex30-batarya.html");
-        String polyfill = readAsset("ble-polyfill.js");
+        // https://ex30.app/<dosya> adresleri uygulamanın içindeki dosyalardan sunulur;
+        // böylece ana sayfa ile Canlı panel arasında bağlantılar çalışır.
+        web.setWebViewClient(new WebViewClient() {
+            @Override
+            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                Uri u = request.getUrl();
+                if (!"ex30.app".equals(u.getHost())) return null;
+                String path = u.getPath();
+                String name = (path == null || path.equals("/") || path.isEmpty()) ? "ex30-batarya.html" : path.substring(1);
+                if (name.endsWith(".html")) {
+                    String html = withPolyfill(readAsset(name));
+                    return new WebResourceResponse("text/html", "UTF-8", new ByteArrayInputStream(html.getBytes(StandardCharsets.UTF_8)));
+                }
+                try {
+                    String mime = name.endsWith(".js") ? "text/javascript" : name.endsWith(".css") ? "text/css" : "application/octet-stream";
+                    return new WebResourceResponse(mime, "UTF-8", getAssets().open(name));
+                } catch (Exception e) {
+                    return new WebResourceResponse("text/plain", "UTF-8", 404, "Not Found", null, new ByteArrayInputStream(new byte[0]));
+                }
+            }
+        });
+        web.loadUrl("https://ex30.app/ex30-batarya.html");
+    }
+
+    private String withPolyfill(String html) {
+        String inject = "<script>" + readAsset("ble-polyfill.js") + "</script>";
         int i = html.indexOf("<head>");
-        String inject = "<script>" + polyfill + "</script>";
-        html = i >= 0 ? html.substring(0, i + 6) + inject + html.substring(i + 6) : inject + html;
-        web.loadDataWithBaseURL("https://ex30.app/", html, "text/html", "UTF-8", null);
+        return i >= 0 ? html.substring(0, i + 6) + inject + html.substring(i + 6) : inject + html;
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (web != null && web.canGoBack()) web.goBack();
+        else super.onBackPressed();
     }
 
     private String readAsset(String name) {

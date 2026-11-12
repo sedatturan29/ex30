@@ -24,7 +24,7 @@ jobs:
           gradle-version: '8.9'
 
       - name: HTML'yi uygulamaya kopyala
-        run: cp ex30-batarya.html android-app/app/src/main/assets/ex30-batarya.html
+        run: cp ex30-batarya.html panel.html android-app/app/src/main/assets/
 
       - name: APK derle
         working-directory: android-app

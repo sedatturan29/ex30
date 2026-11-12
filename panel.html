@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0b0d11">
+<title>EX30 Canlı Panel</title>
+<style>
+  :root{--bg:#0b0d11;--card:#151920;--line:#232934;--fg:#eef1f6;--mut:#8792a5;--acc:#4ea1ff;--hot:#ff7a45;--ok:#3ccf8e;--warn:#f5c04a;--bad:#ff5d5d}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.35 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+  header{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:3}
+  header h1{font-size:16px;margin:0;flex:1;font-weight:600}
+  .pill{font-size:12px;padding:4px 10px;border-radius:99px;background:var(--line);color:var(--mut);white-space:nowrap}
+  .pill.on{background:#123524;color:var(--ok)} .pill.err{background:#3a1717;color:var(--bad)} .pill.busy{background:#3a3117;color:var(--warn)}
+  button{font:inherit;border:0;border-radius:10px;padding:9px 14px;background:var(--acc);color:#fff;font-weight:600;cursor:pointer}
+  button.sec{background:var(--line);color:var(--fg)} button.mini{padding:5px 10px;font-size:12px;font-weight:500}
+  main{padding:12px;display:grid;gap:10px;grid-template-columns:repeat(2,1fr);max-width:1400px;margin:0 auto}
+  @media (min-width:760px){ main{grid-template-columns:repeat(4,1fr)} }
+  @media (min-width:1200px){ main{grid-template-columns:repeat(6,1fr)} }
+  .t{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 12px;min-height:92px;display:flex;flex-direction:column;justify-content:space-between;position:relative}
+  .t .k{font-size:12px;color:var(--mut);display:flex;justify-content:space-between;gap:6px}
+  .t .v{font-size:32px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1;margin-top:4px;white-space:nowrap}
+  .t .v small{font-size:14px;color:var(--mut);font-weight:500;margin-left:3px}
+  .t .s{font-size:11px;color:var(--mut);margin-top:3px;min-height:14px}
+  .t.big .v{font-size:46px}
+  .t.w2{grid-column:span 2}
+  .t.na .v{color:#4a5466}
+  .t .src{font-size:10px;padding:1px 6px;border-radius:6px;background:var(--line);color:var(--mut)}
+  .pos{color:var(--hot)} .neg{color:var(--ok)}
+  @media (min-width:1200px){ .t.r2{grid-row:span 2} .t.r2 .v{font-size:40px} }
+  main{grid-auto-flow:dense}
+  .tires{grid-column:span 2;grid-row:span 2}
+  @media (max-width:759px){ .tires{grid-column:1/-1;grid-row:auto} }
+  .tirebox{display:grid;grid-template-columns:1fr 70px 1fr;grid-template-rows:1fr 1fr;gap:8px;align-items:center;margin-top:6px;flex:1}
+  .tire{background:#0f1218;border:1px solid var(--line);border-radius:10px;padding:8px;text-align:center}
+  .tire .p{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
+  .tire .p small{font-size:12px;color:var(--mut);font-weight:500}
+  .tire .c{font-size:13px;color:var(--mut)}
+  .car{grid-column:2;grid-row:1/3;height:100%;min-height:150px;border:2px solid var(--line);border-radius:22px 22px 16px 16px;position:relative}
+  .car::after{content:"";position:absolute;left:10px;right:10px;top:22%;height:18%;border:2px solid var(--line);border-radius:8px}
+  dialog{background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:14px;max-width:720px;width:94vw;padding:14px}
+  dialog::backdrop{background:#000a}
+  dialog h2{font-size:16px;margin:0 0 6px}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  td,th{padding:4px 3px;border-bottom:1px solid var(--line);text-align:left}
+  input,select,textarea{font:inherit;font-size:12px;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:5px;width:100%}
+  textarea{height:80px;font-family:ui-monospace,monospace}
+  .note{font-size:12px;color:var(--mut)}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  #log{font:11px/1.4 ui-monospace,monospace;background:#07090c;border-radius:8px;padding:8px;height:110px;overflow:auto;white-space:pre-wrap;color:#9aa6b8;margin-top:8px}
+</style>
+</head>
+<body>
+<header>
+  <h1>EX30 Canlı Panel</h1>
+  <span id="pill" class="pill">Bağlı değil</span>
+  <button class="sec mini" id="btnSet">Ayarlar</button>
+  <button id="btnConn">Bağlan</button>
+</header>
+<main id="grid">
+  <div class="t big w2" id="t-avg"><div class="k">Ortalama batarya sıcaklığı <span class="src">BMS</span></div><div class="v">–<small>°C</small></div><div class="s"></div></div>
+  <div class="t big w2" id="t-kw"><div class="k">Anlık güç (+ çekiş, − şarj/rejen) <span class="src">BMS</span></div><div class="v">–<small>kW</small></div><div class="s"></div></div>
+  <div class="t big w2" id="t-spd"><div class="k">Hız <span class="src">GPS</span></div><div class="v">–<small>km/s</small></div><div class="s"></div></div>
+  <div class="t" id="t-cin"><div class="k">Soğutma sıvısı giriş <span class="src">BMS</span></div><div class="v">–<small>°C</small></div><div class="s"></div></div>
+  <div class="t" id="t-cout"><div class="k">Soğutma sıvısı çıkış <span class="src">tanımsız</span></div><div class="v">–<small>°C</small></div><div class="s"></div></div>
+  <div class="t" id="t-motor"><div class="k">Motor sıcaklığı <span class="src">tanımsız</span></div><div class="v">–<small>°C</small></div><div class="s"></div></div>
+  <div class="t" id="t-rpm"><div class="k">Motor devri <span class="src">tanımsız</span></div><div class="v">–<small>d/dk</small></div><div class="s"></div></div>
+  <div class="t" id="t-volt"><div class="k">Voltaj <span class="src">BMS</span></div><div class="v">–<small>V</small></div><div class="s"></div></div>
+  <div class="t" id="t-amp"><div class="k">Akım <span class="src">BMS</span></div><div class="v">–<small>A</small></div><div class="s"></div></div>
+  <div class="t r2" id="t-soc"><div class="k">Şarj <span class="src">BMS</span></div><div class="v">–<small>%</small></div><div class="s"></div></div>
+  <div class="t r2" id="t-avgspd"><div class="k">Ortalama hız (yolculuk) <span class="src">GPS</span></div><div class="v">–<small>km/s</small></div><div class="s"></div></div>
+  <div class="t w2 r2" id="t-trip"><div class="k">Yolculuk tüketimi (uygulama) <button class="sec mini" id="btnTripReset">Sıfırla</button></div><div class="v">–<small>kWh/100km</small></div><div class="s"></div></div>
+  <div class="t tires" id="t-tires"><div class="k">Lastik basıncı ve sıcaklığı <span class="src" id="tireSrc">tanımsız</span></div>
+    <div class="tirebox">
+      <div class="tire" id="tire-fl"><div class="p">–<small> bar</small></div><div class="c">– °C</div></div>
+      <div class="car"></div>
+      <div class="tire" id="tire-fr"><div class="p">–<small> bar</small></div><div class="c">– °C</div></div>
+      <div class="tire" id="tire-rl"><div class="p">–<small> bar</small></div><div class="c">– °C</div></div>
+      <div class="tire" id="tire-rr"><div class="p">–<small> bar</small></div><div class="c">– °C</div></div>
+    </div>
+    <div class="s">Sol ön · sağ ön · sol arka · sağ arka</div>
+  </div>
+</main>
+
+<dialog id="dlg">
+  <h2>Ayarlar</h2>
+  <div class="row">
+    <label class="note">Okuma aralığı
+      <select id="interval" style="width:auto"><option value="0">En hızlı</option><option value="1000">1 sn</option><option value="2000">2 sn</option></select></label>
+    <span class="note" id="rateInfo"></span>
+  </div>
+  <h2 style="margin-top:14px">Kaynak tanımları</h2>
+  <p class="note">Kaynağı bilinmeyen değerler için araç ünitesinin istek/cevap kimliği, kod (DID) ve formül. Sadece okuma (UDS 22) gönderilir. Değer = (başlangıç baytından itibaren uzunluk kadar bayt, işaretsiz) × çarpan + ekleme. Boş bırakılan satır okunmaz.</p>
+  <div style="overflow-x:auto"><table id="srcTable"><thead><tr><th>Değer</th><th>İstek ID</th><th>Cevap ID</th><th>DID</th><th>Bayt</th><th>Uzunluk</th><th>Çarpan</th><th>Ekleme</th><th>Her n tur</th></tr></thead><tbody></tbody></table></div>
+  <p class="note">Tanım paylaşmak için: aşağıdaki kodu kopyalayabilir ya da size gönderilen kodu yapıştırıp "Uygula"ya basabilirsiniz.</p>
+  <textarea id="srcJson"></textarea>
+  <div class="row" style="margin-top:8px"><button class="sec mini" id="btnApply">Uygula</button><button class="sec mini" id="btnCopy">Kopyala</button><button class="mini" id="btnClose">Kapat</button><a class="note" href="ex30-batarya.html" style="margin-left:auto;color:var(--acc)">Ana uygulamaya dön</a></div>
+  <div id="log"></div>
+</dialog>
+
+<script>
+"use strict";
+// ============ Bilinen BMS kodları (EX30 / Geely SEA) ============
+const BMS = {tx:"1DD01635", rx:"1EC6AE80"};
+const u16 = d => d.length>=2 ? d[d.length-2]*256 + d[d.length-1] : NaN;
+const BMS_PIDS = [
+  {id:"cur",  did:"4802", every:1,  f:d => 0.1*(u16(d) - 16384)},
+  {id:"volt", did:"4803", every:1,  f:d => 0.01*u16(d)},
+  {id:"avg",  did:"491B", every:3,  f:d => u16(d)/100 - 40},
+  {id:"cin",  did:"4804", every:3,  f:d => d[d.length-1] - 40},
+  {id:"soc",  did:"4801", every:10, f:d => (0.002*u16(d) - 3)/94*100},
+];
+// Kaynağı bilinmeyen değerler: kullanıcı/sonraki sürüm tanımlar
+const CUSTOM_KEYS = [
+  ["motor","Motor sıcaklığı (°C)"],["cout","Soğutma çıkış (°C)"],["rpm","Motor devri (d/dk)"],
+  ["p_fl","Basınç sol ön (bar)"],["p_fr","Basınç sağ ön (bar)"],["p_rl","Basınç sol arka (bar)"],["p_rr","Basınç sağ arka (bar)"],
+  ["t_fl","Lastik sıc. sol ön (°C)"],["t_fr","Lastik sıc. sağ ön (°C)"],["t_rl","Lastik sıc. sol arka (°C)"],["t_rr","Lastik sıc. sağ arka (°C)"],
+];
+const INIT = ["ATZ","ATE0","ATL0","ATS0","ATH1","ATAL","ATST64","ATSP7"];
+const SERVICES = [0xfff0, 0xffe0, 0x18f0, "e7810a71-73ae-499d-8c15-faa9aef0c3f2"];
+
+// ============ Kalıcı ayarlar ============
+const store = { get(k,d){ try{ const v=localStorage.getItem("ex30."+k); return v==null?d:JSON.parse(v);}catch{return d;} }, set(k,v){ try{ localStorage.setItem("ex30."+k, JSON.stringify(v)); }catch{} } };
+const mainCfg = store.get("cfg", {});
+const sign = mainCfg.sign || 1;
+const pcfg = Object.assign({interval:0, sources:{}}, store.get("panel", {}));
+function savePcfg(){ store.set("panel", pcfg); }
+let trip = Object.assign({start:Date.now(), km:0, eOut:0, eIn:0, movingMs:0}, store.get("panelTrip", {}));
+function saveTrip(){ store.set("panelTrip", trip); }
+
+// ============ ELM327 / BLE ============
+let dev=null, chW=null, chN=null, buf="", waiter=null, busy=Promise.resolve(), manual=false, wake=null, suffix="";
+const enc=new TextEncoder(), dec=new TextDecoder();
+function onNotify(e){ buf += dec.decode(e.target.value); if (buf.includes(">") && waiter){ const r=buf.replace(/>/g,"").trim(); buf=""; const w=waiter; waiter=null; w(r); } }
+function send(cmd, timeout=2500){
+  const p = busy.then(()=>new Promise(async res=>{
+    if (!chW){ res("NOT CONNECTED"); return; }
+    buf=""; const t=setTimeout(()=>{ if(waiter){ waiter=null; res("TIMEOUT"); } }, timeout);
+    waiter = r=>{ clearTimeout(t); res(r); };
+    try{ const data=enc.encode(cmd+"\r"); for (let i=0;i<data.length;i+=20){ const part=data.slice(i,i+20); if (chW.properties.writeWithoutResponse) await chW.writeValueWithoutResponse(part); else await chW.writeValue(part); } }
+    catch(err){ clearTimeout(t); waiter=null; res("ERR "+err.message); }
+  }));
+  busy = p.catch(()=>{}); return p;
+}
+function parseDid(resp, did){
+  for (const raw of resp.toUpperCase().split(/[\r\n]+/)){
+    const ln = raw.replace(/[^0-9A-F]/g,""), key="62"+did, i=ln.indexOf(key); if (i<0) continue;
+    let hex = ln.slice(i+key.length);
+    if (i>=2){ const n=(parseInt(ln.slice(i-2,i),16)&0x0F)-3; if (n>0 && n*2<=hex.length) hex=hex.slice(0,n*2); }
+    const b=[]; for (let k=0;k+1<hex.length;k+=2) b.push(parseInt(hex.slice(k,k+2),16));
+    if (b.length) return b;
+  }
+  return null;
+}
+let curEcu = "";
+async function useEcu(tx, rx){
+  const key=tx+"/"+rx; if (curEcu===key) return;
+  await send("ATCP"+tx.slice(0,2)); await send("ATSH"+tx.slice(2)); await send("ATCRA"+rx);
+  await send("ATFCSH"+tx); await send("ATFCSD300000"); await send("ATFCSM1");
+  curEcu = key;
+}
+async function connect(){
+  if (!navigator.bluetooth){ log("Bu tarayıcıda Bluetooth yok. Android'de Chrome (https) ya da EX30 Batarya uygulamasını kullanın."); setPill("err","Bluetooth yok"); return; }
+  setPill("busy","Cihaz aranıyor");
+  try{
+    dev = await navigator.bluetooth.requestDevice({filters:[{namePrefix:"IOS-Vlink"},{namePrefix:"Android-Vlink"},{namePrefix:"V-LINK"},{namePrefix:"vLinker"},{namePrefix:"OBD"},...SERVICES.map(u=>({services:[u]}))], optionalServices:SERVICES});
+    dev.addEventListener("gattserverdisconnected", ()=>{ if(manual){manual=false;return;} log("Bağlantı koptu"); setPill("err","Bağlantı koptu"); cleanup(); });
+    const gatt = await dev.gatt.connect(); chW=chN=null;
+    for (const sv of SERVICES){ let s; try{ s=await gatt.getPrimaryService(sv);}catch{continue;} let w=null,n=null;
+      for (const c of await s.getCharacteristics()){ if(!n&&(c.properties.notify||c.properties.indicate)) n=c; if(!w&&(c.properties.write||c.properties.writeWithoutResponse)) w=c; }
+      if (w&&n){ chW=w; chN=n; break; } }
+    if (!chW) throw new Error("OBD servisi bulunamadı");
+    chN.addEventListener("characteristicvaluechanged", onNotify); await chN.startNotifications();
+    setPill("busy","Başlatılıyor");
+    for (const c of INIT){ const r=await send(c, c==="ATZ"?4000:2000); if (c==="ATZ") await sleep(400); log(c+" → "+r.replace(/\s+/g," ")); }
+    curEcu=""; await useEcu(BMS.tx, BMS.rx);
+    const r1 = await send("22491B1"); suffix = parseDid(r1,"491B") ? "1" : ""; log("Tek-cevap modu: "+(suffix?"açık":"kapalı"));
+    setPill("on","Bağlı"); $("btnConn").textContent="Kes";
+    try{ wake = await navigator.wakeLock?.request("screen"); }catch{}
+    loop();
+  }catch(e){ log("Hata: "+e.message); setPill("err","Bağlantı hatası"); cleanup(); }
+}
+function cleanup(){ running=false; chW=null; $("btnConn").textContent="Bağlan"; try{wake?.release()}catch{} wake=null; }
+function disconnect(){ manual=true; try{ dev?.gatt?.disconnect(); }catch{} setPill("","Bağlı değil"); cleanup(); }
+
+// ============ Okuma döngüsü ============
+const vals={}, raw={}; let running=false, cycle=0; const speed={req:[], cyc:[]};
+async function readDid(did){ const t0=performance.now(); const r=await send("22"+did+suffix); speed.req.push(performance.now()-t0); if (speed.req.length>50) speed.req.shift(); return r; }
+async function loop(){
+  if (running) return; running=true;
+  while (running && chW){
+    cycle++; const fast = pcfg.interval < 1000;
+    await useEcu(BMS.tx, BMS.rx);
+    for (const p of BMS_PIDS){
+      if (fast && cycle % p.every !== 0 && vals[p.id]!=null) continue;
+      const b = parseDid(await readDid(p.did), p.did);
+      if (b){ raw[p.id]=b; const v=p.f(b); vals[p.id]=isFinite(v)?v:null; }
+    }
+    // tanımlı ek kaynaklar, ünite ünite gruplanır
+    const defs = CUSTOM_KEYS.map(([k])=>[k, pcfg.sources[k]]).filter(([,s])=>s && /^[0-9A-F]{8}$/i.test(s.tx||"") && /^[0-9A-F]{8}$/i.test(s.rx||"") && /^[0-9A-F]{4}$/i.test(s.did||""));
+    defs.sort((a,b)=>(a[1].tx+a[1].rx).localeCompare(b[1].tx+b[1].rx));
+    for (const [k,s] of defs){
+      if (cycle % Math.max(1, +s.every||5) !== 0 && vals[k]!=null) continue;
+      await useEcu(s.tx.toUpperCase(), s.rx.toUpperCase());
+      const did=s.did.toUpperCase(), b=parseDid(await readDid(did), did);
+      if (b){ const st=+s.start||0, ln=Math.min(4, Math.max(1,+s.len||1)); let v=0; for (let i=0;i<ln;i++) v=v*256+(b[st+i]??0);
+        vals[k] = v*(+s.scale||1) + (+s.offset||0); raw[k]=b; }
+    }
+    sample();
+    if (pcfg.interval) await sleep(pcfg.interval); else await sleep(0);
+  }
+}
+
+// ============ Yolculuk: enerji, mesafe, hız ============
+let lastS=null;
+function sample(){
+  const now=Date.now(); speed.cyc.push(now); while (speed.cyc.length && now-speed.cyc[0]>10000) speed.cyc.shift();
+  const P = (vals.volt!=null && vals.cur!=null) ? vals.volt*vals.cur/1000*sign : null; vals.kw = P;
+  if (lastS && P!=null && lastS.P!=null){ const dt=Math.min(now-lastS.t, 15000)/3600e3, Pm=(P+lastS.P)/2; trip.eOut+=Math.max(Pm,0)*dt; trip.eIn+=Math.max(-Pm,0)*dt; }
+  lastS={t:now, P};
+  render();
+}
+const geo={last:null, spd:null, t:0};
+function geoStart(){
+  if (!navigator.geolocation) return;
+  try{ navigator.geolocation.watchPosition(p=>{
+    const c=p.coords, pt={lat:c.latitude, lon:c.longitude, t:p.timestamp};
+    let v = c.speed!=null && c.speed>=0 ? c.speed*3.6 : null;
+    if (geo.last && c.accuracy<=40){
+      const d=hav(geo.last,pt), dt=(pt.t-geo.last.t)/1000;
+      if (dt>0 && d/dt<70){ if (d>=3) trip.km += d/1000; if (v==null) v=d/dt*3.6; if (v>3) trip.movingMs += dt*1000; }
+    }
+    if (c.accuracy<=40) geo.last=pt;
+    geo.spd=v; geo.t=Date.now(); render();
+  }, e=>log("Konum: "+e.message), {enableHighAccuracy:true, maximumAge:1000}); }catch{}
+}
+function hav(a,b){ const R=6371000,r=Math.PI/180,dLa=(b.lat-a.lat)*r,dLo=(b.lon-a.lon)*r; const h=Math.sin(dLa/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLo/2)**2; return 2*R*Math.asin(Math.sqrt(h)); }
+
+// ============ Görünüm ============
+const $=id=>document.getElementById(id), sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const fmt=(v,d=1)=>v==null||!isFinite(v)?"–":v.toFixed(d).replace(".",",");
+function tile(id, v, unit, d=1, sub, cls){ const el=$("t-"+id); if(!el) return; el.querySelector(".v").innerHTML=`<span class="${cls||""}">${fmt(v,d)}</span><small>${unit}</small>`; if (sub!=null) el.querySelector(".s").textContent=sub; }
+let lastR=0;
+function render(){
+  const now=Date.now(); if (now-lastR<250) return; lastR=now;
+  tile("avg", vals.avg, "°C", 1, raw.avg?"ham "+hex(raw.avg):"");
+  tile("cin", vals.cin, "°C", 0);
+  tile("soc", vals.soc, "%", 1);
+  tile("volt", vals.volt, "V", 1); tile("amp", vals.cur!=null?vals.cur*sign:null, "A", 1);
+  tile("kw", vals.kw, "kW", 1, vals.kw==null?"":vals.kw<-0.3?"Şarj / rejen":vals.kw>0.3?"Çekiş":"Bekleme", vals.kw>0.3?"pos":vals.kw<-0.3?"neg":"");
+  for (const [id,k,unit,d] of [["motor","motor","°C",0],["cout","cout","°C",0],["rpm","rpm","d/dk",0]]){
+    const def=defined(k); $("t-"+id).classList.toggle("na", !def);
+    tile(id, vals[k], unit, d, def ? (raw[k]?"ham "+hex(raw[k]):"bekleniyor") : "Kaynak tanımlı değil (Ayarlar)");
+    $("t-"+id).querySelector(".src").textContent = def ? "tanımlı" : "tanımsız";
+  }
+  const fresh = geo.t && now-geo.t<5000;
+  tile("spd", fresh?geo.spd:null, "km/s", 0, fresh?"":"GPS bekleniyor");
+  const hrs=trip.movingMs/3600e3; tile("avgspd", hrs>0.01?trip.km/hrs:null, "km/s", 0, `${fmt(trip.km,1)} km · hareket ${Math.round(trip.movingMs/60000)} dk`);
+  const net=trip.eOut-trip.eIn;
+  tile("trip", trip.km>0.5?net/trip.km*100:null, "kWh/100km", 1, `${fmt(trip.km,1)} km · harcanan ${fmt(trip.eOut,2)} · rejen ${fmt(trip.eIn,2)} kWh · başlangıç ${new Date(trip.start).toLocaleString("tr-TR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}`);
+  let anyTire=false;
+  for (const w of ["fl","fr","rl","rr"]){
+    const el=$("tire-"+w), p=vals["p_"+w], t=vals["t_"+w]; if (defined("p_"+w)||defined("t_"+w)) anyTire=true;
+    el.querySelector(".p").innerHTML=`${fmt(p,2)}<small> bar</small>`; el.querySelector(".c").textContent=`${fmt(t,0)} °C`;
+  }
+  $("tireSrc").textContent = anyTire ? "tanımlı" : "tanımsız"; $("t-tires").classList.toggle("na", !anyTire);
+  if (speed.cyc.length>1){ const hz=(speed.cyc.length-1)/((speed.cyc.at(-1)-speed.cyc[0])/1000||1), ms=speed.req.reduce((a,b)=>a+b,0)/(speed.req.length||1);
+    $("rateInfo").textContent=`${fmt(hz,1)} tur/sn · istek ${fmt(ms,0)} ms · tek-cevap ${suffix?"açık":"kapalı"}`; }
+}
+const hex=b=>b.map(x=>x.toString(16).padStart(2,"0")).join(" ").toUpperCase();
+function defined(k){ const s=pcfg.sources[k]; return !!(s && s.tx && s.rx && s.did); }
+function log(s){ const el=$("log"); el.textContent += new Date().toLocaleTimeString("tr-TR")+"  "+s+"\n"; el.scrollTop=el.scrollHeight; }
+function setPill(c,t){ const p=$("pill"); p.className="pill "+c; p.textContent=t; }
+
+// Ayarlar: kaynak tablosu
+const FIELDS=["tx","rx","did","start","len","scale","offset","every"];
+function buildSrcTable(){
+  $("srcTable").querySelector("tbody").innerHTML = CUSTOM_KEYS.map(([k,label])=>{ const s=pcfg.sources[k]||{};
+    return `<tr data-k="${k}"><td>${label}</td>`+FIELDS.map(f=>`<td><input data-f="${f}" value="${s[f]??""}" placeholder="${{tx:"1DD016xx",rx:"1EC6xx80",did:"xxxx",start:"0",len:"1",scale:"1",offset:"0",every:"5"}[f]}" style="min-width:${f==="tx"||f==="rx"?"86px":"48px"}"></td>`).join("")+"</tr>"; }).join("");
+  $("srcJson").value = JSON.stringify(pcfg.sources);
+}
+$("srcTable").addEventListener("change", e=>{ const tr=e.target.closest("tr[data-k]"); if(!tr) return; const s={};
+  for (const inp of tr.querySelectorAll("input")) if (inp.value.trim()!=="") s[inp.dataset.f]=inp.value.trim();
+  if (Object.keys(s).length) pcfg.sources[tr.dataset.k]=s; else delete pcfg.sources[tr.dataset.k];
+  savePcfg(); $("srcJson").value=JSON.stringify(pcfg.sources); render(); });
+$("btnApply").onclick=()=>{ try{ const o=JSON.parse($("srcJson").value||"{}"); if (typeof o!=="object"||Array.isArray(o)) throw 0; pcfg.sources=o; savePcfg(); buildSrcTable(); log("Kaynak tanımları uygulandı"); }catch{ log("Kod okunamadı"); } };
+$("btnCopy").onclick=async()=>{ try{ await navigator.clipboard.writeText($("srcJson").value); log("Kopyalandı"); }catch{ log("Kopyalanamadı"); } };
+$("btnSet").onclick=()=>{ buildSrcTable(); $("interval").value=String(pcfg.interval); $("dlg").showModal(); };
+$("btnClose").onclick=()=>$("dlg").close();
+$("interval").onchange=()=>{ pcfg.interval=+$("interval").value; savePcfg(); };
+$("btnConn").onclick=()=> $("btnConn").textContent==="Kes" ? disconnect() : connect();
+$("btnTripReset").onclick=()=>{ trip={start:Date.now(), km:0, eOut:0, eIn:0, movingMs:0}; saveTrip(); lastR=0; render(); };
+setInterval(saveTrip, 10000);
+window.addEventListener("pagehide", saveTrip);
+document.addEventListener("visibilitychange", async()=>{ if (document.visibilityState==="visible" && chW && !wake){ try{ wake=await navigator.wakeLock?.request("screen"); }catch{} } });
+geoStart(); render();
+</script>
+</body>
+</html>
