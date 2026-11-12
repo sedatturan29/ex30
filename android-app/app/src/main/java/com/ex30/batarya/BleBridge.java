@@ -184,6 +184,12 @@ public class BleBridge {
         });
     }
 
+    /** Sayfa her ölçümde son değerleri gönderir; Android Auto ekranı bunları gösterir. */
+    @JavascriptInterface
+    public void publish(final String json) {
+        CarData.update(json);
+    }
+
     @JavascriptInterface
     public void copy(final String text) {
         main.post(() -> {

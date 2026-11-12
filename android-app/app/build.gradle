@@ -34,3 +34,8 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 }
+
+dependencies {
+    // Android Auto (Car App Library)
+    implementation 'androidx.car.app:app:1.4.0'
+}

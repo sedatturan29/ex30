@@ -467,7 +467,7 @@ async function connect(all=false){
   }
 }
 function onDisconnect(){ if(manual){manual=false;return;} log("Bağlantı koptu"); setPill("err","Bağlantı koptu"); cleanup(); }
-function cleanup(){ stopPolling(); chW=null; btnConn.textContent="Bağlan"; $("btnSend").disabled=true; $("scBtn").disabled=true; try{wake?.release()}catch{} wake=null; }
+function cleanup(){ publishCar(false); stopPolling(); chW=null; btnConn.textContent="Bağlan"; $("btnSend").disabled=true; $("scBtn").disabled=true; try{wake?.release()}catch{} wake=null; }
 function disconnect(){ manual=true; try{ dev?.gatt?.disconnect(); }catch{} setPill("","Bağlı değil"); cleanup(); }
 
 // =====================================================================
@@ -522,6 +522,7 @@ function onSample(s){
   }
   saveActive();
   renderAll();
+  publishCar(true);
 }
 const r2 = v => v==null||!isFinite(v) ? null : Math.round(v*100)/100;
 
@@ -720,22 +721,38 @@ function renderAll(){
   if (tab==="heat") renderHeat();
 }
 
+function thermalState(rt){
+  if (vals.cool==null || vals.avg==null) return {cls:null, short:"Veri bekleniyor", txt:"Veri bekleniyor"};
+  const d=vals.cool-vals.avg;
+  if (d>=3 && (rt==null||rt>0.05)) return {cls:"heat", short:"Isıtma aktif", txt:`Isıtma büyük ihtimalle aktif (sıvı bataryadan ${fmt(d,0)}°C sıcak)`};
+  if (d<=-3 && (rt==null||rt<-0.05)) return {cls:"cool", short:"Soğutma aktif", txt:`Soğutma büyük ihtimalle aktif (sıvı bataryadan ${fmt(-d,0)}°C soğuk)`};
+  if (rt!=null && rt>0.15) return {cls:"", short:"Batarya ısınıyor", txt:"Batarya ısınıyor (sürüş/şarj ısısı)"};
+  if (rt!=null && rt<-0.15) return {cls:"", short:"Batarya soğuyor", txt:"Batarya soğuyor"};
+  return {cls:"", short:"Sıcaklık sabit", txt:"Batarya sıcaklığı sabit"};
+}
+// Android uygulamasında Android Auto ekranına veri gönder
+function publishCar(connected){
+  try{
+    if (!window.AndroidBle || !AndroidBle.publish) return;
+    if (!connected){ AndroidBle.publish(JSON.stringify({conn:false})); return; }
+    const last=hist[hist.length-1]||{}, rt=rate(), st=thermalState(rt);
+    let rec=null;
+    if (active.charge){ const m=summarize(active.charge); rec=`Şarj kaydı · ${dur(m.dur)} · ${fmt(active.charge.eIn,1)} kWh girdi · en yüksek ${fmt(m.peakIn,0)} kW`; }
+    else if (active.trip){ const km=geo.dist/1000, net=active.trip.eOut-active.trip.eIn; rec=`Yolculuk · ${fmt(km,1)} km · ${km>0.5?fmt(net/km*100,1)+" kWh/100km":fmt(net,1)+" kWh"}`; }
+    else if (active.heat){ const e=heatEval(active.heat); rec=`Isıtma testi · ${dur(e.dur)} · ${e.d==null?"–":(e.d>0?"+":"")+fmt(e.d,1)+"°C"}`; }
+    else if (active.park){ const p=parkStats(active.park); rec=`Park izleme · ${dur(p.m.dur)} · kayıp %${fmt(p.drop,2)}`; }
+    AndroidBle.publish(JSON.stringify({conn:true, t:last.t||Date.now(), avg:vals.avg, max:vals.max, cool:vals.cool, soc:vals.soc, P:last.P, rate:rt,
+      state:st.short, stateCls:st.cls, rec}));
+  }catch(e){}
+}
 function renderLive(){
   const last = hist[hist.length-1] || {};
   for (const id of ["avg","max","soc","volt","cur"]) { setV("v_"+id, id==="cur"?last.cur:vals[id], {avg:"°C",max:"°C",soc:"%",volt:"V",cur:"A"}[id]); $("r_"+id).textContent = raw[id]?("ham: "+raw[id]):""; }
   setV("v_cool", vals.cool, "°C", 0); $("r_cool").textContent = raw.cool?("ham: "+raw.cool):"";
   setV("v_pow", last.P, "kW");
   const rt=rate(); $("v_rate").innerHTML=(rt==null?"–":(rt>0?"+":"")+fmt(rt,2))+"<small>°C/dk</small>";
-  let cls="", txt="Veri bekleniyor";
-  if (vals.cool!=null && vals.avg!=null){
-    const d=vals.cool-vals.avg; txt="Batarya sıcaklığı sabit";
-    if (d>=3 && (rt==null||rt>0.05)){ cls="heat"; txt=`Isıtma büyük ihtimalle aktif (sıvı bataryadan ${fmt(d,0)}°C sıcak)`; }
-    else if (d<=-3 && (rt==null||rt<-0.05)){ cls="cool"; txt=`Soğutma büyük ihtimalle aktif (sıvı bataryadan ${fmt(-d,0)}°C soğuk)`; }
-    else if (rt!=null && rt>0.15) txt="Batarya ısınıyor (sürüş/şarj ısısı)";
-    else if (rt!=null && rt<-0.15) txt="Batarya soğuyor";
-    txt+=" · DC şarj için ideal yaklaşık 20–25°C";
-  }
-  setState("liveState", cls, txt);
+  const st=thermalState(rt);
+  setState("liveState", st.cls, st.txt + (st.cls!=null && vals.avg!=null ? " · DC şarj için ideal yaklaşık 20–25°C" : ""));
   const now=Date.now();
   chart($("cvLive"), {xMin:now-30*60e3, xMax:now, xFmt:x=>{ const m=Math.round((now-x)/60e3); return m?"-"+m+" dk":"şimdi"; },
     yFmt:[v=>v.toFixed(0)+"°"],
