@@ -276,7 +276,7 @@
         <button class="sec" id="scCopy" disabled>CSV olarak kopyala</button>
       </div>
       <div class="tbl" id="scList"><div class="empty">Henüz tarama yapılmadı</div></div>
-      <p class="note">Örneğin park halindeyken okuyun, sonra ısıtma çalışırken tekrar okuyun: değişen kodlar sarı görünür. "1 bayt −40" ve "2 bayt /100 −40" sütunları sıcaklık olabilecek değerleri gösterir.</p>
+      <p class="note">Örneğin park halindeyken okuyun, sonra ısıtma çalışırken tekrar okuyun: değişen kodlar sarı görünür. "1 bayt −50" ve "2 bayt /100 −50" sütunları sıcaklık olabilecek değerleri gösterir.</p>
     </div>
   </section>
 </main>
@@ -293,9 +293,9 @@ const PIDS = [
   // every: "En hızlı" modda kaç turda bir okunacağı (akım/voltaj her turda)
   {id:"cur",  did:"4802", every:1,  f:d => 0.1*(u16(d) - 16384)},
   {id:"volt", did:"4803", every:1,  f:d => 0.01*u16(d)},
-  {id:"avg",  did:"491B", every:3,  f:d => u16(d)/100 - 40},
-  {id:"cool", did:"4804", every:3,  f:d => d[d.length-1] - 40},
-  {id:"max",  did:"4945", every:6,  f:d => u16(d)/100 - 40},
+  {id:"avg",  did:"491B", every:3,  f:d => u16(d)/100 - 50},
+  {id:"cool", did:"4804", every:3,  f:d => d[d.length-1] - 50},
+  {id:"max",  did:"4945", every:6,  f:d => u16(d)/100 - 50},
   {id:"soc",  did:"4801", every:10, f:d => 1.0625*0.002*u16(d) - 3.125},
 ];
 const SERVICES = [0xfff0, 0xffe0, 0x18f0, "e7810a71-73ae-499d-8c15-faa9aef0c3f2"];
@@ -680,9 +680,9 @@ async function rescan(){
 function renderScan(){
   const el=$("scList");
   if (!scanRes.length){ el.innerHTML='<div class="empty">Cevap veren kod yok</div>'; return; }
-  el.innerHTML = `<table><tr><th>Kod</th><th>Ham değer</th><th>Önceki</th><th>1 bayt −40</th><th>2 bayt /100 −40</th></tr>`+
+  el.innerHTML = `<table><tr><th>Kod</th><th>Ham değer</th><th>Önceki</th><th>1 bayt −50</th><th>2 bayt /100 −50</th></tr>`+
     scanRes.map(x=>{ const ch = x.prev && hexb(x.prev)!==hexb(x.bytes);
-      const t1 = x.bytes[x.bytes.length-1]-40, t2 = x.bytes.length>=2 ? u16(x.bytes)/100-40 : null;
+      const t1 = x.bytes[x.bytes.length-1]-50, t2 = x.bytes.length>=2 ? u16(x.bytes)/100-50 : null;
       return `<tr class="${ch?"chg":""}"><td class="mono">${x.did}</td><td class="mono">${hexb(x.bytes)}</td><td class="mono">${x.prev?hexb(x.prev):""}</td><td>${t1}</td><td>${t2==null?"":t2.toFixed(2)}</td></tr>`; }).join("")+`</table>`;
 }
 

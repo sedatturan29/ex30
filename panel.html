@@ -63,9 +63,10 @@
   <div class="t big w2" id="t-kw"><div class="k">Anlık güç (+ çekiş, − şarj/rejen) <span class="src">BMS</span></div><div class="v">–<small>kW</small></div><div class="s"></div></div>
   <div class="t big w2" id="t-spd"><div class="k">Hız <span class="src">GPS</span></div><div class="v">–<small>km/s</small></div><div class="s"></div></div>
   <div class="t" id="t-cin"><div class="k">Soğutma sıvısı giriş <span class="src">BMS</span></div><div class="v">–<small>°C</small></div><div class="s"></div></div>
-  <div class="t" id="t-cout"><div class="k">Soğutma sıvısı çıkış <span class="src">tanımsız</span></div><div class="v">–<small>°C</small></div><div class="s"></div></div>
+  <div class="t" id="t-cout"><div class="k">Güç aktarma soğutma sıvısı <span class="src">tanımsız</span></div><div class="v">–<small>°C</small></div><div class="s"></div></div>
   <div class="t" id="t-motor"><div class="k">Motor sıcaklığı <span class="src">tanımsız</span></div><div class="v">–<small>°C</small></div><div class="s"></div></div>
   <div class="t" id="t-rpm"><div class="k">Motor devri <span class="src">tanımsız</span></div><div class="v">–<small>d/dk</small></div><div class="s"></div></div>
+  <div class="t" id="t-torque"><div class="k">Motor torku <span class="src">tanımsız</span></div><div class="v">–<small>Nm</small></div><div class="s"></div></div>
   <div class="t" id="t-volt"><div class="k">Voltaj <span class="src">BMS</span></div><div class="v">–<small>V</small></div><div class="s"></div></div>
   <div class="t" id="t-amp"><div class="k">Akım <span class="src">BMS</span></div><div class="v">–<small>A</small></div><div class="s"></div></div>
   <div class="t r2" id="t-soc"><div class="k">Şarj <span class="src">BMS</span></div><div class="v">–<small>%</small></div><div class="s"></div></div>
@@ -95,7 +96,7 @@
   <div style="overflow-x:auto"><table id="srcTable"><thead><tr><th>Değer</th><th>İstek ID</th><th>Cevap ID</th><th>DID</th><th>Bayt</th><th>Uzunluk</th><th>Çarpan</th><th>Ekleme</th><th>Her n tur</th></tr></thead><tbody></tbody></table></div>
   <p class="note">Tanım paylaşmak için: aşağıdaki kodu kopyalayabilir ya da size gönderilen kodu yapıştırıp "Uygula"ya basabilirsiniz.</p>
   <textarea id="srcJson"></textarea>
-  <div class="row" style="margin-top:8px"><button class="sec mini" id="btnApply">Uygula</button><button class="sec mini" id="btnCopy">Kopyala</button><button class="mini" id="btnClose">Kapat</button><a class="note" href="ex30-batarya.html" style="margin-left:auto;color:var(--acc)">Ana uygulamaya dön</a></div>
+  <div class="row" style="margin-top:8px"><button class="sec mini" id="btnApply">Uygula</button><button class="sec mini" id="btnDefaults">Varsayılanlar</button><button class="sec mini" id="btnCopy">Kopyala</button><button class="mini" id="btnClose">Kapat</button><a class="note" href="ex30-batarya.html" style="margin-left:auto;color:var(--acc)">Ana uygulamaya dön</a></div>
   <div id="log"></div>
 </dialog>
 
@@ -107,16 +108,24 @@ const u16 = d => d.length>=2 ? d[d.length-2]*256 + d[d.length-1] : NaN;
 const BMS_PIDS = [
   {id:"cur",  did:"4802", every:1,  f:d => 0.1*(u16(d) - 16384)},
   {id:"volt", did:"4803", every:1,  f:d => 0.01*u16(d)},
-  {id:"avg",  did:"491B", every:3,  f:d => u16(d)/100 - 40},
-  {id:"cin",  did:"4804", every:3,  f:d => d[d.length-1] - 40},
+  {id:"avg",  did:"491B", every:3,  f:d => u16(d)/100 - 50},
+  {id:"cin",  did:"4804", every:3,  f:d => d[d.length-1] - 50},
   {id:"soc",  did:"4801", every:10, f:d => 1.0625*0.002*u16(d) - 3.125},
 ];
 // Kaynağı bilinmeyen değerler: kullanıcı/sonraki sürüm tanımlar
 const CUSTOM_KEYS = [
-  ["motor","Motor sıcaklığı (°C)"],["cout","Soğutma çıkış (°C)"],["rpm","Motor devri (d/dk)"],
+  ["motor","Motor sıcaklığı (°C)"],["cout","Güç aktarma soğutma sıvısı (°C)"],["rpm","Motor devri (d/dk)"],["torque","Motor torku (Nm)"],
   ["p_fl","Basınç sol ön (bar)"],["p_fr","Basınç sağ ön (bar)"],["p_rl","Basınç sol arka (bar)"],["p_rr","Basınç sağ arka (bar)"],
   ["t_fl","Lastik sıc. sol ön (°C)"],["t_fr","Lastik sıc. sağ ön (°C)"],["t_rl","Lastik sıc. sol arka (°C)"],["t_rr","Lastik sıc. sağ arka (°C)"],
 ];
+// Car Scanner EX30 profilinin kaydından çıkarılan kaynaklar (kullanıcı değiştirebilir)
+const UNIT_NAMES = {"1DD01635":"BMS","1DD01637":"Motor","1DD01601":"VCU","1DD01650":"Şarj cihazı","1DD01701":"Şasi"};
+const DEFAULT_SOURCES = {
+  motor:  {tx:"1DD01637", rx:"1EC6EE80", did:"E306", start:"0", len:"1", scale:"1",   offset:"-50",    every:"5"},
+  rpm:    {tx:"1DD01637", rx:"1EC6EE80", did:"E303", start:"0", len:"2", scale:"1",   offset:"-16384", every:"2"},
+  torque: {tx:"1DD01637", rx:"1EC6EE80", did:"E304", start:"0", len:"2", scale:"1",   offset:"-8188",  every:"2"},
+  cout:   {tx:"1DD01601", rx:"1EC02E80", did:"4A34", start:"2", len:"2", scale:"0.1", offset:"-40",    every:"5"},
+};
 const INIT = ["ATZ","ATE0","ATL0","ATS0","ATH1","ATAL","ATST64","ATSP7"];
 const SERVICES = [0xfff0, 0xffe0, 0x18f0, "e7810a71-73ae-499d-8c15-faa9aef0c3f2"];
 
@@ -125,6 +134,7 @@ const store = { get(k,d){ try{ const v=localStorage.getItem("ex30."+k); return v
 const mainCfg = store.get("cfg", {});
 const sign = mainCfg.sign || 1;
 const pcfg = Object.assign({interval:0, sources:{}}, store.get("panel", {}));
+for (const k in DEFAULT_SOURCES) if (pcfg.sources[k] === undefined) pcfg.sources[k] = Object.assign({}, DEFAULT_SOURCES[k]);
 function savePcfg(){ store.set("panel", pcfg); }
 let trip = Object.assign({start:Date.now(), km:0, eOut:0, eIn:0, movingMs:0}, store.get("panelTrip", {}));
 function saveTrip(){ store.set("panelTrip", trip); }
@@ -153,11 +163,12 @@ function parseDid(resp, did){
   }
   return null;
 }
-let curEcu = "";
+let curEcu = "", curCp = "";
 async function useEcu(tx, rx){
   const key=tx+"/"+rx; if (curEcu===key) return;
-  await send("ATCP"+tx.slice(0,2)); await send("ATSH"+tx.slice(2)); await send("ATCRA"+rx);
-  await send("ATFCSH"+tx); await send("ATFCSD300000"); await send("ATFCSM1");
+  if (curCp!==tx.slice(0,2)){ await send("ATCP"+tx.slice(0,2)); curCp=tx.slice(0,2); }
+  await send("ATSH"+tx.slice(2)); await send("ATCRA"+rx); await send("ATFCSH"+tx);
+  if (!curEcu){ await send("ATFCSD300000"); await send("ATFCSM1"); }
   curEcu = key;
 }
 async function connect(){
@@ -174,7 +185,7 @@ async function connect(){
     chN.addEventListener("characteristicvaluechanged", onNotify); await chN.startNotifications();
     setPill("busy","Başlatılıyor");
     for (const c of INIT){ const r=await send(c, c==="ATZ"?4000:2000); if (c==="ATZ") await sleep(400); log(c+" → "+r.replace(/\s+/g," ")); }
-    curEcu=""; await useEcu(BMS.tx, BMS.rx);
+    curEcu=""; curCp=""; await useEcu(BMS.tx, BMS.rx);
     const r1 = await send("22491B1"); suffix = parseDid(r1,"491B") ? "1" : ""; log("Tek-cevap modu: "+(suffix?"açık":"kapalı"));
     setPill("on","Bağlı"); $("btnConn").textContent="Kes";
     try{ wake = await navigator.wakeLock?.request("screen"); }catch{}
@@ -249,10 +260,10 @@ function render(){
   tile("soc", vals.soc, "%", 1);
   tile("volt", vals.volt, "V", 1); tile("amp", vals.cur!=null?vals.cur*sign:null, "A", 1);
   tile("kw", vals.kw, "kW", 1, vals.kw==null?"":vals.kw<-0.3?"Şarj / rejen":vals.kw>0.3?"Çekiş":"Bekleme", vals.kw>0.3?"pos":vals.kw<-0.3?"neg":"");
-  for (const [id,k,unit,d] of [["motor","motor","°C",0],["cout","cout","°C",0],["rpm","rpm","d/dk",0]]){
+  for (const [id,k,unit,d] of [["motor","motor","°C",0],["cout","cout","°C",1],["rpm","rpm","d/dk",0],["torque","torque","Nm",0]]){
     const def=defined(k); $("t-"+id).classList.toggle("na", !def);
-    tile(id, vals[k], unit, d, def ? (raw[k]?"ham "+hex(raw[k]):"bekleniyor") : "Kaynak tanımlı değil (Ayarlar)");
-    $("t-"+id).querySelector(".src").textContent = def ? "tanımlı" : "tanımsız";
+    tile(id, vals[k], unit, d, def ? (raw[k]?"ham "+hex(raw[k]):"bekleniyor") : "Kaynak tanımlı değil (Ayarlar)", id==="rpm"||id==="torque" ? (vals[k]<0?"neg":vals[k]>0?"pos":"") : "");
+    $("t-"+id).querySelector(".src").textContent = def ? (UNIT_NAMES[pcfg.sources[k].tx.toUpperCase()]||"tanımlı") : "tanımsız";
   }
   const fresh = geo.t && now-geo.t<5000;
   tile("spd", fresh?geo.spd:null, "km/s", 0, fresh?"":"GPS bekleniyor");
@@ -282,9 +293,10 @@ function buildSrcTable(){
 }
 $("srcTable").addEventListener("change", e=>{ const tr=e.target.closest("tr[data-k]"); if(!tr) return; const s={};
   for (const inp of tr.querySelectorAll("input")) if (inp.value.trim()!=="") s[inp.dataset.f]=inp.value.trim();
-  if (Object.keys(s).length) pcfg.sources[tr.dataset.k]=s; else delete pcfg.sources[tr.dataset.k];
+  pcfg.sources[tr.dataset.k] = Object.keys(s).length ? s : null;
   savePcfg(); $("srcJson").value=JSON.stringify(pcfg.sources); render(); });
 $("btnApply").onclick=()=>{ try{ const o=JSON.parse($("srcJson").value||"{}"); if (typeof o!=="object"||Array.isArray(o)) throw 0; pcfg.sources=o; savePcfg(); buildSrcTable(); log("Kaynak tanımları uygulandı"); }catch{ log("Kod okunamadı"); } };
+$("btnDefaults").onclick=()=>{ for (const k in DEFAULT_SOURCES) pcfg.sources[k]=Object.assign({}, DEFAULT_SOURCES[k]); savePcfg(); buildSrcTable(); render(); log("Varsayılan kaynaklar yüklendi"); };
 $("btnCopy").onclick=async()=>{ try{ await navigator.clipboard.writeText($("srcJson").value); log("Kopyalandı"); }catch{ log("Kopyalanamadı"); } };
 $("btnSet").onclick=()=>{ buildSrcTable(); $("interval").value=String(pcfg.interval); $("dlg").showModal(); };
 $("btnClose").onclick=()=>$("dlg").close();
