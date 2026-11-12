@@ -63,6 +63,14 @@
   .chk.bad .d{color:#ffb3b3}
   .bigbtn{width:100%;padding:16px;font-size:17px;margin-top:4px}
   @media (min-width:900px){.tile.big .v{font-size:56px}}
+  /* telefon yatay: başlık ve sekmeler sıkışık, kutular küçük */
+  @media (orientation:landscape) and (max-height:520px){
+    .bar{padding:6px 12px 4px} .bar h1{font-size:15px} nav{padding:0 12px 6px} nav button{padding:5px 10px;font-size:13px}
+    main{padding:10px} .grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+    .tile{padding:8px 10px} .tile .v{font-size:22px} .tile.big .v{font-size:34px} canvas{height:170px}
+  }
+  @media (min-width:1500px){ main{max-width:1500px} }
+  @media (max-width:420px){ .bar h1{font-size:15px} .tile .v{font-size:24px} .tile.big .v{font-size:40px} }
 </style>
 </head>
 <body>

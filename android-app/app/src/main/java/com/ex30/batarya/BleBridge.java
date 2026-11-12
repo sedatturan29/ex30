@@ -18,6 +18,11 @@ import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanResult;
 import android.content.ClipData;
+import android.content.ContentValues;
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Environment;
+import android.provider.MediaStore;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -34,7 +39,10 @@ import android.widget.Toast;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -233,6 +241,38 @@ public class BleBridge {
     @JavascriptInterface
     public void publish(final String json) {
         CarData.update(json);
+    }
+
+    /** Kayıt dosyasını İndirilenler/EX30 klasörüne yazar ve paylaşma menüsünü açar. */
+    @JavascriptInterface
+    public void saveFile(final String name, final String mime, final String text) {
+        main.post(() -> {
+            try {
+                byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
+                if (Build.VERSION.SDK_INT >= 29) {
+                    ContentValues v = new ContentValues();
+                    v.put(MediaStore.Downloads.DISPLAY_NAME, name);
+                    v.put(MediaStore.Downloads.MIME_TYPE, mime);
+                    v.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/EX30");
+                    Uri uri = act.getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+                    if (uri == null) throw new IllegalStateException("dosya oluşturulamadı");
+                    try (OutputStream o = act.getContentResolver().openOutputStream(uri)) { o.write(bytes); }
+                    Toast.makeText(act, "İndirilenler/EX30 klasörüne kaydedildi", Toast.LENGTH_LONG).show();
+                    Intent share = new Intent(Intent.ACTION_SEND);
+                    share.setType(mime);
+                    share.putExtra(Intent.EXTRA_STREAM, uri);
+                    share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    act.startActivity(Intent.createChooser(share, "Kaydı paylaş"));
+                } else {
+                    File dir = act.getExternalFilesDir(null);
+                    File f = new File(dir, name);
+                    try (FileOutputStream o = new FileOutputStream(f)) { o.write(bytes); }
+                    Toast.makeText(act, "Kaydedildi: " + f.getAbsolutePath(), Toast.LENGTH_LONG).show();
+                }
+            } catch (Exception e) {
+                Toast.makeText(act, "Kaydedilemedi: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            }
+        });
     }
 
     @JavascriptInterface

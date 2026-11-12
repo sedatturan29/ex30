@@ -10,8 +10,9 @@
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.35 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
   header{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:3}
-  header h1{font-size:16px;margin:0;flex:1;font-weight:600}
+  header h1{font-size:16px;margin:0;flex:1;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
   .pill{font-size:12px;padding:4px 10px;border-radius:99px;background:var(--line);color:var(--mut);white-space:nowrap}
+  #recPill{background:#3a1717;color:var(--bad)}
   .pill.on{background:#123524;color:var(--ok)} .pill.err{background:#3a1717;color:var(--bad)} .pill.busy{background:#3a3117;color:var(--warn)}
   button{font:inherit;border:0;border-radius:10px;padding:9px 14px;background:var(--acc);color:#fff;font-weight:600;cursor:pointer}
   button.sec{background:var(--line);color:var(--fg)} button.mini{padding:5px 10px;font-size:12px;font-weight:500}
@@ -26,7 +27,8 @@
   .t.big .v{font-size:46px}
   .t.w2{grid-column:span 2}
   .t.na .v{color:#4a5466}
-  .t .src{font-size:10px;padding:1px 6px;border-radius:6px;background:var(--line);color:var(--mut)}
+  .t .src{font-size:10px;padding:1px 6px;border-radius:6px;background:var(--line);color:var(--mut);align-self:flex-start;white-space:nowrap;flex:none}
+  .t .k{align-items:flex-start}
   .pos{color:var(--hot)} .neg{color:var(--ok)}
   @media (min-width:1200px){ .t.r2{grid-row:span 2} .t.r2 .v{font-size:40px} }
   main{grid-auto-flow:dense}
@@ -37,6 +39,22 @@
   .legend{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:11px;color:var(--mut);margin-top:6px}
   .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
   .cmp{font-size:12px;color:var(--mut);margin-top:2px}
+  /* dar telefon (dikey) */
+  @media (max-width:420px){ .rtxt{display:none} header{gap:6px;padding:10px 10px} header h1{font-size:15px} main{padding:10px;gap:8px} .t .v{font-size:28px} .t.big .v{font-size:40px} }
+  /* telefon yatay: kısa ekran, daha sık ızgara */
+  @media (orientation:landscape) and (max-height:520px){
+    header{padding:6px 12px} main{grid-template-columns:repeat(6,1fr);gap:8px;padding:8px}
+    .t{min-height:72px;padding:8px 10px} .t .v{font-size:24px} .t.big .v{font-size:34px} .t .s{font-size:10px}
+    .t .k{font-size:11px} .t .src{display:none} #t-trip .k{display:flex}
+    .t.r2{grid-row:auto} .t.r2 .v{font-size:24px}
+    .tires{grid-column:span 3;grid-row:span 3} .tiresvg{max-height:210px;width:auto;max-width:100%}
+  }
+  /* geniş ekran (araç ekranı, tablet yatay) */
+  @media (min-width:1600px){
+    main{max-width:none;grid-template-columns:repeat(8,1fr)}
+    .t.r2{grid-row:auto} .t.r2 .v{font-size:32px}
+    .tires{grid-column:7 / span 2;grid-row:1 / span 3} .tiresvg{max-height:270px;width:auto;max-width:100%}
+  }
   .cmp b{color:var(--fg);font-weight:600}
   .car{grid-column:2;grid-row:1/3;height:100%;min-height:150px;border:2px solid var(--line);border-radius:22px 22px 16px 16px;position:relative}
   .car::after{content:"";position:absolute;left:10px;right:10px;top:22%;height:18%;border:2px solid var(--line);border-radius:8px}
@@ -55,6 +73,7 @@
 <body>
 <header>
   <h1>EX30 Canlı Panel</h1>
+  <span id="recPill" class="pill" style="display:none">●<span class="rtxt"> Kayıt</span></span>
   <span id="pill" class="pill">Bağlı değil</span>
   <button class="sec mini" id="btnSet">Ayarlar</button>
   <button id="btnConn">Bağlan</button>
@@ -105,6 +124,14 @@
       <select id="interval" style="width:auto"><option value="0">En hızlı</option><option value="1000">1 sn</option><option value="2000">2 sn</option></select></label>
     <span class="note" id="rateInfo"></span>
   </div>
+  <h2 style="margin-top:14px">Oturum kayıtları</h2>
+  <div class="row">
+    <label class="note"><input type="checkbox" id="logOn" style="width:auto"> Bağlanınca otomatik kaydet</label>
+    <label class="note">Sıklık
+      <select id="logMode" style="width:auto"><option value="1000">Saniyede bir satır</option><option value="0">Her ölçüm (ham)</option></select></label>
+  </div>
+  <p class="note" id="logInfo"></p>
+  <div style="overflow-x:auto"><table id="logTable"><thead><tr><th>Başlangıç</th><th>Süre</th><th>Satır</th><th>Boyut</th><th></th></tr></thead><tbody></tbody></table></div>
   <h2 style="margin-top:14px">Kaynak tanımları</h2>
   <p class="note">Kaynağı bilinmeyen değerler için araç ünitesinin istek/cevap kimliği, kod (DID) ve formül. Sadece okuma (UDS 22) gönderilir. Değer = (başlangıç baytından itibaren uzunluk kadar bayt, işaretsiz) × çarpan + ekleme. Boş bırakılan satır okunmaz.</p>
   <div style="overflow-x:auto"><table id="srcTable"><thead><tr><th>Değer</th><th>İstek ID</th><th>Cevap ID</th><th>DID</th><th>Bayt</th><th>Uzunluk</th><th>Çarpan</th><th>Ekleme</th><th>Her n tur</th></tr></thead><tbody></tbody></table></div>
@@ -158,7 +185,7 @@ const SERVICES = [0xfff0, 0xffe0, 0x18f0, "e7810a71-73ae-499d-8c15-faa9aef0c3f2"
 const store = { get(k,d){ try{ const v=localStorage.getItem("ex30."+k); return v==null?d:JSON.parse(v);}catch{return d;} }, set(k,v){ try{ localStorage.setItem("ex30."+k, JSON.stringify(v)); }catch{} } };
 const mainCfg = store.get("cfg", {});
 const sign = mainCfg.sign || 1;
-const pcfg = Object.assign({interval:0, sources:{}}, store.get("panel", {}));
+const pcfg = Object.assign({interval:0, sources:{}, logOn:true, logMode:"1000"}, store.get("panel", {}));
 for (const k in DEFAULT_SOURCES) if (pcfg.sources[k] === undefined) pcfg.sources[k] = Object.assign({}, DEFAULT_SOURCES[k]);
 function savePcfg(){ store.set("panel", pcfg); }
 const newTrip = () => ({start:Date.now(), km:0, eOut:0, eIn:0, movingMs:0, kmCar:0, movingMsCar:0, odoStart:null});
@@ -215,10 +242,11 @@ async function connect(){
     const r1 = await send("22491B1"); suffix = parseDid(r1,"491B") ? "1" : ""; log("Tek-cevap modu: "+(suffix?"açık":"kapalı"));
     setPill("on","Bağlı"); $("btnConn").textContent="Kes";
     try{ wake = await navigator.wakeLock?.request("screen"); }catch{}
+    logStart();
     loop();
   }catch(e){ log("Hata: "+e.message); setPill("err","Bağlantı hatası"); cleanup(); }
 }
-function cleanup(){ running=false; chW=null; $("btnConn").textContent="Bağlan"; try{wake?.release()}catch{} wake=null; }
+function cleanup(){ running=false; chW=null; logStop(); $("btnConn").textContent="Bağlan"; try{wake?.release()}catch{} wake=null; }
 function disconnect(){ manual=true; try{ dev?.gatt?.disconnect(); }catch{} setPill("","Bağlı değil"); cleanup(); }
 
 // ============ Okuma döngüsü ============
@@ -262,6 +290,7 @@ function sample(){
   if (lastS && vs!=null && lastS.vs!=null){ const dth=Math.min(now-lastS.t, 15000)/3600e3, vm=(vs+lastS.vs)/2; trip.kmCar += vm*dth; if (vm>3) trip.movingMsCar += dth*3600e3; }
   if (vals.odo!=null && trip.odoStart==null) trip.odoStart = vals.odo;
   lastS={t:now, P, vs};
+  logRow(now);
   render();
 }
 const geo={last:null, spd:null, t:0};
@@ -325,6 +354,69 @@ function render(){
     $("rateInfo").textContent=`${fmt(hz,1)} tur/sn · istek ${fmt(ms,0)} ms · tek-cevap ${suffix?"açık":"kapalı"}`; }
 }
 const hex=b=>b.map(x=>x.toString(16).padStart(2,"0")).join(" ").toUpperCase();
+
+// ============ Oturum kaydı (IndexedDB, CSV) ============
+const LOG_COLS = [["avg","bat_ort_C"],["cin","sogutma_giris_C"],["cout","guc_aktarma_sogutma_C"],["motor","motor_C"],["soc","sarj_yuzde"],
+  ["volt","voltaj_V"],["cur","akim_A"],["kw","guc_kW"],["rpm","motor_devri"],["torque","tork_Nm"],["vspd","arac_hizi_kmsa"],["gps","gps_hizi_kmsa"],
+  ["lat","enlem"],["lon","boylam"],["odo","km_sayaci"],["p_fl","basinc_sol_on_psi"],["p_fr","basinc_sag_on_psi"],["p_rl","basinc_sol_arka_psi"],["p_rr","basinc_sag_arka_psi"],
+  ["t_fl","lastik_sol_on_C"],["t_fr","lastik_sag_on_C"],["t_rl","lastik_sol_arka_C"],["t_rr","lastik_sag_arka_C"]];
+const p2=n=>String(n).padStart(2,"0");
+const localStamp = t => { const d=new Date(t); return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3,"0")}`; };
+const LOG_HEADER = "zaman," + LOG_COLS.map(c=>c[1]).join(",");
+let db=null, logSess=null, logBuf=[], lastLogRow=0, logFlushTimer=null;
+function openDb(){ return new Promise(res=>{ try{ const r=indexedDB.open("ex30log",1);
+  r.onupgradeneeded=()=>{ const d=r.result; d.createObjectStore("sessions",{keyPath:"id"}); const c=d.createObjectStore("chunks",{autoIncrement:true}); c.createIndex("sid","sid"); };
+  r.onsuccess=()=>res(r.result); r.onerror=()=>res(null); }catch{ res(null); } }); }
+function tx(store, mode){ return db.transaction(store, mode).objectStore(store); }
+const idb = req => new Promise((res,rej)=>{ req.onsuccess=()=>res(req.result); req.onerror=()=>rej(req.error); });
+async function logStart(){
+  if (!pcfg.logOn) return; if (!db) db = await openDb(); if (!db){ log("Kayıt veritabanı açılamadı"); return; }
+  logSess = {id:String(Date.now()), start:Date.now(), end:Date.now(), rows:0, bytes:0, mode:pcfg.logMode};
+  await idb(tx("sessions","readwrite").put(logSess)); logBuf=[]; lastLogRow=0;
+  $("recPill").style.display=""; logFlushTimer=setInterval(logFlush, 15000); log("Oturum kaydı başladı");
+}
+function logRow(now){
+  if (!logSess) return; if (+pcfg.logMode && now-lastLogRow < +pcfg.logMode) return; lastLogRow=now;
+  const v = Object.assign({}, vals, {gps: (geo.t && now-geo.t<5000) ? geo.spd : null, lat: geo.last?.lat, lon: geo.last?.lon});
+  const line = localStamp(now) + "," + LOG_COLS.map(([k])=>{ const x=v[k]; return x==null||!isFinite(x) ? "" : (k==="lat"||k==="lon" ? (+x).toFixed(6) : +(+x).toFixed(3)); }).join(",");
+  logBuf.push(line); logSess.rows++; logSess.bytes += line.length+1; logSess.end=now;
+}
+async function logFlush(){
+  if (!logSess || !db || !logBuf.length) return;
+  const text = logBuf.join("\n")+"\n"; logBuf=[];
+  try{ await idb(tx("chunks","readwrite").add({sid:logSess.id, text})); await idb(tx("sessions","readwrite").put(logSess)); }catch(e){ log("Kayıt yazılamadı: "+e.message); }
+}
+async function logStop(){
+  if (!logSess) return; clearInterval(logFlushTimer); await logFlush(); log(`Oturum kaydedildi: ${logSess.rows} satır, ${kb(logSess.bytes)}`);
+  logSess=null; $("recPill").style.display="none"; renderLogs();
+}
+const kb = b => b>1048576 ? fmt(b/1048576,1)+" MB" : Math.max(1,Math.round(b/1024))+" KB";
+async function renderLogs(){
+  if (!db) db = await openDb(); const tb=$("logTable").querySelector("tbody"); if (!db){ tb.innerHTML=""; return; }
+  const list = (await idb(tx("sessions","readonly").getAll())).sort((a,b)=>b.start-a.start);
+  const total = list.reduce((a,x)=>a+x.bytes,0);
+  $("logInfo").textContent = `${list.length} kayıt, toplam ${kb(total)}. Saniyede bir satır ≈ saatte 0,5 MB; ham mod ≈ saatte 2–3 MB.`;
+  tb.innerHTML = list.map(x=>`<tr><td>${new Date(x.start).toLocaleString("tr-TR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}${logSess&&logSess.id===x.id?" (sürüyor)":""}</td><td>${Math.round((x.end-x.start)/60000)} dk</td><td>${x.rows}</td><td>${kb(x.bytes)}</td><td style="white-space:nowrap"><button class="sec mini" data-dl="${x.id}">İndir</button> <button class="sec mini" data-rm="${x.id}">Sil</button></td></tr>`).join("") || `<tr><td colspan="5" class="note">Henüz kayıt yok</td></tr>`;
+}
+async function logExport(id){
+  if (logSess && logSess.id===id) await logFlush();
+  const s = await idb(tx("sessions","readonly").get(id)); if (!s) return;
+  const chunks = await idb(tx("chunks","readonly").index("sid").getAll(id));
+  const text = LOG_HEADER + "\n" + chunks.map(c=>c.text).join("");
+  const name = "EX30_" + localStamp(s.start).slice(0,19).replace(/[: ]/g,"-") + ".csv";
+  if (window.AndroidBle && AndroidBle.saveFile){ AndroidBle.saveFile(name, "text/csv", text); return; }
+  try{ const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([text],{type:"text/csv"})); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 2000); log(name+" indirildi"); }
+  catch{ try{ await navigator.clipboard.writeText(text); log("İndirilemedi; panoya kopyalandı"); }catch{ log("İndirilemedi"); } }
+}
+async function logDelete(id){
+  if (logSess && logSess.id===id) return;
+  const keys = await idb(tx("chunks","readonly").index("sid").getAllKeys(id));
+  const st = tx("chunks","readwrite"); for (const k of keys) st.delete(k);
+  await idb(tx("sessions","readwrite").delete(id)); renderLogs();
+}
+$("logTable").addEventListener("click", e=>{ const d=e.target.closest("[data-dl]"), r=e.target.closest("[data-rm]");
+  if (d) logExport(d.dataset.dl);
+  if (r){ if (r.dataset.ok){ logDelete(r.dataset.rm); } else { r.dataset.ok="1"; r.textContent="Emin misiniz?"; setTimeout(()=>{ if(r.isConnected){ delete r.dataset.ok; r.textContent="Sil"; } },3000); } } });
 // Lastik basıncı renk kademeleri (psi): 36–42 yeşil, uzaklaştıkça sarı → turuncu → kırmızı
 const TIRE_STAGES = [
   {max:30,  c:"#ff5d5d", t:"< 30 çok düşük"},
@@ -355,13 +447,15 @@ $("srcTable").addEventListener("change", e=>{ const tr=e.target.closest("tr[data
 $("btnApply").onclick=()=>{ try{ const o=JSON.parse($("srcJson").value||"{}"); if (typeof o!=="object"||Array.isArray(o)) throw 0; pcfg.sources=o; savePcfg(); buildSrcTable(); log("Kaynak tanımları uygulandı"); }catch{ log("Kod okunamadı"); } };
 $("btnDefaults").onclick=()=>{ for (const k in DEFAULT_SOURCES) pcfg.sources[k]=Object.assign({}, DEFAULT_SOURCES[k]); savePcfg(); buildSrcTable(); render(); log("Varsayılan kaynaklar yüklendi"); };
 $("btnCopy").onclick=async()=>{ try{ await navigator.clipboard.writeText($("srcJson").value); log("Kopyalandı"); }catch{ log("Kopyalanamadı"); } };
-$("btnSet").onclick=()=>{ buildSrcTable(); $("interval").value=String(pcfg.interval); $("dlg").showModal(); };
+$("btnSet").onclick=()=>{ buildSrcTable(); $("interval").value=String(pcfg.interval); $("logOn").checked=!!pcfg.logOn; $("logMode").value=String(pcfg.logMode); renderLogs(); $("dlg").showModal(); };
+$("logOn").onchange=()=>{ pcfg.logOn=$("logOn").checked; savePcfg(); if (!pcfg.logOn) logStop(); else if (chW && !logSess) logStart(); };
+$("logMode").onchange=()=>{ pcfg.logMode=$("logMode").value; savePcfg(); };
 $("btnClose").onclick=()=>$("dlg").close();
 $("interval").onchange=()=>{ pcfg.interval=+$("interval").value; savePcfg(); };
 $("btnConn").onclick=()=> $("btnConn").textContent==="Kes" ? disconnect() : connect();
 $("btnTripReset").onclick=()=>{ trip=newTrip(); saveTrip(); lastR=0; render(); };
 setInterval(saveTrip, 10000);
-window.addEventListener("pagehide", saveTrip);
+window.addEventListener("pagehide", ()=>{ saveTrip(); logFlush(); });
 document.addEventListener("visibilitychange", async()=>{ if (document.visibilityState==="visible" && chW && !wake){ try{ wake=await navigator.wakeLock?.request("screen"); }catch{} } });
 $("tireLegend").innerHTML = [TIRE_STAGES[0],TIRE_STAGES[1],TIRE_STAGES[2],TIRE_STAGES[3],TIRE_STAGES[4],TIRE_STAGES[5],TIRE_STAGES[6]].map(s=>`<span><i style="background:${s.c}"></i>${s.t}</span>`).join("");
 geoStart(); render();
