@@ -32,11 +32,12 @@
   main{grid-auto-flow:dense}
   .tires{grid-column:span 2;grid-row:span 2}
   @media (max-width:759px){ .tires{grid-column:1/-1;grid-row:auto} }
-  .tirebox{display:grid;grid-template-columns:1fr 70px 1fr;grid-template-rows:1fr 1fr;gap:8px;align-items:center;margin-top:6px;flex:1}
-  .tire{background:#0f1218;border:1px solid var(--line);border-radius:10px;padding:8px;text-align:center}
-  .tire .p{font-size:26px;font-weight:700;font-variant-numeric:tabular-nums}
-  .tire .p small{font-size:12px;color:var(--mut);font-weight:500}
-  .tire .c{font-size:13px;color:var(--mut)}
+  .tiresvg{width:100%;max-width:440px;margin:6px auto 0;display:block}
+  .tiresvg text{font-family:inherit;font-variant-numeric:tabular-nums}
+  .legend{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:11px;color:var(--mut);margin-top:6px}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+  .cmp{font-size:12px;color:var(--mut);margin-top:2px}
+  .cmp b{color:var(--fg);font-weight:600}
   .car{grid-column:2;grid-row:1/3;height:100%;min-height:150px;border:2px solid var(--line);border-radius:22px 22px 16px 16px;position:relative}
   .car::after{content:"";position:absolute;left:10px;right:10px;top:22%;height:18%;border:2px solid var(--line);border-radius:8px}
   dialog{background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:14px;max-width:720px;width:94vw;padding:14px}
@@ -61,7 +62,7 @@
 <main id="grid">
   <div class="t big w2" id="t-avg"><div class="k">Ortalama batarya sıcaklığı <span class="src">BMS</span></div><div class="v">–<small>°C</small></div><div class="s"></div></div>
   <div class="t big w2" id="t-kw"><div class="k">Anlık güç (+ çekiş, − şarj/rejen) <span class="src">BMS</span></div><div class="v">–<small>kW</small></div><div class="s"></div></div>
-  <div class="t big w2" id="t-spd"><div class="k">Hız <span class="src">GPS</span></div><div class="v">–<small>km/s</small></div><div class="s"></div></div>
+  <div class="t big w2" id="t-spd"><div class="k">Hız <span class="src" id="spdSrc">GPS</span></div><div class="v">–<small>km/s</small></div><div class="s"></div></div>
   <div class="t" id="t-cin"><div class="k">Soğutma sıvısı giriş <span class="src">BMS</span></div><div class="v">–<small>°C</small></div><div class="s"></div></div>
   <div class="t" id="t-cout"><div class="k">Güç aktarma soğutma sıvısı <span class="src">tanımsız</span></div><div class="v">–<small>°C</small></div><div class="s"></div></div>
   <div class="t" id="t-motor"><div class="k">Motor sıcaklığı <span class="src">tanımsız</span></div><div class="v">–<small>°C</small></div><div class="s"></div></div>
@@ -70,17 +71,30 @@
   <div class="t" id="t-volt"><div class="k">Voltaj <span class="src">BMS</span></div><div class="v">–<small>V</small></div><div class="s"></div></div>
   <div class="t" id="t-amp"><div class="k">Akım <span class="src">BMS</span></div><div class="v">–<small>A</small></div><div class="s"></div></div>
   <div class="t r2" id="t-soc"><div class="k">Şarj <span class="src">BMS</span></div><div class="v">–<small>%</small></div><div class="s"></div></div>
-  <div class="t r2" id="t-avgspd"><div class="k">Ortalama hız (yolculuk) <span class="src">GPS</span></div><div class="v">–<small>km/s</small></div><div class="s"></div></div>
+  <div class="t r2" id="t-avgspd"><div class="k">Ortalama hız (yolculuk) <span class="src" id="avgSrc">GPS</span></div><div class="v">–<small>km/s</small></div><div class="s"></div></div>
   <div class="t w2 r2" id="t-trip"><div class="k">Yolculuk tüketimi (uygulama) <button class="sec mini" id="btnTripReset">Sıfırla</button></div><div class="v">–<small>kWh/100km</small></div><div class="s"></div></div>
   <div class="t tires" id="t-tires"><div class="k">Lastik basıncı ve sıcaklığı <span class="src" id="tireSrc">tanımsız</span></div>
-    <div class="tirebox">
-      <div class="tire" id="tire-fl"><div class="p">–<small> bar</small></div><div class="c">– °C</div></div>
-      <div class="car"></div>
-      <div class="tire" id="tire-fr"><div class="p">–<small> bar</small></div><div class="c">– °C</div></div>
-      <div class="tire" id="tire-rl"><div class="p">–<small> bar</small></div><div class="c">– °C</div></div>
-      <div class="tire" id="tire-rr"><div class="p">–<small> bar</small></div><div class="c">– °C</div></div>
-    </div>
-    <div class="s">Sol ön · sağ ön · sol arka · sağ arka</div>
+    <svg class="tiresvg" viewBox="0 0 440 300" role="img" aria-label="Dört lastiğin basıncı">
+      <rect x="160" y="16" width="120" height="268" rx="38" fill="#0f1218" stroke="#2b3240" stroke-width="2"/>
+      <rect x="172" y="70" width="96" height="58" rx="12" fill="none" stroke="#2b3240" stroke-width="2"/>
+      <rect x="176" y="196" width="88" height="44" rx="10" fill="none" stroke="#2b3240" stroke-width="2"/>
+      <text x="220" y="40" text-anchor="middle" font-size="11" fill="#8792a5">ÖN</text>
+      <text x="220" y="272" text-anchor="middle" font-size="11" fill="#8792a5">ARKA</text>
+      <rect id="tw-fl" x="140" y="44" width="22" height="58" rx="7" fill="#3a4250"/>
+      <rect id="tw-fr" x="278" y="44" width="22" height="58" rx="7" fill="#3a4250"/>
+      <rect id="tw-rl" x="140" y="198" width="22" height="58" rx="7" fill="#3a4250"/>
+      <rect id="tw-rr" x="278" y="198" width="22" height="58" rx="7" fill="#3a4250"/>
+      <text id="tp-fl" x="126" y="72" text-anchor="end" font-size="28" font-weight="700" fill="#eef1f6">–</text>
+      <text id="tx-fl" x="126" y="94" text-anchor="end" font-size="12" fill="#8792a5">psi</text>
+      <text id="tp-fr" x="314" y="72" font-size="28" font-weight="700" fill="#eef1f6">–</text>
+      <text id="tx-fr" x="314" y="94" font-size="12" fill="#8792a5">psi</text>
+      <text id="tp-rl" x="126" y="226" text-anchor="end" font-size="28" font-weight="700" fill="#eef1f6">–</text>
+      <text id="tx-rl" x="126" y="248" text-anchor="end" font-size="12" fill="#8792a5">psi</text>
+      <text id="tp-rr" x="314" y="226" font-size="28" font-weight="700" fill="#eef1f6">–</text>
+      <text id="tx-rr" x="314" y="248" font-size="12" fill="#8792a5">psi</text>
+    </svg>
+    <div class="legend" id="tireLegend"></div>
+    <div class="s" id="tireNote"></div>
   </div>
 </main>
 
@@ -111,11 +125,14 @@ const BMS_PIDS = [
   {id:"avg",  did:"491B", every:3,  f:d => u16(d)/100 - 50},
   {id:"cin",  did:"4804", every:3,  f:d => d[d.length-1] - 50},
   {id:"soc",  did:"4801", every:10, f:d => 1.0625*0.002*u16(d) - 3.125},
+  // Aday: kilometre sayacı (3 bayt, km); her modda seyrek okunur
+  {id:"odo",  did:"DD01", every:30, slow:true, f:d => d.length>=3 ? d[d.length-3]*65536 + d[d.length-2]*256 + d[d.length-1] : NaN},
 ];
 // Kaynağı bilinmeyen değerler: kullanıcı/sonraki sürüm tanımlar
 const CUSTOM_KEYS = [
   ["motor","Motor sıcaklığı (°C)"],["cout","Güç aktarma soğutma sıvısı (°C)"],["rpm","Motor devri (d/dk)"],["torque","Motor torku (Nm)"],
-  ["p_fl","Basınç sol ön (bar)"],["p_fr","Basınç sağ ön (bar)"],["p_rl","Basınç sol arka (bar)"],["p_rr","Basınç sağ arka (bar)"],
+  ["vspd","Araç hızı (km/sa)"],
+  ["p_fl","Basınç sol ön (psi)"],["p_fr","Basınç sağ ön (psi)"],["p_rl","Basınç sol arka (psi)"],["p_rr","Basınç sağ arka (psi)"],
   ["t_fl","Lastik sıc. sol ön (°C)"],["t_fr","Lastik sıc. sağ ön (°C)"],["t_rl","Lastik sıc. sol arka (°C)"],["t_rr","Lastik sıc. sağ arka (°C)"],
 ];
 // Car Scanner EX30 profilinin kaydından çıkarılan kaynaklar (kullanıcı değiştirebilir)
@@ -125,7 +142,15 @@ const DEFAULT_SOURCES = {
   rpm:    {tx:"1DD01637", rx:"1EC6EE80", did:"E303", start:"0", len:"2", scale:"1",   offset:"-16384", every:"2"},
   torque: {tx:"1DD01637", rx:"1EC6EE80", did:"E304", start:"0", len:"2", scale:"1",   offset:"-8188",  every:"2"},
   cout:   {tx:"1DD01601", rx:"1EC02E80", did:"4A34", start:"2", len:"2", scale:"0.1", offset:"-40",    every:"5"},
+  // Aday (doğrulanmadı): şasi ünitesi, standart OBD hız kodu
+  vspd:   {tx:"1DD01701", rx:"1EE02E80", did:"F40D", start:"0", len:"1", scale:"1",   offset:"0",      every:"1"},
+  // Aday (doğrulanmadı): FEE7 = 4 × 2 bayt; ham × 1,6 kPa varsayımıyla psi (157 → 36,4 psi, 177 → 41,1 psi)
+  p_fl:   {tx:"1DD01701", rx:"1EE02E80", did:"FEE7", start:"0", len:"2", scale:"0.23206", offset:"0", every:"10"},
+  p_fr:   {tx:"1DD01701", rx:"1EE02E80", did:"FEE7", start:"2", len:"2", scale:"0.23206", offset:"0", every:"10"},
+  p_rl:   {tx:"1DD01701", rx:"1EE02E80", did:"FEE7", start:"4", len:"2", scale:"0.23206", offset:"0", every:"10"},
+  p_rr:   {tx:"1DD01701", rx:"1EE02E80", did:"FEE7", start:"6", len:"2", scale:"0.23206", offset:"0", every:"10"},
 };
+const CANDIDATE = new Set(["vspd","p_fl","p_fr","p_rl","p_rr"]);   // ekranda "aday" olarak işaretlenir
 const INIT = ["ATZ","ATE0","ATL0","ATS0","ATH1","ATAL","ATST64","ATSP7"];
 const SERVICES = [0xfff0, 0xffe0, 0x18f0, "e7810a71-73ae-499d-8c15-faa9aef0c3f2"];
 
@@ -136,7 +161,8 @@ const sign = mainCfg.sign || 1;
 const pcfg = Object.assign({interval:0, sources:{}}, store.get("panel", {}));
 for (const k in DEFAULT_SOURCES) if (pcfg.sources[k] === undefined) pcfg.sources[k] = Object.assign({}, DEFAULT_SOURCES[k]);
 function savePcfg(){ store.set("panel", pcfg); }
-let trip = Object.assign({start:Date.now(), km:0, eOut:0, eIn:0, movingMs:0}, store.get("panelTrip", {}));
+const newTrip = () => ({start:Date.now(), km:0, eOut:0, eIn:0, movingMs:0, kmCar:0, movingMsCar:0, odoStart:null});
+let trip = Object.assign(newTrip(), store.get("panelTrip", {}));
 function saveTrip(){ store.set("panelTrip", trip); }
 
 // ============ ELM327 / BLE ============
@@ -204,17 +230,19 @@ async function loop(){
     cycle++; const fast = pcfg.interval < 1000;
     await useEcu(BMS.tx, BMS.rx);
     for (const p of BMS_PIDS){
-      if (fast && cycle % p.every !== 0 && vals[p.id]!=null) continue;
+      if ((fast || p.slow) && cycle % p.every !== 0 && vals[p.id]!=null) continue;
       const b = parseDid(await readDid(p.did), p.did);
       if (b){ raw[p.id]=b; const v=p.f(b); vals[p.id]=isFinite(v)?v:null; }
     }
     // tanımlı ek kaynaklar, ünite ünite gruplanır
     const defs = CUSTOM_KEYS.map(([k])=>[k, pcfg.sources[k]]).filter(([,s])=>s && /^[0-9A-F]{8}$/i.test(s.tx||"") && /^[0-9A-F]{8}$/i.test(s.rx||"") && /^[0-9A-F]{4}$/i.test(s.did||""));
     defs.sort((a,b)=>(a[1].tx+a[1].rx).localeCompare(b[1].tx+b[1].rx));
+    const cache = {};
     for (const [k,s] of defs){
       if (cycle % Math.max(1, +s.every||5) !== 0 && vals[k]!=null) continue;
-      await useEcu(s.tx.toUpperCase(), s.rx.toUpperCase());
-      const did=s.did.toUpperCase(), b=parseDid(await readDid(did), did);
+      const did=s.did.toUpperCase(), ck=s.tx.toUpperCase()+s.rx.toUpperCase()+did;
+      let b = cache[ck];
+      if (b===undefined){ await useEcu(s.tx.toUpperCase(), s.rx.toUpperCase()); b = cache[ck] = parseDid(await readDid(did), did); }
       if (b){ const st=+s.start||0, ln=Math.min(4, Math.max(1,+s.len||1)); let v=0; for (let i=0;i<ln;i++) v=v*256+(b[st+i]??0);
         vals[k] = v*(+s.scale||1) + (+s.offset||0); raw[k]=b; }
     }
@@ -229,7 +257,11 @@ function sample(){
   const now=Date.now(); speed.cyc.push(now); while (speed.cyc.length && now-speed.cyc[0]>10000) speed.cyc.shift();
   const P = (vals.volt!=null && vals.cur!=null) ? vals.volt*vals.cur/1000*sign : null; vals.kw = P;
   if (lastS && P!=null && lastS.P!=null){ const dt=Math.min(now-lastS.t, 15000)/3600e3, Pm=(P+lastS.P)/2; trip.eOut+=Math.max(Pm,0)*dt; trip.eIn+=Math.max(-Pm,0)*dt; }
-  lastS={t:now, P};
+  // araç hızından mesafe (hız km/sa × süre)
+  const vs = defined("vspd") ? vals.vspd : null;
+  if (lastS && vs!=null && lastS.vs!=null){ const dth=Math.min(now-lastS.t, 15000)/3600e3, vm=(vs+lastS.vs)/2; trip.kmCar += vm*dth; if (vm>3) trip.movingMsCar += dth*3600e3; }
+  if (vals.odo!=null && trip.odoStart==null) trip.odoStart = vals.odo;
+  lastS={t:now, P, vs};
   render();
 }
 const geo={last:null, spd:null, t:0};
@@ -265,21 +297,46 @@ function render(){
     tile(id, vals[k], unit, d, def ? (raw[k]?"ham "+hex(raw[k]):"bekleniyor") : "Kaynak tanımlı değil (Ayarlar)", id==="rpm"||id==="torque" ? (vals[k]<0?"neg":vals[k]>0?"pos":"") : "");
     $("t-"+id).querySelector(".src").textContent = def ? (UNIT_NAMES[pcfg.sources[k].tx.toUpperCase()]||"tanımlı") : "tanımsız";
   }
-  const fresh = geo.t && now-geo.t<5000;
-  tile("spd", fresh?geo.spd:null, "km/s", 0, fresh?"":"GPS bekleniyor");
-  const hrs=trip.movingMs/3600e3; tile("avgspd", hrs>0.01?trip.km/hrs:null, "km/s", 0, `${fmt(trip.km,1)} km · hareket ${Math.round(trip.movingMs/60000)} dk`);
+  const fresh = geo.t && now-geo.t<5000, gps = fresh ? geo.spd : null;
+  const car = defined("vspd") ? vals.vspd : null;
+  const pct = (a,b) => (a!=null && b!=null && b>5) ? ` · fark ${(a-b>=0?"+":"")}${fmt((a-b)/b*100,1)}%` : "";
+  $("spdSrc").textContent = car!=null ? "Araç (aday)" : "GPS";
+  tile("spd", car!=null ? car : gps, "km/s", 0, car!=null ? `GPS: ${fmt(gps,0)} km/s${pct(car,gps)}` : (fresh?"Araç hızı okunamıyor; GPS gösteriliyor":"GPS bekleniyor"));
+  const hrsG=trip.movingMs/3600e3, hrsC=trip.movingMsCar/3600e3;
+  const avgG = hrsG>0.01 ? trip.km/hrsG : null, avgC = hrsC>0.01 ? trip.kmCar/hrsC : null;
+  $("avgSrc").textContent = avgC!=null ? "Araç + GPS" : "GPS";
+  tile("avgspd", avgC!=null ? avgC : avgG, "km/s", 0, avgC!=null ? `GPS: ${fmt(avgG,0)} km/s${pct(avgC,avgG)}` : `${fmt(trip.km,1)} km · hareket ${Math.round(trip.movingMs/60000)} dk`);
+  const odoKm = (vals.odo!=null && trip.odoStart!=null) ? vals.odo - trip.odoStart : null;
+  const km = trip.kmCar>0.5 ? trip.kmCar : trip.km;   // tüketim için araç mesafesi öncelikli
   const net=trip.eOut-trip.eIn;
-  tile("trip", trip.km>0.5?net/trip.km*100:null, "kWh/100km", 1, `${fmt(trip.km,1)} km · harcanan ${fmt(trip.eOut,2)} · rejen ${fmt(trip.eIn,2)} kWh · başlangıç ${new Date(trip.start).toLocaleString("tr-TR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}`);
-  let anyTire=false;
+  tile("trip", km>0.5?net/km*100:null, "kWh/100km", 1, `Mesafe – araç: ${fmt(trip.kmCar,1)} km · GPS: ${fmt(trip.km,1)} km${pct(trip.kmCar,trip.km>0.1?trip.km:null).replace("· fark","· fark")} · sayaç: ${odoKm==null?"–":odoKm+" km"} · harcanan ${fmt(trip.eOut,2)} · rejen ${fmt(trip.eIn,2)} kWh`);
+  let anyTire=false, cand=false;
   for (const w of ["fl","fr","rl","rr"]){
-    const el=$("tire-"+w), p=vals["p_"+w], t=vals["t_"+w]; if (defined("p_"+w)||defined("t_"+w)) anyTire=true;
-    el.querySelector(".p").innerHTML=`${fmt(p,2)}<small> bar</small>`; el.querySelector(".c").textContent=`${fmt(t,0)} °C`;
+    const p=vals["p_"+w], t=vals["t_"+w], st=tireStage(p);
+    if (defined("p_"+w)||defined("t_"+w)) anyTire=true;
+    if (defined("p_"+w) && CANDIDATE.has("p_"+w) && sameAsDefault("p_"+w)) cand=true;
+    $("tw-"+w).setAttribute("fill", st.c);
+    $("tp-"+w).textContent = fmt(p,1); $("tp-"+w).setAttribute("fill", p==null ? "#eef1f6" : st.c);
+    $("tx-"+w).textContent = `psi · ${fmt(p==null?null:p/14.5038,2)} bar${t!=null?` · ${fmt(t,0)} °C`:""}`;
   }
-  $("tireSrc").textContent = anyTire ? "tanımlı" : "tanımsız"; $("t-tires").classList.toggle("na", !anyTire);
+  $("tireSrc").textContent = anyTire ? (cand ? "aday" : "tanımlı") : "tanımsız"; $("t-tires").classList.toggle("na", !anyTire);
+  $("tireNote").textContent = cand ? "Kaynak doğrulanmadı: araç ekranındaki basınçla karşılaştırın." : "";
   if (speed.cyc.length>1){ const hz=(speed.cyc.length-1)/((speed.cyc.at(-1)-speed.cyc[0])/1000||1), ms=speed.req.reduce((a,b)=>a+b,0)/(speed.req.length||1);
     $("rateInfo").textContent=`${fmt(hz,1)} tur/sn · istek ${fmt(ms,0)} ms · tek-cevap ${suffix?"açık":"kapalı"}`; }
 }
 const hex=b=>b.map(x=>x.toString(16).padStart(2,"0")).join(" ").toUpperCase();
+// Lastik basıncı renk kademeleri (psi): 36–42 yeşil, uzaklaştıkça sarı → turuncu → kırmızı
+const TIRE_STAGES = [
+  {max:30,  c:"#ff5d5d", t:"< 30 çok düşük"},
+  {max:33,  c:"#ff9f43", t:"30–33 düşük"},
+  {max:36,  c:"#f5c04a", t:"33–36 biraz düşük"},
+  {max:42,  c:"#3ccf8e", t:"36–42 ideal"},
+  {max:45,  c:"#f5c04a", t:"42–45 biraz yüksek"},
+  {max:48,  c:"#ff9f43", t:"45–48 yüksek"},
+  {max:1e9, c:"#ff5d5d", t:"> 48 çok yüksek"},
+];
+function tireStage(p){ if (p==null || !isFinite(p)) return {c:"#3a4250"}; return TIRE_STAGES.find(s => p < s.max) || TIRE_STAGES.at(-1); }
+function sameAsDefault(k){ const a=pcfg.sources[k], b=DEFAULT_SOURCES[k]; return !!(a && b && a.tx===b.tx && a.did===b.did && a.scale===b.scale); }
 function defined(k){ const s=pcfg.sources[k]; return !!(s && s.tx && s.rx && s.did); }
 function log(s){ const el=$("log"); el.textContent += new Date().toLocaleTimeString("tr-TR")+"  "+s+"\n"; el.scrollTop=el.scrollHeight; }
 function setPill(c,t){ const p=$("pill"); p.className="pill "+c; p.textContent=t; }
@@ -302,10 +359,11 @@ $("btnSet").onclick=()=>{ buildSrcTable(); $("interval").value=String(pcfg.inter
 $("btnClose").onclick=()=>$("dlg").close();
 $("interval").onchange=()=>{ pcfg.interval=+$("interval").value; savePcfg(); };
 $("btnConn").onclick=()=> $("btnConn").textContent==="Kes" ? disconnect() : connect();
-$("btnTripReset").onclick=()=>{ trip={start:Date.now(), km:0, eOut:0, eIn:0, movingMs:0}; saveTrip(); lastR=0; render(); };
+$("btnTripReset").onclick=()=>{ trip=newTrip(); saveTrip(); lastR=0; render(); };
 setInterval(saveTrip, 10000);
 window.addEventListener("pagehide", saveTrip);
 document.addEventListener("visibilitychange", async()=>{ if (document.visibilityState==="visible" && chW && !wake){ try{ wake=await navigator.wakeLock?.request("screen"); }catch{} } });
+$("tireLegend").innerHTML = [TIRE_STAGES[0],TIRE_STAGES[1],TIRE_STAGES[2],TIRE_STAGES[3],TIRE_STAGES[4],TIRE_STAGES[5],TIRE_STAGES[6]].map(s=>`<span><i style="background:${s.c}"></i>${s.t}</span>`).join("");
 geoStart(); render();
 </script>
 </body>
