@@ -132,6 +132,12 @@
   </div>
   <p class="note" id="logInfo"></p>
   <div style="overflow-x:auto"><table id="logTable"><thead><tr><th>Başlangıç</th><th>Süre</th><th>Satır</th><th>Boyut</th><th></th></tr></thead><tbody></tbody></table></div>
+  <div id="aaosBox" style="display:none">
+    <h2 style="margin-top:14px">Araç verileri (Android Automotive)</h2>
+    <p class="note" id="aaosStatus">Bekleniyor…</p>
+    <div id="aaosList" style="font:11px/1.5 ui-monospace,monospace;background:#07090c;border-radius:8px;padding:8px;max-height:220px;overflow:auto;white-space:pre-wrap;color:#9aa6b8"></div>
+    <div class="row" style="margin-top:6px"><button class="sec mini" id="btnAaosCopy">Listeyi kopyala</button><button class="sec mini" id="btnAaosRetry">Yeniden dene</button></div>
+  </div>
   <h2 style="margin-top:14px">Kaynak tanımları</h2>
   <p class="note">Kaynağı bilinmeyen değerler için araç ünitesinin istek/cevap kimliği, kod (DID) ve formül. Sadece okuma (UDS 22) gönderilir. Değer = (başlangıç baytından itibaren uzunluk kadar bayt, işaretsiz) × çarpan + ekleme. Boş bırakılan satır okunmaz.</p>
   <div style="overflow-x:auto"><table id="srcTable"><thead><tr><th>Değer</th><th>İstek ID</th><th>Cevap ID</th><th>DID</th><th>Bayt</th><th>Uzunluk</th><th>Çarpan</th><th>Ekleme</th><th>Her n tur</th></tr></thead><tbody></tbody></table></div>
@@ -279,6 +285,18 @@ async function loop(){
   }
 }
 
+// ============ Android Automotive (orta ekran): aracın kendi verileri ============
+const carv = {};   // "AD" ya da "AD@alan" → değer
+const aaos = k => { const v = carv[k]; return typeof v === "number" && isFinite(v) ? v : null; };
+const WHEEL_AREA = {fl:1, fr:2, rl:4, rr:8};
+window.__car = o => { carv[o.area ? o.name+"@"+o.area : o.name] = o.value; if (!running) render(); };
+window.__carStatus = t => { const el=document.getElementById("aaosStatus"); if (el) el.textContent = t; };
+function aaosSpeed(){ const v = aaos("PERF_VEHICLE_SPEED") ?? aaos("PERF_VEHICLE_SPEED_DISPLAY"); return v==null ? null : Math.abs(v)*3.6; }
+function aaosTire(w){ const v = aaos("TIRE_PRESSURE@"+WHEEL_AREA[w]); return v==null ? null : v*0.1450377; }   // kPa → psi
+function carSpeed(){ const a = aaosSpeed(); if (a!=null) return {v:a, src:"Araç"}; if (defined("vspd") && vals.vspd!=null) return {v:vals.vspd, src:"Araç (aday)"}; return {v:null, src:"GPS"}; }
+function renderAaos(){ const el=$("aaosList"); if (!el) return; const keys=Object.keys(carv).sort();
+  el.textContent = keys.length ? keys.map(k=>k+" = "+(typeof carv[k]==="number" ? +carv[k].toFixed(3) : JSON.stringify(carv[k]))).join("\n") : "Henüz değer gelmedi"; }
+
 // ============ Yolculuk: enerji, mesafe, hız ============
 let lastS=null;
 function sample(){
@@ -286,7 +304,7 @@ function sample(){
   const P = (vals.volt!=null && vals.cur!=null) ? vals.volt*vals.cur/1000*sign : null; vals.kw = P;
   if (lastS && P!=null && lastS.P!=null){ const dt=Math.min(now-lastS.t, 15000)/3600e3, Pm=(P+lastS.P)/2; trip.eOut+=Math.max(Pm,0)*dt; trip.eIn+=Math.max(-Pm,0)*dt; }
   // araç hızından mesafe (hız km/sa × süre)
-  const vs = defined("vspd") ? vals.vspd : null;
+  const vs = carSpeed().v;
   if (lastS && vs!=null && lastS.vs!=null){ const dth=Math.min(now-lastS.t, 15000)/3600e3, vm=(vs+lastS.vs)/2; trip.kmCar += vm*dth; if (vm>3) trip.movingMsCar += dth*3600e3; }
   if (vals.odo!=null && trip.odoStart==null) trip.odoStart = vals.odo;
   lastS={t:now, P, vs};
@@ -327,9 +345,13 @@ function render(){
     $("t-"+id).querySelector(".src").textContent = def ? (UNIT_NAMES[pcfg.sources[k].tx.toUpperCase()]||"tanımlı") : "tanımsız";
   }
   const fresh = geo.t && now-geo.t<5000, gps = fresh ? geo.spd : null;
-  const car = defined("vspd") ? vals.vspd : null;
+  const cs = carSpeed(), car = cs.v;
+  if (vals.avg==null && aaos("EV_BATTERY_AVERAGE_TEMPERATURE")!=null) tile("avg", aaos("EV_BATTERY_AVERAGE_TEMPERATURE"), "°C", 1, "Kaynak: araç (Android Automotive)");
+  if (vals.kw==null && aaos("EV_BATTERY_INSTANTANEOUS_CHARGE_RATE")!=null){ const k=-aaos("EV_BATTERY_INSTANTANEOUS_CHARGE_RATE")/1e6; tile("kw", k, "kW", 1, "Kaynak: araç (Android Automotive)", k>0.3?"pos":k<-0.3?"neg":""); }
+  { const out=aaos("ENV_OUTSIDE_TEMPERATURE"), rng=aaos("RANGE_REMAINING"); const el=$("t-soc").querySelector(".s");
+    el.textContent = [out!=null?`Dış ${fmt(out,1)} °C`:null, rng!=null?`Menzil ${fmt(rng/1000,0)} km`:null].filter(Boolean).join(" · "); }
   const pct = (a,b) => (a!=null && b!=null && b>5) ? ` · fark ${(a-b>=0?"+":"")}${fmt((a-b)/b*100,1)}%` : "";
-  $("spdSrc").textContent = car!=null ? "Araç (aday)" : "GPS";
+  $("spdSrc").textContent = cs.src;
   tile("spd", car!=null ? car : gps, "km/s", 0, car!=null ? `GPS: ${fmt(gps,0)} km/s${pct(car,gps)}` : (fresh?"Araç hızı okunamıyor; GPS gösteriliyor":"GPS bekleniyor"));
   const hrsG=trip.movingMs/3600e3, hrsC=trip.movingMsCar/3600e3;
   const avgG = hrsG>0.01 ? trip.km/hrsG : null, avgC = hrsC>0.01 ? trip.kmCar/hrsC : null;
@@ -339,17 +361,18 @@ function render(){
   const km = trip.kmCar>0.5 ? trip.kmCar : trip.km;   // tüketim için araç mesafesi öncelikli
   const net=trip.eOut-trip.eIn;
   tile("trip", km>0.5?net/km*100:null, "kWh/100km", 1, `Mesafe – araç: ${fmt(trip.kmCar,1)} km · GPS: ${fmt(trip.km,1)} km${pct(trip.kmCar,trip.km>0.1?trip.km:null).replace("· fark","· fark")} · sayaç: ${odoKm==null?"–":odoKm+" km"} · harcanan ${fmt(trip.eOut,2)} · rejen ${fmt(trip.eIn,2)} kWh`);
-  let anyTire=false, cand=false;
+  let anyTire=false, cand=false, fromCar=false;
   for (const w of ["fl","fr","rl","rr"]){
-    const p=vals["p_"+w], t=vals["t_"+w], st=tireStage(p);
-    if (defined("p_"+w)||defined("t_"+w)) anyTire=true;
-    if (defined("p_"+w) && CANDIDATE.has("p_"+w) && sameAsDefault("p_"+w)) cand=true;
+    const pa=aaosTire(w), p = pa!=null ? pa : vals["p_"+w], t=vals["t_"+w], st=tireStage(p);
+    if (pa!=null || defined("p_"+w)||defined("t_"+w)) anyTire=true;
+    if (pa!=null) fromCar=true;
+    else if (defined("p_"+w) && CANDIDATE.has("p_"+w) && sameAsDefault("p_"+w)) cand=true;
     $("tw-"+w).setAttribute("fill", st.c);
     $("tp-"+w).textContent = fmt(p,1); $("tp-"+w).setAttribute("fill", p==null ? "#eef1f6" : st.c);
     $("tx-"+w).textContent = `psi · ${fmt(p==null?null:p/14.5038,2)} bar${t!=null?` · ${fmt(t,0)} °C`:""}`;
   }
-  $("tireSrc").textContent = anyTire ? (cand ? "aday" : "tanımlı") : "tanımsız"; $("t-tires").classList.toggle("na", !anyTire);
-  $("tireNote").textContent = cand ? "Kaynak doğrulanmadı: araç ekranındaki basınçla karşılaştırın." : "";
+  $("tireSrc").textContent = fromCar ? "Araç" : anyTire ? (cand ? "aday" : "tanımlı") : "tanımsız"; $("t-tires").classList.toggle("na", !anyTire);
+  $("tireNote").textContent = fromCar ? "Kaynak: aracın kendi lastik basıncı verisi." : cand ? "Kaynak doğrulanmadı: araç ekranındaki basınçla karşılaştırın." : "";
   if (speed.cyc.length>1){ const hz=(speed.cyc.length-1)/((speed.cyc.at(-1)-speed.cyc[0])/1000||1), ms=speed.req.reduce((a,b)=>a+b,0)/(speed.req.length||1);
     $("rateInfo").textContent=`${fmt(hz,1)} tur/sn · istek ${fmt(ms,0)} ms · tek-cevap ${suffix?"açık":"kapalı"}`; }
 }
@@ -377,7 +400,7 @@ async function logStart(){
 }
 function logRow(now){
   if (!logSess) return; if (+pcfg.logMode && now-lastLogRow < +pcfg.logMode) return; lastLogRow=now;
-  const v = Object.assign({}, vals, {gps: (geo.t && now-geo.t<5000) ? geo.spd : null, lat: geo.last?.lat, lon: geo.last?.lon});
+  const v = Object.assign({}, vals, {vspd: carSpeed().v, p_fl: aaosTire("fl") ?? vals.p_fl, p_fr: aaosTire("fr") ?? vals.p_fr, p_rl: aaosTire("rl") ?? vals.p_rl, p_rr: aaosTire("rr") ?? vals.p_rr, gps: (geo.t && now-geo.t<5000) ? geo.spd : null, lat: geo.last?.lat, lon: geo.last?.lon});
   const line = localStamp(now) + "," + LOG_COLS.map(([k])=>{ const x=v[k]; return x==null||!isFinite(x) ? "" : (k==="lat"||k==="lon" ? (+x).toFixed(6) : +(+x).toFixed(3)); }).join(",");
   logBuf.push(line); logSess.rows++; logSess.bytes += line.length+1; logSess.end=now;
 }
@@ -447,7 +470,9 @@ $("srcTable").addEventListener("change", e=>{ const tr=e.target.closest("tr[data
 $("btnApply").onclick=()=>{ try{ const o=JSON.parse($("srcJson").value||"{}"); if (typeof o!=="object"||Array.isArray(o)) throw 0; pcfg.sources=o; savePcfg(); buildSrcTable(); log("Kaynak tanımları uygulandı"); }catch{ log("Kod okunamadı"); } };
 $("btnDefaults").onclick=()=>{ for (const k in DEFAULT_SOURCES) pcfg.sources[k]=Object.assign({}, DEFAULT_SOURCES[k]); savePcfg(); buildSrcTable(); render(); log("Varsayılan kaynaklar yüklendi"); };
 $("btnCopy").onclick=async()=>{ try{ await navigator.clipboard.writeText($("srcJson").value); log("Kopyalandı"); }catch{ log("Kopyalanamadı"); } };
-$("btnSet").onclick=()=>{ buildSrcTable(); $("interval").value=String(pcfg.interval); $("logOn").checked=!!pcfg.logOn; $("logMode").value=String(pcfg.logMode); renderLogs(); $("dlg").showModal(); };
+$("btnAaosCopy").onclick=async()=>{ try{ await navigator.clipboard.writeText($("aaosStatus").textContent+"\n"+$("aaosList").textContent); log("Kopyalandı"); }catch{} };
+$("btnAaosRetry").onclick=()=>{ try{ AndroidCar.start(); }catch{} };
+$("btnSet").onclick=()=>{ renderAaos(); buildSrcTable(); $("interval").value=String(pcfg.interval); $("logOn").checked=!!pcfg.logOn; $("logMode").value=String(pcfg.logMode); renderLogs(); $("dlg").showModal(); };
 $("logOn").onchange=()=>{ pcfg.logOn=$("logOn").checked; savePcfg(); if (!pcfg.logOn) logStop(); else if (chW && !logSess) logStart(); };
 $("logMode").onchange=()=>{ pcfg.logMode=$("logMode").value; savePcfg(); };
 $("btnClose").onclick=()=>$("dlg").close();
@@ -458,6 +483,8 @@ setInterval(saveTrip, 10000);
 window.addEventListener("pagehide", ()=>{ saveTrip(); logFlush(); });
 document.addEventListener("visibilitychange", async()=>{ if (document.visibilityState==="visible" && chW && !wake){ try{ wake=await navigator.wakeLock?.request("screen"); }catch{} } });
 $("tireLegend").innerHTML = [TIRE_STAGES[0],TIRE_STAGES[1],TIRE_STAGES[2],TIRE_STAGES[3],TIRE_STAGES[4],TIRE_STAGES[5],TIRE_STAGES[6]].map(s=>`<span><i style="background:${s.c}"></i>${s.t}</span>`).join("");
+if (window.AndroidCar){ $("aaosBox").style.display=""; try{ AndroidCar.start(); }catch(e){}
+  setInterval(()=>{ if (!running) sample(); if ($("dlg").open) renderAaos(); }, 1000); }
 geoStart(); render();
 </script>
 </body>

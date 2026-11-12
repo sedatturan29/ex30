@@ -6,7 +6,8 @@ def runNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInteger()
 
 android {
     namespace 'com.ex30.batarya'
-    compileSdk 34
+    compileSdk 35
+    useLibrary 'android.car'
 
     defaultConfig {
         applicationId 'com.ex30.batarya'
@@ -15,6 +16,18 @@ android {
         versionCode runNumber
         versionName "1." + runNumber
     }
+
+    // phone: telefon + Android Auto · car: orta ekran (Android Automotive OS, Play Store)
+    flavorDimensions 'form'
+    productFlavors {
+        phone { dimension 'form' }
+        car {
+            dimension 'form'
+            targetSdk 35
+            versionCode 100000 + runNumber
+        }
+    }
+    lint { checkReleaseBuilds false; abortOnError false }
 
     // Sabit imza: yeni sürümler eskisinin üzerine kaldırmadan kurulabilsin
     signingConfigs {

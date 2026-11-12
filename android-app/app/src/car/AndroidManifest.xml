@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Orta ekran (Android Automotive OS) sürümü: Android Auto servisi çıkarılır -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-feature android:name="android.hardware.type.automotive" android:required="true" tools:replace="android:required" />
+
+    <application>
+        <service android:name=".EX30CarAppService" tools:node="remove" />
+        <meta-data android:name="com.google.android.gms.car.application" tools:node="remove" />
+        <meta-data android:name="androidx.car.app.minCarApiLevel" tools:node="remove" />
+    </application>
+</manifest>

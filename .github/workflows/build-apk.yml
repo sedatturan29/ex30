@@ -28,15 +28,21 @@ jobs:
 
       - name: APK derle
         working-directory: android-app
-        run: gradle assembleDebug --no-daemon --stacktrace
+        run: gradle assemblePhoneDebug assembleCarDebug bundleCarRelease --no-daemon --stacktrace
 
       - name: APK'yı adlandır
-        run: cp android-app/app/build/outputs/apk/debug/app-debug.apk EX30-Batarya.apk
+        run: |
+          cp android-app/app/build/outputs/apk/phone/debug/app-phone-debug.apk EX30-Batarya.apk
+          cp android-app/app/build/outputs/apk/car/debug/app-car-debug.apk EX30-Batarya-Arac.apk
+          cp android-app/app/build/outputs/bundle/carRelease/app-car-release.aab EX30-Batarya-Arac.aab
 
       - uses: actions/upload-artifact@v4
         with:
           name: EX30-Batarya-apk
-          path: EX30-Batarya.apk
+          path: |
+            EX30-Batarya.apk
+            EX30-Batarya-Arac.apk
+            EX30-Batarya-Arac.aab
 
       - name: Release olarak yayınla
         uses: softprops/action-gh-release@v2
@@ -46,5 +52,8 @@ jobs:
           body: |
             Telefona kurmak için aşağıdaki EX30-Batarya.apk dosyasını indirip açın.
             Her zaman son sürüm: https://github.com/${{ github.repository }}/releases/latest/download/EX30-Batarya.apk
-          files: EX30-Batarya.apk
+          files: |
+            EX30-Batarya.apk
+            EX30-Batarya-Arac.apk
+            EX30-Batarya-Arac.aab
           make_latest: true

@@ -31,6 +31,7 @@ public class MainActivity extends Activity {
 
     private WebView web;
     private BleBridge ble;
+    private Object carBridge;   // yalnızca Android Automotive'de (CarBridge)
     private GeolocationPermissions.Callback geoCb;
     private String geoOrigin;
 
@@ -43,7 +44,20 @@ public class MainActivity extends Activity {
 
         web = new WebView(this);
         web.setBackgroundColor(0xFF0E1116);
-        setContentView(web);
+        android.widget.FrameLayout root = new android.widget.FrameLayout(this);
+        root.setBackgroundColor(0xFF0E1116);
+        root.addView(web, new android.widget.FrameLayout.LayoutParams(-1, -1));
+        setContentView(root);
+        // Sistem çubuklarının (araçta alt/üst çubuk) altında kalmamak için kenar boşlukları
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            if (android.os.Build.VERSION.SDK_INT >= 30) {
+                android.graphics.Insets i = insets.getInsets(android.view.WindowInsets.Type.systemBars() | android.view.WindowInsets.Type.displayCutout() | android.view.WindowInsets.Type.ime());
+                v.setPadding(i.left, i.top, i.right, i.bottom);
+            } else {
+                v.setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(), insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom());
+            }
+            return insets;
+        });
 
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
@@ -54,6 +68,13 @@ public class MainActivity extends Activity {
 
         ble = new BleBridge(this, web);
         web.addJavascriptInterface(ble, "AndroidBle");
+        if (getPackageManager().hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE)) {
+            try {
+                CarBridge cb = new CarBridge(this, web);
+                carBridge = cb;
+                web.addJavascriptInterface(cb, "AndroidCar");
+            } catch (Throwable ignored) { }
+        }
 
         web.setWebChromeClient(new WebChromeClient() {
             @Override
@@ -119,7 +140,9 @@ public class MainActivity extends Activity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == REQ_BLE) {
+        if (requestCode == CarBridge.REQ_CAR) {
+            if (carBridge != null) ((CarBridge) carBridge).onPermissionResult();
+        } else if (requestCode == REQ_BLE) {
             ble.onPermissionResult();
         } else if (requestCode == REQ_GEO && geoCb != null) {
             boolean ok = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
@@ -132,6 +155,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         ble.shutdown();
+        if (carBridge != null) ((CarBridge) carBridge).shutdown();
         web.destroy();
         super.onDestroy();
     }
