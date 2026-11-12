@@ -127,11 +127,12 @@
       <h2>Ayarlar</h2>
       <div class="row">
         <label>Okuma aralığı
-          <select id="interval"><option value="2000">2 sn</option><option value="5000" selected>5 sn</option><option value="10000">10 sn</option></select>
+          <select id="interval"><option value="0">En hızlı (bekleme yok)</option><option value="1000">1 sn</option><option value="2000">2 sn</option><option value="5000" selected>5 sn</option><option value="10000">10 sn</option></select>
         </label>
         <label><input type="checkbox" id="flipSign"> Akım yönünü ters çevir</label>
       </div>
-      <p class="note">Güç şarj sırasında eksi görünmeli. İlk şarj kaydında yön otomatik düzeltilir; yanlışsa kutuyu işaretleyin. Sıcaklık formülleri topluluk verisinden çıkarıldı: araç saatlerce park halindeyken batarya sıcaklığı dış sıcaklığa yakın olmalı.</p>
+      <p class="note" id="rateInfo" style="color:var(--fg)"></p>
+      <p class="note">"En hızlı" modda akım ve voltaj her turda, sıcaklıklar 3 turda bir, şarj % 10 turda bir okunur. Güç şarj sırasında eksi görünmeli. İlk şarj kaydında yön otomatik düzeltilir; yanlışsa kutuyu işaretleyin. Sıcaklık formülleri topluluk verisinden çıkarıldı: araç saatlerce park halindeyken batarya sıcaklığı dış sıcaklığa yakın olmalı.</p>
     </div>
     <div class="card">
       <details>
@@ -288,12 +289,13 @@ const INIT = ["ATZ","ATE0","ATL0","ATS0","ATH1","ATAL","ATST64","ATSP7",
   "ATSHD01635","ATCP1D","ATCRA1EC6AE80","ATFCSH1DD01635","ATFCSD300000","ATFCSM1"];
 const u16 = d => d.length>=2 ? d[d.length-2]*256 + d[d.length-1] : NaN;
 const PIDS = [
-  {id:"avg",  did:"491B", f:d => u16(d)/100 - 40},
-  {id:"max",  did:"4945", f:d => u16(d)/100 - 40},
-  {id:"cool", did:"4804", f:d => d[d.length-1] - 40},
-  {id:"soc",  did:"4801", f:d => (0.002*u16(d) - 3)/94*100},
-  {id:"volt", did:"4803", f:d => 0.01*u16(d)},
-  {id:"cur",  did:"4802", f:d => 0.1*(u16(d) - 16384)},
+  // every: "En hızlı" modda kaç turda bir okunacağı (akım/voltaj her turda)
+  {id:"cur",  did:"4802", every:1,  f:d => 0.1*(u16(d) - 16384)},
+  {id:"volt", did:"4803", every:1,  f:d => 0.01*u16(d)},
+  {id:"avg",  did:"491B", every:3,  f:d => u16(d)/100 - 40},
+  {id:"cool", did:"4804", every:3,  f:d => d[d.length-1] - 40},
+  {id:"max",  did:"4945", every:6,  f:d => u16(d)/100 - 40},
+  {id:"soc",  did:"4801", every:10, f:d => (0.002*u16(d) - 3)/94*100},
 ];
 const SERVICES = [0xfff0, 0xffe0, 0x18f0, "e7810a71-73ae-499d-8c15-faa9aef0c3f2"];
 
@@ -454,6 +456,13 @@ async function connect(all=false){
     setStep("car","run","Batarya sıcaklığı isteniyor");
     let carOk=false, lastR="";
     for (let i=0;i<3 && !carOk;i++){ lastR = await send("22491B"); carOk = !!parseDid(lastR,"491B"); if(!carOk) await sleep(700); }
+    reqSuffix="";
+    if (carOk){
+      // "22491B1": adaptöre tek cevap beklemesini söyler, zaman aşımını beklemez (daha hızlı)
+      const t0=performance.now(), r1 = await send("22491B1"), ms=performance.now()-t0;
+      if (parseDid(r1,"491B")){ reqSuffix="1"; log("Tek-cevap modu açık ("+Math.round(ms)+" ms)"); }
+      else log("Tek-cevap modu desteklenmiyor, normal modda devam");
+    }
     if (carOk) setStep("car","ok","Bağlantı tamam, Canlı sekmesine geçiliyor");
     else setStep("car","warn", "Araç cevap vermedi ("+lastR.replace(/\s+/g," ").slice(0,30)+"). Aracı açın, ekran açık olsun; bir dakika içinde kendiliğinden tekrar denenir.");
     setPill("on","Bağlı");
@@ -483,17 +492,24 @@ let gen=0;
 function startPolling(){ stopPolling(); const my=++gen; paused=false; const loop=async()=>{ if(my!==gen) return; await pollOnce(); if(!paused && chW && my===gen) pollTimer=setTimeout(loop, pollInterval()); }; loop(); }
 function stopPolling(){ paused=true; clearTimeout(pollTimer); pollTimer=null; }
 async function pausePolling(){ stopPolling(); while(inPoll) await sleep(50); }
+let reqSuffix="", cycleNo=0;
+const speed = {reqMs:[], samples:[]};
 async function pollOnce(){
   if (inPoll || !chW) return; inPoll=true;
+  const fast = pollInterval() < 1000; cycleNo++;
   try{
     for (const p of PIDS){
-      const r = await send("22"+p.did);
+      if (fast && cycleNo % p.every !== 0 && vals[p.id]!=null) continue;
+      const t0 = performance.now();
+      const r = await send("22"+p.did+reqSuffix);
+      speed.reqMs.push(performance.now()-t0); if (speed.reqMs.length>60) speed.reqMs.shift();
       const b = parseDid(r, p.did);
       if (b){ raw[p.id]=hexb(b); const v=p.f(b); vals[p.id]=isFinite(v)?v:null; }
       else { raw[p.id]=r.slice(0,24); vals[p.id]=null; }
     }
   } finally { inPoll=false; }
-  onSample(makeSample(Date.now()));
+  const now=Date.now(); speed.samples.push(now); while(speed.samples.length && now-speed.samples[0]>10000) speed.samples.shift();
+  onSample(makeSample(now));
 }
 function makeSample(t){
   const P = (vals.volt!=null && vals.cur!=null) ? vals.volt*vals.cur/1000*cfg.sign : null; // + çekiş, − şarj
@@ -501,10 +517,13 @@ function makeSample(t){
 }
 
 // Her yeni ölçümde tüm aktif kayıtları güncelle
-let chgDetect=0, chgIdle=0;
+let chgDetect=0, chgIdle=0, prevSampleT=0;
 function onSample(s){
+  const sdt = prevSampleT ? Math.min(s.t-prevSampleT, 60000) : 0; prevSampleT = s.t;
   if (stepState.car && stepState.car.st!=="ok" && s.avg!=null) setStep("car","ok","Araç cevap veriyor");
-  hist.push(s); const cut=s.t-6*3600e3; while(hist.length && hist[0].t<cut) hist.shift();
+  const hl = hist[hist.length-1];
+  if (hl && s.t-hl._t0 < 1000) { Object.assign(hl, s, {_t0:hl._t0}); } else hist.push(Object.assign({_t0:s.t}, s));
+  const cut=s.t-6*3600e3; while(hist.length && hist[0].t<cut) hist.shift();
   // otomatik şarj algılama
   if (cfg.chgAuto && cfg.signKnown && !active.charge){
     chgDetect = (s.P!=null && s.P < -2.5) ? chgDetect+1 : 0;
@@ -515,17 +534,25 @@ function onSample(s){
     const last = ss.samples[ss.samples.length-1];
     const rec = {t:s.t, soc:r2(s.soc), avg:r2(s.avg), max:r2(s.max), cool:s.cool, P:r2(s.P)};
     if (type==="trip" && geo.last) rec.lat=+geo.last.lat.toFixed(5), rec.lon=+geo.last.lon.toFixed(5);
-    if (last && s.P!=null && last.P!=null){
-      const dt = Math.min((s.t-last.t)/3600e3, 3*pollInterval()/3600e3);
-      const Pm = (s.P+last.P)/2;
+    const lp = ss.lastPt || (last ? {t:last.t, P:last.P} : null);   // enerji her ölçümde toplanır
+    if (lp && s.P!=null && lp.P!=null){
+      const dt = Math.min((s.t-lp.t)/3600e3, Math.max(3*pollInterval(), 15000)/3600e3);
+      const Pm = (s.P+lp.P)/2;
       ss.eOut += Math.max(Pm,0)*dt; ss.eIn += Math.max(-Pm,0)*dt;
     }
-    ss.samples.push(rec); if (ss.samples.length>4000) ss.samples.splice(1,1);
-    if (type==="charge") chargeTick(ss, s);
+    ss.lastPt = {t:s.t, P:s.P};
+    if (!last || s.t-last.t >= 2000){ ss.samples.push(rec); if (ss.samples.length>4000) ss.samples.splice(1,1); }
+    if (type==="charge") chargeTick(ss, s, sdt);
   }
-  saveActive();
-  renderAll();
-  publishCar(true);
+  if (s.t - lastActiveSave > 10000){ lastActiveSave = s.t; saveActive(); }
+  throttledRender();
+  if (s.t - lastPublish >= 1000){ lastPublish = s.t; publishCar(true); }
+}
+let lastRender=0, renderTimer=null, lastPublish=0, lastActiveSave=0;
+function throttledRender(){
+  const now=Date.now();
+  if (now-lastRender >= 500){ lastRender=now; renderAll(); return; }
+  if (!renderTimer) renderTimer=setTimeout(()=>{ renderTimer=null; lastRender=Date.now(); renderAll(); }, 500-(now-lastRender));
 }
 const r2 = v => v==null||!isFinite(v) ? null : Math.round(v*100)/100;
 
@@ -553,7 +580,7 @@ function saveActive(now){ store.set("active", active); if (now) saveSessions(tru
 (function restoreActive(){ const a = store.get("active", null); if (!a) return;
   for (const k in active) if (a[k]){ active[k]=a[k]; } })();
 
-function chargeTick(ss, s){
+function chargeTick(ss, s, sdt){
   // akım yönü kalibrasyonu: şarj kaydında güç ilk ölçümlerde pozitif çıkarsa yön terstir
   if (!ss.meta.signChecked){
     const ps = ss.samples.map(x=>x.P).filter(p=>p!=null && Math.abs(p)>1);
@@ -570,7 +597,7 @@ function chargeTick(ss, s){
   }
   // otomatik bitiş: 2 dakika boyunca şarj gücü 0,5 kW altı
   if (ss.meta.auto){
-    chgIdle = (s.P==null || s.P > -0.5) ? chgIdle + pollInterval() : 0;
+    chgIdle = (s.P==null || s.P > -0.5) ? chgIdle + (sdt||0) : 0;
     if (chgIdle >= 120000){ chgIdle=0; stopSession("charge"); log("Şarj bitti, kayıt kaydedildi"); }
   }
 }
@@ -750,6 +777,11 @@ function publishCar(connected){
 }
 function renderLive(){
   const last = hist[hist.length-1] || {};
+  if (chW && speed.samples.length>1){
+    const hz = (speed.samples.length-1) / ((speed.samples[speed.samples.length-1]-speed.samples[0])/1000 || 1);
+    const ms = speed.reqMs.reduce((a,b)=>a+b,0)/(speed.reqMs.length||1);
+    $("rateInfo").textContent = `Gerçek hız: ${fmt(hz,1)} ölçüm/sn · istek başına ${fmt(ms,0)} ms · tek-cevap modu ${reqSuffix?"açık":"kapalı"}`;
+  } else $("rateInfo").textContent = "";
   for (const id of ["avg","max","soc","volt","cur"]) { setV("v_"+id, id==="cur"?last.cur:vals[id], {avg:"°C",max:"°C",soc:"%",volt:"V",cur:"A"}[id]); $("r_"+id).textContent = raw[id]?("ham: "+raw[id]):""; }
   setV("v_cool", vals.cool, "°C", 0); $("r_cool").textContent = raw.cool?("ham: "+raw.cool):"";
   setV("v_pow", last.P, "kW");
