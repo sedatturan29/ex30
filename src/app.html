@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0e1116">
+<title>EX30 Reader</title>
+<style>
+  :root{--bg:#0e1116;--card:#171b22;--line:#252b35;--fg:#e8ecf2;--mut:#8a94a6;--acc:#4ea1ff;--hot:#ff7a45;--ok:#3ccf8e;--warn:#f5c04a;--bad:#ff5d5d}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+  header{position:sticky;top:0;background:var(--bg);z-index:3;border-bottom:1px solid var(--line)}
+  .bar{display:flex;align-items:center;gap:10px;padding:12px 14px 8px}
+  .bar h1{font-size:17px;margin:0;flex:1;font-weight:600}
+  nav{display:flex;gap:6px;overflow-x:auto;padding:0 14px 10px;scrollbar-width:none}
+  nav::-webkit-scrollbar{display:none}
+  nav button{background:var(--card);color:var(--mut);border:1px solid var(--line);padding:7px 12px;font-weight:500;white-space:nowrap;position:relative}
+  nav button.act{background:var(--acc);color:#fff;border-color:var(--acc)}
+  nav button .rec{display:none;position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:var(--bad)}
+  nav button.recording .rec{display:block}
+  .pill{font-size:12px;padding:4px 10px;border-radius:99px;background:var(--line);color:var(--mut);white-space:nowrap}
+  .pill.on{background:#123524;color:var(--ok)} .pill.err{background:#3a1717;color:var(--bad)} .pill.busy{background:#3a3117;color:var(--warn)}
+  button{font:inherit;border:0;border-radius:10px;padding:10px 14px;background:var(--acc);color:#fff;font-weight:600;cursor:pointer}
+  button.sec{background:var(--line);color:var(--fg)} button.stop{background:var(--bad)} button:disabled{opacity:.45}
+  button.mini{padding:5px 9px;font-size:12px;font-weight:500}
+  main{padding:14px;max-width:1100px;margin:0 auto}
+  section{display:none} section.act{display:block}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .tile{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+  .tile .k{font-size:12px;color:var(--mut)} .tile .v{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
+  .tile .v small{font-size:14px;color:var(--mut);font-weight:500;margin-left:2px} .tile .r{font-size:11px;color:var(--mut);font-family:ui-monospace,monospace;margin-top:2px;min-height:14px}
+  .tile.big{grid-column:span 2} .tile.big .v{font-size:46px}
+  .state{margin:12px 0;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:var(--card);display:flex;gap:10px;align-items:center}
+  .state .dot{width:12px;height:12px;border-radius:50%;background:var(--mut);flex:none}
+  .state.heat .dot{background:var(--hot);box-shadow:0 0 12px var(--hot)} .state.cool .dot{background:var(--acc);box-shadow:0 0 12px var(--acc)}
+  .state.good .dot{background:var(--ok);box-shadow:0 0 12px var(--ok)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-top:12px}
+  .card h2{font-size:14px;margin:0 0 8px;color:var(--mut);font-weight:600}
+  canvas{width:100%;height:220px;display:block}
+  .legend{display:flex;gap:14px;font-size:12px;color:var(--mut);margin-top:6px;flex-wrap:wrap}
+  .legend i{display:inline-block;width:10px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  label{font-size:13px;color:var(--mut)}
+  select,input{font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px}
+  input[type=checkbox]{width:18px;height:18px;vertical-align:middle;accent-color:var(--acc)}
+  .log{font:12px/1.45 ui-monospace,monospace;background:#0a0c10;border-radius:10px;padding:10px;height:180px;overflow:auto;white-space:pre-wrap;color:#b7c0cf}
+  details summary{cursor:pointer;color:var(--mut);font-size:14px}
+  .note{font-size:12px;color:var(--mut);margin:8px 0 0}
+  .banner{display:none;margin:0 0 12px;padding:12px 14px;border-radius:12px;background:#3a1717;color:#ffd0d0;font-size:14px}
+  table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+  th,td{padding:7px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  th{color:var(--mut);font-weight:500;font-size:12px}
+  td.mono{font-family:ui-monospace,monospace;font-size:12px}
+  tr.chg td{background:#2a2410}
+  .tbl{overflow-x:auto}
+  progress{width:100%;height:8px;accent-color:var(--acc)}
+  .empty{color:var(--mut);font-size:13px;padding:6px 0}
+  .chk{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line)}
+  .chk:last-child{border-bottom:0}
+  .chk .ic{width:22px;height:22px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;background:var(--line);color:var(--mut)}
+  .chk.ok .ic{background:#123524;color:var(--ok)} .chk.bad .ic{background:#3a1717;color:var(--bad)} .chk.warn .ic{background:#3a3117;color:var(--warn)} .chk.run .ic{background:#132a45;color:var(--acc)}
+  .chk .t{font-weight:600;font-size:14px} .chk .d{font-size:12px;color:var(--mut);margin-top:2px}
+  .chk.bad .d{color:#ffb3b3}
+  .bigbtn{width:100%;padding:16px;font-size:17px;margin-top:4px}
+  @media (min-width:900px){.tile.big .v{font-size:56px}}
+  body.panelmode main{max-width:none;padding:0}
+  body.panelmode #banner{display:none !important}
+  /* telefon yatay: başlık ve sekmeler sıkışık, kutular küçük */
+  @media (orientation:landscape) and (max-height:520px){
+    .bar{padding:6px 12px 4px} .bar h1{font-size:15px} nav{padding:0 12px 6px} nav button{padding:5px 10px;font-size:13px}
+    main{padding:10px} .grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+    .tile{padding:8px 10px} .tile .v{font-size:22px} .tile.big .v{font-size:34px} canvas{height:170px}
+  }
+  @media (min-width:1500px){ main{max-width:1500px} }
+  @media (max-width:420px){ .bar h1{font-size:15px} .tile .v{font-size:24px} .tile.big .v{font-size:40px} }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <h1>EX30 Reader</h1>
+    <span id="pill" class="pill">Bağlı değil</span>
+    <button id="btnConn">Bağlan</button>
+  </div>
+  <nav id="tabs">
+    <button data-tab="conn" class="act">Bağlantı</button>
+    <button data-tab="live">Canlı</button>
+    <button data-tab="panel">Panel</button>
+    <button data-tab="charge">Şarj<span class="rec"></span></button>
+    <button data-tab="cap">Kapasite</button>
+    <button data-tab="trip">Yolculuk<span class="rec"></span></button>
+    <button data-tab="park">Park<span class="rec"></span></button>
+    <button data-tab="heat">Isıtma testi<span class="rec"></span></button>
+    <button data-tab="scan">Tarayıcı</button>
+  </nav>
+</header>
+<main>
+  <div id="banner" class="banner"></div>
+
+  <!-- ============ CANLI ============ -->
+  <section id="tab-conn" class="act">
+    <div class="card" style="margin-top:0">
+      <h2>1. Telefon ve tarayıcı kontrolü</h2>
+      <div id="envChecks"></div>
+    </div>
+    <div class="card">
+      <h2>2. Adaptöre bağlan</h2>
+      <p class="note" style="margin:0 0 10px">Aracı açın (ekran açık olsun) ve Car Scanner'ı kapatın. Adaptörünüz listede <b>IOS-Vlink</b> (Bluetooth LE) ya da <b>Android-Vlink</b> (klasik Bluetooth) olarak görünür. <span id="cnHint"></span></p>
+      <button id="cnFind" class="bigbtn">OBD adaptörünü ara ve bağlan</button>
+      <div class="row" style="margin-top:8px"><button class="sec" id="cnAll">Listede yoksa: tüm cihazları göster</button></div>
+      <div id="stepChecks" style="margin-top:10px"></div>
+    </div>
+    <div class="card">
+      <h2>Sorun mu var?</h2>
+      <p class="note" style="margin-top:0">Aşağıdaki düğme bu ekrandaki tüm kontrolleri ve kaydı panoya kopyalar; bana yapıştırın.</p>
+      <div class="row" style="margin-top:8px"><button class="sec" id="cnCopy">Hata raporunu kopyala</button></div>
+    </div>
+  </section>
+
+  <section id="tab-panel"><iframe id="panelFrame" title="Canlı panel" allow="bluetooth; geolocation; clipboard-write" style="display:block;width:100%;border:0;background:var(--bg)"></iframe></section>
+
+  <section id="tab-live">
+    <div class="grid">
+      <div class="tile big"><div class="k">Ortalama batarya sıcaklığı</div><div class="v" id="v_avg">–<small>°C</small></div><div class="r" id="r_avg"></div></div>
+      <div class="tile"><div class="k">Maks. hücre sıcaklığı</div><div class="v" id="v_max">–<small>°C</small></div><div class="r" id="r_max"></div></div>
+      <div class="tile"><div class="k">Soğutma sıvısı (giriş)</div><div class="v" id="v_cool">–<small>°C</small></div><div class="r" id="r_cool"></div></div>
+      <div class="tile"><div class="k">Sıcaklık değişimi</div><div class="v" id="v_rate">–<small>°C/dk</small></div><div class="r"></div></div>
+      <div class="tile"><div class="k">Şarj (ekrandaki)</div><div class="v" id="v_soc">–<small>%</small></div><div class="r" id="r_soc"></div></div>
+      <div class="tile"><div class="k">Güç (+ çekiş, − şarj/rejen)</div><div class="v" id="v_pow">–<small>kW</small></div><div class="r"></div></div>
+      <div class="tile"><div class="k">Voltaj</div><div class="v" id="v_volt">–<small>V</small></div><div class="r" id="r_volt"></div></div>
+      <div class="tile"><div class="k">Akım</div><div class="v" id="v_cur">–<small>A</small></div><div class="r" id="r_cur"></div></div>
+    </div>
+    <div class="state" id="liveState"><span class="dot"></span><span id="liveStateTxt">Veri bekleniyor</span></div>
+    <div class="card">
+      <h2>Son 30 dakika</h2>
+      <canvas id="cvLive"></canvas>
+      <div class="legend"><span><i style="background:var(--hot)"></i>Ortalama</span><span><i style="background:var(--warn)"></i>Maks.</span><span><i style="background:var(--acc)"></i>Soğutma sıvısı</span></div>
+    </div>
+    <div class="card">
+      <h2>Ayarlar</h2>
+      <div class="row">
+        <label>Okuma aralığı
+          <select id="interval"><option value="0">En hızlı (bekleme yok)</option><option value="1000">1 sn</option><option value="2000">2 sn</option><option value="5000" selected>5 sn</option><option value="10000">10 sn</option></select>
+        </label>
+        <label><input type="checkbox" id="flipSign"> Akım yönünü ters çevir</label>
+      </div>
+      <p class="note" id="rateInfo" style="color:var(--fg)"></p>
+      <p class="note">"En hızlı" modda akım ve voltaj her turda, sıcaklıklar 3 turda bir, şarj % 10 turda bir okunur. Güç şarj sırasında eksi görünmeli. İlk şarj kaydında yön otomatik düzeltilir; yanlışsa kutuyu işaretleyin. Sıcaklık formülleri topluluk verisinden çıkarıldı: araç saatlerce park halindeyken batarya sıcaklığı dış sıcaklığa yakın olmalı.</p>
+    </div>
+    <div class="card">
+      <details>
+        <summary>Terminal (ham komut)</summary>
+        <div class="row" style="margin:10px 0">
+          <input id="cmd" placeholder="ör. 22491B veya ATRV" style="flex:1;min-width:160px">
+          <button class="sec" id="btnSend" disabled>Gönder</button>
+        </div>
+      </details>
+      <div id="log" class="log"></div>
+    </div>
+  </section>
+
+  <!-- ============ ŞARJ ============ -->
+  <section id="tab-charge">
+    <div class="row">
+      <button id="chgBtn">Şarj kaydını başlat</button>
+      <label><input type="checkbox" id="chgAuto" checked> Şarj başlayınca otomatik kaydet</label>
+    </div>
+    <p class="note" id="chgFirst">İlk şarjınızda kaydı elle başlatın: uygulama akım yönünü bu kayıttan öğrenir, sonraki şarjları kendisi algılar.</p>
+    <div class="grid" style="margin-top:12px">
+      <div class="tile"><div class="k">Şarj gücü</div><div class="v" id="c_kw">–<small>kW</small></div></div>
+      <div class="tile"><div class="k">Şarj</div><div class="v" id="c_soc">–<small>%</small></div></div>
+      <div class="tile"><div class="k">Bataryaya giren</div><div class="v" id="c_kwh">–<small>kWh</small></div></div>
+      <div class="tile"><div class="k">En yüksek güç</div><div class="v" id="c_peak">–<small>kW</small></div></div>
+      <div class="tile"><div class="k">Ortalama batarya sıcaklığı</div><div class="v" id="c_temp">–<small>°C</small></div></div>
+      <div class="tile"><div class="k">Süre</div><div class="v" id="c_dur">–</div></div>
+    </div>
+    <div class="card">
+      <h2>Şarj eğrisi (güç ve sıcaklık, şarj yüzdesine göre)</h2>
+      <canvas id="cvCharge"></canvas>
+      <div class="legend"><span><i style="background:var(--ok)"></i>Güç (kW, sol eksen)</span><span><i style="background:var(--hot)"></i>Ort. sıcaklık (°C, sağ eksen)</span></div>
+      <div class="row" style="margin-top:8px"><label>Göster: <select id="chgPick"></select></label></div>
+    </div>
+    <div class="card"><h2>Geçmiş şarjlar</h2><div class="tbl" id="chgList"></div></div>
+  </section>
+
+  <!-- ============ KAPASİTE ============ -->
+  <section id="tab-cap">
+    <div class="card" style="margin-top:0">
+      <h2>Batarya</h2>
+      <div class="row">
+        <label>Model <select id="capModel">
+          <option value="49">Tek motor, 51 kWh LFP</option>
+          <option value="64">Extended Range / Twin, 69 kWh NMC</option>
+          <option value="custom">Özel</option>
+        </select></label>
+        <label>Yeniyken kullanılabilir <input id="capNew" type="number" step="0.1" style="width:90px"> kWh</label>
+      </div>
+      <p class="note">Varsayılan kullanılabilir kapasiteler yaklaşık değerlerdir; aracınızın belgesindeki değeri girin.</p>
+    </div>
+    <div class="state" id="capState"><span class="dot"></span><span id="capStateTxt">Henüz uygun şarj kaydı yok</span></div>
+    <div class="card">
+      <h2>Şarj kayıtlarından tahmin</h2>
+      <div class="tbl" id="capList"></div>
+      <p class="note">Hesap: bataryaya giren enerji (voltaj × akım, zamana göre toplanır) ÷ şarj yüzdesindeki artış. En az %20'lik şarjlar kullanılır; %40'ın üzeri daha güvenilirdir. Şarj cihazı kayıpları dahil değildir. Bu dolaylı bir tahmindir, araç SOH değerini vermiyor.</p>
+    </div>
+  </section>
+
+  <!-- ============ YOLCULUK ============ -->
+  <section id="tab-trip">
+    <div class="row"><button id="tripBtn">Yolculuğu başlat</button><span class="note" id="tripGps" style="margin:0"></span></div>
+    <div class="grid" style="margin-top:12px">
+      <div class="tile"><div class="k">Mesafe (GPS)</div><div class="v" id="t_km">–<small>km</small></div></div>
+      <div class="tile"><div class="k">Tüketim</div><div class="v" id="t_eff">–<small>kWh/100km</small></div></div>
+      <div class="tile"><div class="k">Harcanan</div><div class="v" id="t_out">–<small>kWh</small></div></div>
+      <div class="tile"><div class="k">Geri kazanılan (rejen)</div><div class="v" id="t_reg">–<small>kWh</small></div></div>
+      <div class="tile"><div class="k">Rejen oranı</div><div class="v" id="t_regp">–<small>%</small></div></div>
+      <div class="tile"><div class="k">Kullanılan şarj</div><div class="v" id="t_soc">–<small>%</small></div></div>
+      <div class="tile"><div class="k">Ortalama hız</div><div class="v" id="t_spd">–<small>km/s</small></div></div>
+      <div class="tile"><div class="k">Süre</div><div class="v" id="t_dur">–</div></div>
+    </div>
+    <p class="note">Mesafe telefonun GPS'inden gelir; konum izni verin. GPS çalışmazsa bitirirken km'yi elle girebilirsiniz.</p>
+    <div class="card"><h2>Geçmiş yolculuklar</h2><div class="tbl" id="tripList"></div></div>
+  </section>
+
+  <!-- ============ PARK ============ -->
+  <section id="tab-park">
+    <div class="row"><button id="parkBtn">Park izlemeyi başlat</button></div>
+    <div class="grid" style="margin-top:12px">
+      <div class="tile"><div class="k">Şarj kaybı</div><div class="v" id="p_drop">–<small>%</small></div></div>
+      <div class="tile"><div class="k">Saatlik kayıp</div><div class="v" id="p_rate">–<small>%/sa</small></div></div>
+      <div class="tile"><div class="k">Isıtma/soğutma süresi</div><div class="v" id="p_therm">–</div></div>
+      <div class="tile"><div class="k">Süre</div><div class="v" id="p_dur">–</div></div>
+    </div>
+    <div class="card">
+      <h2>Şarj ve sıcaklık</h2>
+      <canvas id="cvPark"></canvas>
+      <div class="legend"><span><i style="background:var(--ok)"></i>Şarj % (sol)</span><span><i style="background:var(--hot)"></i>Ort. sıcaklık (sağ)</span><span><i style="background:var(--acc)"></i>Soğutma sıvısı (sağ)</span></div>
+    </div>
+    <p class="note">İzleme sırasında okuma aralığı 60 saniyeye çıkar. Telefon arabada, ekran açık ve uygulama önde kalmalı. OBD adaptörü 12V aküden akım çeker; araç uzun süre park edecekse izlemeden sonra adaptörü çıkarın. Isıtma/soğutma: soğutma sıvısı ile batarya arasında 3°C'den fazla fark olan veya 0,3 kW'tan fazla çekilen anlar.</p>
+    <div class="card"><h2>Geçmiş izlemeler</h2><div class="tbl" id="parkList"></div></div>
+  </section>
+
+  <!-- ============ ISITMA TESTİ ============ -->
+  <section id="tab-heat">
+    <div class="card" style="margin-top:0">
+      <h2>Nasıl yapılır</h2>
+      <p class="note" style="margin-top:0">1) Yöntemi seçip testi başlatın. 2) Seçtiğiniz yöntemle ön koşullandırmayı tetikleyin (örn. Volvo uygulamasından klimayı açın ya da Maps'te şarj istasyonu seçin). 3) En az 10 dakika bekleyip testi bitirin. Sonuç aşağıdaki tabloya eklenir; böylece hangi yöntemin bataryayı gerçekten ısıttığını görürsünüz.</p>
+      <div class="row" style="margin-top:10px">
+        <label>Yöntem <select id="heatMethod">
+          <option>Uygulamadan klima</option><option>Haritada şarj istasyonu (park halinde)</option>
+          <option>Haritada şarj istasyonu (sürüşte)</option><option>Zamanlayıcı</option><option>Diğer</option>
+        </select></label>
+        <label>Dış sıcaklık <input id="heatOut" type="number" step="1" style="width:70px"> °C</label>
+        <button id="heatBtn">Testi başlat</button>
+      </div>
+    </div>
+    <div class="state" id="heatState"><span class="dot"></span><span id="heatStateTxt">Test başlatılmadı</span></div>
+    <div class="grid">
+      <div class="tile"><div class="k">Ortalama sıcaklık değişimi</div><div class="v" id="h_d">–<small>°C</small></div></div>
+      <div class="tile"><div class="k">Sıvı − batarya farkı</div><div class="v" id="h_diff">–<small>°C</small></div></div>
+      <div class="tile"><div class="k">Çekilen güç</div><div class="v" id="h_kw">–<small>kW</small></div></div>
+      <div class="tile"><div class="k">Süre</div><div class="v" id="h_dur">–</div></div>
+    </div>
+    <div class="card">
+      <h2>Test grafiği</h2>
+      <canvas id="cvHeat"></canvas>
+      <div class="legend"><span><i style="background:var(--hot)"></i>Ort. sıcaklık</span><span><i style="background:var(--acc)"></i>Soğutma sıvısı</span><span><i style="background:var(--ok)"></i>Güç (kW, sağ)</span></div>
+    </div>
+    <div class="card"><h2>Test sonuçları</h2><div class="tbl" id="heatList"></div></div>
+  </section>
+
+  <!-- ============ TARAYICI ============ -->
+  <section id="tab-scan">
+    <div class="card" style="margin-top:0">
+      <h2>1. Ünite bulucu (sadece okuma)</h2>
+      <div class="row">
+        <label>Adres <input id="ufFrom" value="1600" style="width:70px"></label>
+        <label>– <input id="ufTo" value="17FF" style="width:70px"></label>
+        <button id="ufBtn" disabled>Üniteleri bul</button>
+      </div>
+      <progress id="ufProg" value="0" max="1" style="margin-top:10px"></progress>
+      <p class="note" id="ufInfo">Araçtaki her olası ünite adresine yalnızca "parça numaranı söyle" okuma isteği (UDS 22 F187) gönderir; araca hiçbir şey yazmaz. Park halinde, araç açıkken çalıştırın. 512 adres yaklaşık 1–2 dakika sürer.</p>
+      <div class="tbl" id="ufList"></div>
+    </div>
+    <div class="card">
+      <h2>2. Kod tarayıcı (sadece okuma)</h2>
+      <div class="row">
+        <label>Ünite <select id="scUnit"></select></label>
+        <label>Başlangıç <input id="scFrom" value="4800" style="width:80px"></label>
+        <label>Bitiş <input id="scTo" value="49FF" style="width:80px"></label>
+        <button id="scBtn" disabled>Tara</button>
+      </div>
+      <div class="row" style="margin-top:6px" id="scPresets"></div>
+      <progress id="scProg" value="0" max="1" style="margin-top:10px"></progress>
+      <p class="note" id="scInfo">Seçili üniteye yalnızca okuma isteği (UDS 22) gönderir; hiçbir şey yazmaz. Tarama sırasında canlı okuma durur. 512 kod yaklaşık 2–4 dakika sürer.</p>
+    </div>
+    <div class="card">
+      <h2>3. Cevap veren kodlar</h2>
+      <div class="row" style="margin-bottom:8px">
+        <button class="sec" id="scRe" disabled>Tekrar oku (değişenleri işaretle)</button>
+        <label class="note"><input type="checkbox" id="scAuto"> 5 sn'de bir tekrar oku</label>
+        <button class="sec" id="scCopy" disabled>CSV olarak kopyala</button>
+      </div>
+      <div class="tbl" id="scList"><div class="empty">Henüz tarama yapılmadı</div></div>
+      <p class="note">Park halindeyken okuyun, sonra sürüşte, şarjda ya da ısıtma çalışırken tekrar okuyun: değişen kodlar sarı görünür. "1 bayt −50" ve "2 bayt /100 −50" sütunları sıcaklık olabilecek değerleri gösterir. Bir değerin anlamını bulduğunuzda <b>Panele ekle</b> ile Panel'de kutu olarak izleyebilirsiniz.</p>
+    </div>
+    <div class="card" id="addBox" style="display:none">
+      <h2>Panele ekle</h2>
+      <div class="row">
+        <span class="mono" id="addWhat"></span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label>Ad <input id="addName" placeholder="ör. Lastik sol ön sıcaklık" style="width:200px"></label>
+        <label>Birim <input id="addUnit" placeholder="°C" style="width:60px"></label>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label>Başlangıç baytı <input id="addStart" type="number" value="0" min="0" style="width:60px"></label>
+        <label>Uzunluk <select id="addLen"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
+        <label><input type="checkbox" id="addSigned"> İşaretli</label>
+        <label>Çarpan <input id="addScale" value="1" style="width:70px"></label>
+        <label>Ekleme <input id="addOffset" value="0" style="width:70px"></label>
+      </div>
+      <p class="note">Değer = (seçilen baytlar) × çarpan + ekleme. Şu anki ham değerle sonuç: <b id="addPreview">–</b></p>
+      <div class="row"><button id="addOk">Panele ekle</button><button class="sec" id="addCancel">Vazgeç</button></div>
+      <div class="tbl" id="extraList" style="margin-top:10px"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+"use strict";
+// =====================================================================
+//  EX30 / Geely SEA BMS: istek 29-bit 1DD01635, cevap 1EC6AE80
+// =====================================================================
+const INIT = ["ATZ","ATE0","ATL0","ATS0","ATH1","ATAL","ATST64","ATSP7",
+  "ATSHD01635","ATCP1D","ATCRA1EC6AE80","ATFCSH1DD01635","ATFCSD300000","ATFCSM1"];
+const u16 = d => d.length>=2 ? d[d.length-2]*256 + d[d.length-1] : NaN;
+const PIDS = [
+  // every: "En hızlı" modda kaç turda bir okunacağı (akım/voltaj her turda)
+  {id:"cur",  did:"4802", every:1,  f:d => 0.1*(u16(d) - 16384)},
+  {id:"volt", did:"4803", every:1,  f:d => 0.01*u16(d)},
+  {id:"avg",  did:"491B", every:3,  f:d => u16(d)/100 - 50},
+  {id:"cool", did:"4804", every:3,  f:d => d[d.length-1] - 50},
+  {id:"max",  did:"4945", every:6,  f:d => u16(d)/100 - 50},
+  {id:"soc",  did:"4801", every:10, f:d => 1.0625*0.002*u16(d) - 3.125},
+];
+const SERVICES = [0xfff0, 0xffe0, 0x18f0, "e7810a71-73ae-499d-8c15-faa9aef0c3f2"];
+
+function parseDid(resp, did){
+  const lines = resp.toUpperCase().split(/[\r\n]+/).map(s=>s.replace(/[^0-9A-F]/g,"")).filter(Boolean);
+  for (const ln of lines){
+    const key = "62"+did, i = ln.indexOf(key);
+    if (i<0) continue;
+    let hex = ln.slice(i+key.length);
+    if (i>=2){ const pci = parseInt(ln.slice(i-2,i),16); const n = (pci & 0x0F) - 3; if (n>0 && n*2<=hex.length) hex = hex.slice(0,n*2); }
+    const bytes = []; for (let k=0;k+1<hex.length;k+=2) bytes.push(parseInt(hex.slice(k,k+2),16));
+    if (bytes.length) return bytes;
+  }
+  return null;
+}
+const hexb = b => b.map(x=>x.toString(16).padStart(2,"0")).join(" ").toUpperCase();
+
+// =====================================================================
+//  Kalıcı ayarlar ve kayıtlar
+// =====================================================================
+const store = {
+  get(k,def){ try{ const v=localStorage.getItem("ex30."+k); return v==null?def:JSON.parse(v); }catch{ return def; } },
+  set(k,v){ try{ localStorage.setItem("ex30."+k, JSON.stringify(v)); }catch{} }
+};
+const cfg = Object.assign({sign:1, signKnown:false, capModel:"64", capNew:64, chgAuto:true, interval:5000}, store.get("cfg",{}));
+let sessions = store.get("sessions", []);           // tamamlanan kayıtlar
+const active = {charge:null, trip:null, park:null, heat:null};
+function saveCfg(){ store.set("cfg", cfg); }
+let saveTimer=null;
+function saveSessions(now){
+  const doSave = () => {
+    while (sessions.length>60) sessions.shift();
+    let json; try{ json = JSON.stringify(sessions); }catch{ return; }
+    while (json.length>3.5e6 && sessions.length){ sessions.shift(); json=JSON.stringify(sessions); }
+    try{ localStorage.setItem("ex30.sessions", json); }catch{}
+  };
+  if (now){ clearTimeout(saveTimer); saveTimer=null; doSave(); }
+  else if (!saveTimer) saveTimer = setTimeout(()=>{ saveTimer=null; doSave(); }, 20000);
+}
+
+// =====================================================================
+//  BLE ELM327 taşıma
+// =====================================================================
+let dev=null, chW=null, chN=null, buf="", waiter=null, busy=Promise.resolve(), wake=null, manual=false;
+const enc = new TextEncoder(), dec = new TextDecoder();
+function onNotify(e){
+  buf += dec.decode(e.target.value);
+  if (buf.includes(">") && waiter){ const r = buf.replace(/>/g,"").trim(); buf=""; const w=waiter; waiter=null; w(r); }
+}
+function send(cmd, timeout=3000){
+  const p = busy.then(()=>new Promise(async res=>{
+    if (!chW){ res("NOT CONNECTED"); return; }
+    buf=""; const t = setTimeout(()=>{ if(waiter){ waiter=null; res("TIMEOUT"); } }, timeout);
+    waiter = r=>{ clearTimeout(t); res(r); };
+    try{
+      const data = enc.encode(cmd+"\r");
+      for (let i=0;i<data.length;i+=20){
+        const part = data.slice(i,i+20);
+        if (chW.properties.writeWithoutResponse) await chW.writeValueWithoutResponse(part); else await chW.writeValue(part);
+      }
+    }catch(err){ clearTimeout(t); waiter=null; res("ERR "+err.message); }
+  }));
+  busy = p.catch(()=>{});
+  return p;
+}
+// ----- Bağlantı ekranı: ortam kontrolleri ve adım adım bağlantı -----
+const STEPS = [
+  ["pick","Cihaz seçildi"],["gatt","Bluetooth bağlantısı kuruldu"],["svc","OBD servisi bulundu"],
+  ["notify","Veri kanalı açıldı"],["elm","Adaptör cevap verdi"],["car","Araç (batarya yönetimi) cevap verdi"]];
+const stepState = {};
+function setStep(id, st, detail=""){ stepState[id]={st,detail}; renderSteps(); }
+function chkRow(st, title, detail){ const ic={ok:"✓",bad:"✕",warn:"!",run:"…"}[st]||"·";
+  return `<div class="chk ${st||""}"><span class="ic">${ic}</span><div><div class="t">${title}</div>${detail?`<div class="d">${detail}</div>`:""}</div></div>`; }
+function renderSteps(){ $("stepChecks").innerHTML = STEPS.map(([id,t])=>{ const x=stepState[id]; return chkRow(x?.st, t, x?.detail); }).join(""); }
+let envResult = [];
+async function checkEnv(){
+  const ua = navigator.userAgent, res = [];
+  $("cnHint").textContent = window.EX30_APP
+    ? "IOS-Vlink'i eşleştirmeniz gerekmez. Android-Vlink'in telefonun Bluetooth ayarlarında eşleşmiş olması gerekir; Car Scanner'la kullandıysanız zaten eşleşmiştir."
+    : "Web sürümü yalnızca IOS-Vlink ile çalışır; Android-Vlink (klasik Bluetooth) için EX30 Reader uygulamasını kullanın. IOS-Vlink'i telefonun Bluetooth ayarlarında eşleştirmeyin.";
+  if (window.EX30_APP){
+    res.push(["ok","Uygulama: EX30 Reader (Android)","Bluetooth uygulamanın kendisi üzerinden kullanılıyor"]);
+    let avail=null; try{ avail = await navigator.bluetooth.getAvailability(); }catch{}
+    res.push(avail===false ? ["bad","Bluetooth kapalı","Telefonun Bluetooth'unu açın, sonra bu sayfayı aşağı çekmeden 'OBD adaptörünü ara'ya basın."] : ["ok","Bluetooth açık",""]);
+    envResult = res; $("envChecks").innerHTML = res.map(r=>chkRow(...r)).join("");
+    $("cnFind").disabled = $("cnAll").disabled = false;
+    return;
+  }
+  const isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform==="MacIntel" && navigator.maxTouchPoints>1);
+  const isAndroid = /Android/.test(ua), isChrome = /Chrome\//.test(ua) && !/EdgA|OPR|SamsungBrowser|wv\)/.test(ua);
+  const inWebView = /; wv\)/.test(ua);
+  const inFrame = (()=>{ try{ return window.top!==window; }catch{ return true; } })();
+  res.push(isIOS ? ["bad","Cihaz: iPhone/iPad","iPhone'da Safari ve Chrome Bluetooth'a izin vermez. Android telefon kullanın (ya da Bluefy gibi Web Bluetooth destekli bir tarayıcı)."]
+    : isAndroid ? ["ok","Cihaz: Android",""] : ["warn","Cihaz: "+(navigator.platform||"bilinmiyor"),"Android telefonda Chrome önerilir."]);
+  res.push(inWebView ? ["bad","Tarayıcı: uygulama içi görüntüleyici","Dosya bir uygulamanın içinde açılmış (ör. Claude, dosya yöneticisi). Bluetooth burada çalışmaz; sayfayı Chrome'da açın."]
+    : isChrome ? ["ok","Tarayıcı: Chrome",""] : ["warn","Tarayıcı: Chrome değil","Samsung Internet, Firefox vb. Web Bluetooth desteklemez. Chrome kullanın."]);
+  const proto = location.protocol;
+  res.push(window.isSecureContext && proto==="https:" ? ["ok","Güvenli adres (https)",location.host]
+    : ["bad","Güvenli adres yok ("+proto.replace(":","")+")","Chrome, Bluetooth'u yalnızca https adresinden açılan sayfalarda verir. İndirilen dosyayı açmak çalışmaz; sayfayı internette yayınlayın (GitHub Pages gibi), sonra o adresi Chrome'da açın."]);
+  if (inFrame) res.push(["warn","Sayfa bir çerçeve içinde","Çerçeve Bluetooth'u engelleyebilir. Sayfayı doğrudan kendi adresinden açın."]);
+  if (!("bluetooth" in navigator)) res.push(["bad","Web Bluetooth yok","Yukarıdaki kırmızı maddelerden biri sebep. Hepsi yeşil olduğunda bu da yeşil olur."]);
+  else {
+    let avail=null; try{ avail = await navigator.bluetooth.getAvailability(); }catch{}
+    res.push(avail===false ? ["bad","Bluetooth kapalı ya da izin yok","Telefonun Bluetooth'unu açın. Android 12+: Chrome için 'Yakındaki cihazlar' iznini verin. Android 11 ve altı: Konum'u açın ve Chrome'a konum izni verin."]
+      : ["ok","Web Bluetooth hazır", avail===null ? "Bluetooth durumu okunamadı; bağlanmayı deneyin." : ""]);
+  }
+  envResult = res;
+  $("envChecks").innerHTML = res.map(r=>chkRow(...r)).join("");
+  const blocked = !("bluetooth" in navigator);
+  $("cnFind").disabled = $("cnAll").disabled = blocked;
+}
+
+async function connect(all=false){
+  if (!navigator.bluetooth){ goTab("conn"); checkEnv(); return; }
+  for (const k in stepState) delete stepState[k]; renderSteps();
+  setPill("busy","Cihaz aranıyor"); setStep("pick","run","Açılan listeden IOS-Vlink ya da Android-Vlink'i seçin");
+  try{
+    const filters = [{namePrefix:"IOS-Vlink"},{namePrefix:"iOS-Vlink"},{namePrefix:"Android-Vlink"},{namePrefix:"V-LINK"},{namePrefix:"vLinker"},{namePrefix:"OBD"},{namePrefix:"Vgate"},
+      ...SERVICES.map(u=>({services:[u]}))];
+    try{
+      dev = await navigator.bluetooth.requestDevice(all ? {acceptAllDevices:true, optionalServices:SERVICES} : {filters, optionalServices:SERVICES});
+    }catch(e){
+      if (e.name==="NotFoundError") throw Object.assign(new Error(all ? "Cihaz seçilmedi" : "Cihaz seçilmedi ya da listede yoktu. Adaptör takılı ve araç açık mı? 'Tüm cihazları göster' ile de deneyin."), {step:"pick"});
+      if (e.name==="SecurityError") throw Object.assign(new Error("Tarayıcı Bluetooth'a izin vermedi (https ya da çerçeve sorunu)."), {step:"pick"});
+      throw Object.assign(e, {step:"pick"});
+    }
+    setStep("pick","ok", dev.name || "(isimsiz cihaz)");
+    dev.addEventListener("gattserverdisconnected", onDisconnect);
+    setStep("gatt","run");
+    let gatt;
+    try{ gatt = await dev.gatt.connect(); }
+    catch(e){ throw Object.assign(new Error("Bağlanamadı: "+e.message+". Car Scanner ya da başka bir uygulama bağlı olabilir; kapatıp tekrar deneyin."), {step:"gatt"}); }
+    setStep("gatt","ok");
+    setStep("svc","run");
+    chW=chN=null; const seen=[];
+    for (const sv of SERVICES){
+      let svc; try{ svc = await gatt.getPrimaryService(sv); }catch{ continue; }
+      seen.push(String(svc.uuid).slice(0,8));
+      let w=null,n=null;
+      for (const c of await svc.getCharacteristics()){
+        if (!n && (c.properties.notify||c.properties.indicate)) n=c;
+        if (!w && (c.properties.write||c.properties.writeWithoutResponse)) w=c;
+      }
+      if (w && n){ chW=w; chN=n; break; }
+    }
+    if (!chW||!chN) throw Object.assign(new Error(seen.length ? "Servis var ama yazma/okuma kanalı yok ("+seen.join(", ")+")" : "Bilinen OBD servisi yok. Bu cihaz BLE OBD adaptörü olmayabilir."), {step:"svc"});
+    setStep("svc","ok", String(chW.service.uuid).slice(0,8));
+    setStep("notify","run");
+    chN.addEventListener("characteristicvaluechanged", onNotify);
+    try{ await chN.startNotifications(); }catch(e){ throw Object.assign(new Error("Bildirimler açılamadı: "+e.message), {step:"notify"}); }
+    setStep("notify","ok");
+    log("Bağlandı: "+(dev.name||"OBD"));
+    setPill("busy","Başlatılıyor"); setStep("elm","run","Adaptör ayarlanıyor");
+    let elmId="";
+    for (const c of INIT){ const r = await send(c, c==="ATZ"?4000:2000); log(c+" → "+r.replace(/\s+/g," ")); if (c==="ATZ"){ elmId=r; await sleep(500); } }
+    if (/TIMEOUT/.test(elmId) || !elmId) throw Object.assign(new Error("Adaptör komutlara cevap vermedi. Adaptörü çıkarıp takın, tekrar deneyin."), {step:"elm"});
+    setStep("elm","ok", (elmId.match(/ELM\S*\s*v?[\d.]+/i)||[elmId.replace(/\s+/g," ").slice(0,30)])[0]);
+    setStep("car","run","Batarya sıcaklığı isteniyor");
+    let carOk=false, lastR="";
+    for (let i=0;i<3 && !carOk;i++){ lastR = await send("22491B"); carOk = !!parseDid(lastR,"491B"); if(!carOk) await sleep(700); }
+    reqSuffix="";
+    if (carOk){
+      // "22491B1": adaptöre tek cevap beklemesini söyler, zaman aşımını beklemez (daha hızlı)
+      const t0=performance.now(), r1 = await send("22491B1"), ms=performance.now()-t0;
+      if (parseDid(r1,"491B")){ reqSuffix="1"; log("Tek-cevap modu açık ("+Math.round(ms)+" ms)"); }
+      else log("Tek-cevap modu desteklenmiyor, normal modda devam");
+    }
+    if (carOk) setStep("car","ok","Bağlantı tamam, Canlı sekmesine geçiliyor");
+    else setStep("car","warn", "Araç cevap vermedi ("+lastR.replace(/\s+/g," ").slice(0,30)+"). Aracı açın, ekran açık olsun; bir dakika içinde kendiliğinden tekrar denenir.");
+    setPill("on","Bağlı");
+    btnConn.textContent="Kes"; $("btnSend").disabled=false; $("scBtn").disabled=false; $("ufBtn").disabled=false;
+    try{ wake = await navigator.wakeLock?.request("screen"); }catch{}
+    startPolling();
+    if (carOk && tab==="conn") setTimeout(()=>goTab("live"), 900);
+  }catch(err){
+    const st = err.step || Object.keys(stepState).find(k=>stepState[k].st==="run") || "pick";
+    setStep(st, "bad", err.message);
+    log("Hata: "+err.message); setPill("err","Bağlantı hatası");
+    try{ dev?.gatt?.disconnect(); }catch{}
+    cleanup();
+  }
+}
+function onDisconnect(){ if(manual){manual=false;return;} log("Bağlantı koptu"); setPill("err","Bağlantı koptu"); cleanup(); }
+function cleanup(){ publishCar(false); stopPolling(); chW=null; btnConn.textContent="Bağlan"; $("btnSend").disabled=true; $("scBtn").disabled=true; $("ufBtn").disabled=true; try{wake?.release()}catch{} wake=null; }
+function disconnect(){ manual=true; try{ dev?.gatt?.disconnect(); }catch{} setPill("","Bağlı değil"); cleanup(); }
+
+// =====================================================================
+//  Okuma döngüsü
+// =====================================================================
+const vals = {}, raw = {}, hist = [];
+let pollTimer=null, inPoll=false, paused=false;
+const pollInterval = () => active.park ? Math.max(60000, cfg.interval) : cfg.interval;
+let gen=0;
+function startPolling(){
+  if (panelWin){ stopPolling(); paused=false; try{ panelWin.ex30Resume(); }catch{} return; }
+  stopPolling(); const my=++gen; paused=false; const loop=async()=>{ if(my!==gen) return; await pollOnce(); if(!paused && chW && my===gen) pollTimer=setTimeout(loop, pollInterval()); }; loop(); }
+function stopPolling(){ paused=true; clearTimeout(pollTimer); pollTimer=null; }
+async function pausePolling(){ stopPolling(); while(inPoll) await sleep(50);
+  if (panelWin){ try{ await panelWin.ex30Pause(); }catch{} await restoreBms(); } }
+let reqSuffix="", cycleNo=0;
+const speed = {reqMs:[], samples:[]};
+async function pollOnce(){
+  if (inPoll || !chW) return; inPoll=true;
+  const fast = pollInterval() < 1000; cycleNo++;
+  try{
+    for (const p of PIDS){
+      if (fast && cycleNo % p.every !== 0 && vals[p.id]!=null) continue;
+      const t0 = performance.now();
+      const r = await send("22"+p.did+reqSuffix);
+      speed.reqMs.push(performance.now()-t0); if (speed.reqMs.length>60) speed.reqMs.shift();
+      const b = parseDid(r, p.did);
+      if (b){ raw[p.id]=hexb(b); const v=p.f(b); vals[p.id]=isFinite(v)?v:null; }
+      else { raw[p.id]=r.slice(0,24); vals[p.id]=null; }
+    }
+  } finally { inPoll=false; }
+  const now=Date.now(); speed.samples.push(now); while(speed.samples.length && now-speed.samples[0]>10000) speed.samples.shift();
+  onSample(makeSample(now));
+}
+function makeSample(t){
+  const P = (vals.volt!=null && vals.cur!=null) ? vals.volt*vals.cur/1000*cfg.sign : null; // + çekiş, − şarj
+  return {t, avg:vals.avg, max:vals.max, cool:vals.cool, soc:vals.soc, volt:vals.volt, cur:vals.cur!=null?vals.cur*cfg.sign:null, P};
+}
+
+// Her yeni ölçümde tüm aktif kayıtları güncelle
+let chgDetect=0, chgIdle=0, prevSampleT=0;
+function onSample(s){
+  const sdt = prevSampleT ? Math.min(s.t-prevSampleT, 60000) : 0; prevSampleT = s.t;
+  if (stepState.car && stepState.car.st!=="ok" && s.avg!=null) setStep("car","ok","Araç cevap veriyor");
+  const hl = hist[hist.length-1];
+  if (hl && s.t-hl._t0 < 1000) { Object.assign(hl, s, {_t0:hl._t0}); } else hist.push(Object.assign({_t0:s.t}, s));
+  const cut=s.t-6*3600e3; while(hist.length && hist[0].t<cut) hist.shift();
+  // otomatik şarj algılama
+  if (cfg.chgAuto && cfg.signKnown && !active.charge){
+    chgDetect = (s.P!=null && s.P < -2.5) ? chgDetect+1 : 0;
+    if (chgDetect>=3){ chgDetect=0; startSession("charge", {auto:true}); log("Şarj algılandı, kayıt başladı"); }
+  }
+  for (const type in active){
+    const ss = active[type]; if (!ss) continue;
+    const last = ss.samples[ss.samples.length-1];
+    const rec = {t:s.t, soc:r2(s.soc), avg:r2(s.avg), max:r2(s.max), cool:s.cool, P:r2(s.P)};
+    if (type==="trip" && geo.last) rec.lat=+geo.last.lat.toFixed(5), rec.lon=+geo.last.lon.toFixed(5);
+    const lp = ss.lastPt || (last ? {t:last.t, P:last.P} : null);   // enerji her ölçümde toplanır
+    if (lp && s.P!=null && lp.P!=null){
+      const dt = Math.min((s.t-lp.t)/3600e3, Math.max(3*pollInterval(), 15000)/3600e3);
+      const Pm = (s.P+lp.P)/2;
+      ss.eOut += Math.max(Pm,0)*dt; ss.eIn += Math.max(-Pm,0)*dt;
+    }
+    ss.lastPt = {t:s.t, P:s.P};
+    if (!last || s.t-last.t >= 2000){ ss.samples.push(rec); if (ss.samples.length>4000) ss.samples.splice(1,1); }
+    if (type==="charge") chargeTick(ss, s, sdt);
+  }
+  if (s.t - lastActiveSave > 10000){ lastActiveSave = s.t; saveActive(); }
+  throttledRender();
+  if (s.t - lastPublish >= 1000){ lastPublish = s.t; publishCar(true); }
+}
+let lastRender=0, renderTimer=null, lastPublish=0, lastActiveSave=0;
+function throttledRender(){
+  const now=Date.now();
+  if (now-lastRender >= 500){ lastRender=now; renderAll(); return; }
+  if (!renderTimer) renderTimer=setTimeout(()=>{ renderTimer=null; lastRender=Date.now(); renderAll(); }, 500-(now-lastRender));
+}
+const r2 = v => v==null||!isFinite(v) ? null : Math.round(v*100)/100;
+
+// =====================================================================
+//  Panel sekmesi: bağlantıyı paylaşır. Panel açıldıktan sonra okumayı panel
+//  yürütür (daha çok ünite) ve değerleri buraya da gönderir; sekmeler çalışmaya devam eder.
+// =====================================================================
+let panelWin = null, lastPanelFeed = 0;
+async function restoreBms(){ if (!chW) return; for (const c of ["ATCP1D","ATSHD01635","ATCRA1EC6AE80","ATFCSH1DD01635"]) await send(c); }
+window.EX30_HOST = {
+  register(w){ panelWin = w; stopPolling(); },
+  connected: () => !!chW,
+  send: (c, t) => send(c, t),
+  suffix: () => reqSuffix,
+  connect: () => connect(false),
+  disconnect: () => disconnect(),
+  feed(v){ for (const k in v) vals[k] = v[k]; onSample(makeSample(Date.now())); }
+};
+window.__car = o => { try{ panelWin && panelWin.__car && panelWin.__car(o); }catch{} };
+window.__carStatus = t => { try{ panelWin && panelWin.__carStatus && panelWin.__carStatus(t); }catch{} };
+
+// =====================================================================
+//  Kayıt yönetimi (şarj, yolculuk, park, ısıtma testi)
+// =====================================================================
+function startSession(type, meta={}){
+  active[type] = {id:Date.now()+"-"+type, type, start:Date.now(), end:null, eIn:0, eOut:0, samples:[], meta};
+  if (type==="trip") geoStart();
+  if (type==="park" && chW){ startPolling(); }
+  saveActive(true); renderAll();
+}
+function stopSession(type, extra={}){
+  const ss = active[type]; if (!ss) return null;
+  ss.end = Date.now(); Object.assign(ss.meta, extra);
+  if (type==="trip"){ ss.meta.km = ss.meta.km ?? r2(geo.dist/1000); geoStop(); }
+  active[type]=null;
+  if (ss.samples.length>=2) { sessions.push(ss); saveSessions(true); }
+  else log("Kayıt çok kısa, kaydedilmedi");
+  if (type==="park" && chW) startPolling();
+  saveActive(true); renderAll();
+  return ss;
+}
+function saveActive(now){ store.set("active", active); if (now) saveSessions(true); }
+(function restoreActive(){ const a = store.get("active", null); if (!a) return;
+  for (const k in active) if (a[k]){ active[k]=a[k]; } })();
+
+function chargeTick(ss, s, sdt){
+  // akım yönü kalibrasyonu: şarj kaydında güç ilk ölçümlerde pozitif çıkarsa yön terstir
+  if (!ss.meta.signChecked){
+    const ps = ss.samples.map(x=>x.P).filter(p=>p!=null && Math.abs(p)>1);
+    if (ps.length>=3){
+      ss.meta.signChecked = true; cfg.signKnown = true; saveCfg();
+      const med = ps.slice().sort((a,b)=>a-b)[Math.floor(ps.length/2)];
+      if (med>0){
+        cfg.sign*=-1; saveCfg(); $("flipSign").checked = cfg.sign<0;
+        for (const x of ss.samples) if (x.P!=null) x.P=-x.P;
+        [ss.eIn, ss.eOut] = [ss.eOut, ss.eIn];
+        log("Akım yönü düzeltildi (şarj sırasında güç eksi olmalı)");
+      }
+    }
+  }
+  // otomatik bitiş: 2 dakika boyunca şarj gücü 0,5 kW altı
+  if (ss.meta.auto){
+    chgIdle = (s.P==null || s.P > -0.5) ? chgIdle + (sdt||0) : 0;
+    if (chgIdle >= 120000){ chgIdle=0; stopSession("charge"); log("Şarj bitti, kayıt kaydedildi"); }
+  }
+}
+function summarize(ss){
+  const sm = ss.samples, f = sm.find(x=>x.soc!=null), l = [...sm].reverse().find(x=>x.soc!=null);
+  const temps = sm.map(x=>x.avg).filter(v=>v!=null);
+  const Ps = sm.map(x=>x.P).filter(v=>v!=null);
+  return {
+    socA: f?.soc ?? null, socB: l?.soc ?? null, dSoc: (f&&l) ? l.soc-f.soc : null,
+    tA: temps[0] ?? null, tB: temps[temps.length-1] ?? null, tMax: temps.length?Math.max(...temps):null,
+    peakIn: Ps.length ? Math.max(0,-Math.min(...Ps)) : null,
+    dur: (ss.end||Date.now()) - ss.start
+  };
+}
+function deleteSession(id){ sessions = sessions.filter(s=>s.id!==id); saveSessions(true); renderAll(); }
+async function copyText(t, what){ try{ await navigator.clipboard.writeText(t); log(what+" panoya kopyalandı"); }catch{ log("Kopyalanamadı"); } }
+function sessionCsv(ss){
+  const cols=["t","soc","avg","max","cool","P","lat","lon"];
+  return ["zaman,soc_yuzde,ort_C,maks_C,sogutma_C,guc_kW,enlem,boylam"].concat(
+    ss.samples.map(x=>cols.map(c=>c==="t"?new Date(x.t).toISOString():(x[c]??"")).join(","))).join("\n");
+}
+
+// =====================================================================
+//  GPS (yolculuk mesafesi)
+// =====================================================================
+const geo = {watch:null, dist:0, last:null, speeds:[], err:null};
+function geoStart(){
+  geo.dist=0; geo.last=null; geo.err=null;
+  if (!navigator.geolocation){ geo.err="Bu tarayıcıda konum yok"; return; }
+  try{
+    geo.watch = navigator.geolocation.watchPosition(p=>{
+      const c=p.coords; if (c.accuracy>40) return;
+      const pt={lat:c.latitude, lon:c.longitude, t:p.timestamp};
+      if (geo.last){
+        const d=hav(geo.last,pt), dt=(pt.t-geo.last.t)/1000;
+        if (d<5) return;
+        if (dt>0 && d/dt<70) geo.dist+=d;
+      }
+      geo.last=pt; geo.err=null;
+      renderTrip();
+    }, e=>{ geo.err="Konum alınamadı: "+e.message; renderTrip(); }, {enableHighAccuracy:true, maximumAge:2000});
+  }catch(e){ geo.err="Konum alınamadı"; }
+}
+function geoStop(){ try{ if(geo.watch!=null) navigator.geolocation.clearWatch(geo.watch); }catch{} geo.watch=null; }
+function hav(a,b){ const R=6371000, toR=Math.PI/180, dLa=(b.lat-a.lat)*toR, dLo=(b.lon-a.lon)*toR;
+  const h=Math.sin(dLa/2)**2+Math.cos(a.lat*toR)*Math.cos(b.lat*toR)*Math.sin(dLo/2)**2; return 2*R*Math.asin(Math.sqrt(h)); }
+
+// =====================================================================
+//  Tarayıcı
+// =====================================================================
+let scanRes = [], scanning=false;
+// ---- UDS cevabı: tek ve çok çerçeveli (ISO-TP) cevapları birleştirir ----
+function parseUds(resp, did){
+  const frames = resp.toUpperCase().split(/[\r\n]+/).map(l=>l.replace(/[^0-9A-F]/g,"")).filter(l=>l.length>=10);
+  const byHdr = {};
+  for (const ln of frames){ const h=ln.slice(0,8), d=ln.slice(8); (byHdr[h] = byHdr[h] || []).push(d); }
+  for (const h in byHdr){
+    const fr = byHdr[h]; let payload = null;
+    const b0 = parseInt(fr[0].slice(0,2),16);
+    if ((b0>>4)===0){ payload = fr[0].slice(2, 2+(b0&0x0F)*2); }
+    else if ((b0>>4)===1){
+      const len = ((b0&0x0F)<<8) | parseInt(fr[0].slice(2,4),16);
+      let hex = fr[0].slice(4);
+      for (const f of fr.slice(1)) if ((parseInt(f.slice(0,2),16)>>4)===2) hex += f.slice(2);
+      payload = hex.slice(0, len*2);
+    }
+    if (!payload) continue;
+    const bytes=[]; for (let i=0;i+1<payload.length;i+=2) bytes.push(parseInt(payload.slice(i,i+2),16));
+    if (bytes[0]===0x62 && (did==null || ((bytes[1]<<8)|bytes[2])===parseInt(did,16))) return {hdr:h, ok:true, data:bytes.slice(3)};
+    if (bytes[0]===0x7F) return {hdr:h, ok:false, nrc:bytes[2]};
+  }
+  return null;
+}
+const KNOWN_UNITS = {"1DD01601":"VCU","1DD01631":"Ön motor","1DD01635":"Batarya (BMS)","1DD01637":"Arka motor","1DD01650":"Şarj cihazı","1DD01701":"Şasi"};
+const UNIT_PRESETS = {"1DD01635":["4800-49FF","DD00-DDFF","EE00-EEFF"],"1DD01637":["E300-E3FF","EE00-EEFF"],"1DD01601":["4A00-4AFF","D900-D9FF","E300-E3FF"],"1DD01650":["EE00-EEFF"],"1DD01701":["2B00-2BFF","F400-F4FF","FD00-FEFF"]};
+const rxFor = tx => (0x1EC00E80 + ((parseInt(tx.slice(4),16) - 0x1600) << 13)).toString(16).toUpperCase();
+let units = store.get("units", []);   // [{tx, rx, name, part}]
+function unitList(){ const m={}; for (const tx in KNOWN_UNITS) m[tx]={tx, rx:rxFor(tx), name:KNOWN_UNITS[tx]}; for (const u of units) m[u.tx]=Object.assign(m[u.tx]||{}, u); return Object.values(m).sort((a,b)=>a.tx.localeCompare(b.tx)); }
+function fillUnitSelect(){
+  const sel=$("scUnit"), prev=sel.value||"1DD01635";
+  sel.innerHTML = unitList().map(u=>`<option value="${u.tx}">${u.tx.slice(4)} · ${u.name||"Bilinmeyen ünite"}</option>`).join("");
+  sel.value = [...sel.options].some(o=>o.value===prev) ? prev : "1DD01635"; fillPresets();
+}
+function fillPresets(){ const tx=$("scUnit").value; $("scPresets").innerHTML = (UNIT_PRESETS[tx]||["0000-00FF","D000-D1FF","F100-F1FF"]).map(r=>`<button class="sec mini" data-range="${r}">${r}</button>`).join("") + `<span class="note" style="margin:0">hazır aralıklar</span>`; }
+async function setUnit(tx, rx){ await send("ATCP"+tx.slice(0,2)); await send("ATSH"+tx.slice(2)); await send("ATCRA"+rx); await send("ATFCSH"+tx); }
+const ascii = b => b.map(x=>x>=32&&x<127?String.fromCharCode(x):"").join("").trim();
+
+let finding=false;
+async function runFinder(){
+  if (finding){ finding=false; return; }
+  const a=parseInt($("ufFrom").value,16), b=parseInt($("ufTo").value,16);
+  if (!(a>=0x1600 && b<=0x17FF && b>=a)){ $("ufInfo").textContent="Adres aralığı 1600–17FF içinde olmalı"; return; }
+  finding=true; $("ufBtn").textContent="Durdur"; $("ufBtn").className="stop";
+  await pausePolling(); await send("ATST20");
+  const prog=$("ufProg"); prog.max=b-a+1; const found=[];
+  for (let n=a; n<=b && finding && chW; n++){
+    const tx="1DD0"+n.toString(16).toUpperCase().padStart(4,"0"), rx=rxFor(tx);
+    await setUnit(tx, rx);
+    const r=parseUds(await send("22F187", 600), "F187");
+    if (r){
+      const u={tx, rx:r.hdr||rx, name:KNOWN_UNITS[tx]||"", part: r.ok ? ascii(r.data) : `(cevap var, kod ${r.nrc?.toString(16).toUpperCase()})`};
+      // ek kimlik: yazılım sürümü
+      if (r.ok){ const v=parseUds(await send("22F195",600),"F195"); if (v&&v.ok) u.sw=ascii(v.data); }
+      found.push(u);
+    }
+    prog.value=n-a+1; $("ufInfo").textContent=`${tx.slice(4)} soruluyor · ${found.length} ünite cevap verdi`;
+  }
+  await send("ATST64"); await restoreBms();
+  finding=false; $("ufBtn").textContent="Üniteleri bul"; $("ufBtn").className="";
+  if (found.length){ const m={}; for (const u of units) m[u.tx]=u; for (const u of found) m[u.tx]=u; units=Object.values(m); store.set("units", units); }
+  $("ufInfo").textContent=`Bitti: ${found.length} ünite cevap verdi. Bilinmeyenler için kod tarayıcıda üniteyi seçip tarayın.`;
+  renderUnits(found); fillUnitSelect();
+  if (chW) startPolling();
+}
+function renderUnits(list){
+  list = list || units; if (!list.length){ $("ufList").innerHTML=""; return; }
+  $("ufList").innerHTML = `<table><tr><th>Adres</th><th>Cevap ID</th><th>Ünite</th><th>Parça no / yazılım</th><th></th></tr>`+
+    list.map(u=>`<tr><td class="mono">${u.tx}</td><td class="mono">${u.rx}</td><td>${u.name||"<b>Yeni</b>"}</td><td class="mono">${u.part||""}${u.sw?" · "+u.sw:""}</td><td><button class="sec mini" data-unit="${u.tx}">Tara</button></td></tr>`).join("")+`</table>`;
+}
+
+async function runScan(){
+  if (scanning){ scanning=false; return; }
+  const a=parseInt($("scFrom").value,16), b=parseInt($("scTo").value,16);
+  if (!(a>=0 && b>=a && b<=0xFFFF && b-a<=4096)){ $("scInfo").textContent="Geçersiz aralık (en fazla 4096 kod, onaltılık yazın)"; return; }
+  const u = unitList().find(x=>x.tx===$("scUnit").value) || {tx:"1DD01635", rx:"1EC6AE80"};
+  scanning=true; $("scBtn").textContent="Durdur"; $("scBtn").className="stop";
+  await pausePolling(); await setUnit(u.tx, u.rx);
+  const found=[], prog=$("scProg"); prog.max=b-a+1;
+  for (let d=a; d<=b && scanning && chW; d++){
+    const did=d.toString(16).toUpperCase().padStart(4,"0");
+    const r=parseUds(await send("22"+did, 800), did);
+    if (r && r.ok && r.data.length) found.push({tx:u.tx, rx:u.rx, unit:u.name||u.tx.slice(4), did, bytes:r.data, prev:null});
+    prog.value=d-a+1; $("scInfo").textContent=`${u.tx.slice(4)}:${did} okunuyor · ${found.length} kod cevap verdi`;
+  }
+  await restoreBms();
+  scanRes = found; scanning=false;
+  $("scBtn").textContent="Tara"; $("scBtn").className="";
+  $("scInfo").textContent=`Tarama bitti: ${found.length} kod cevap verdi`;
+  $("scRe").disabled = $("scCopy").disabled = !found.length;
+  renderScan();
+  if (chW) startPolling();
+}
+let rescanning=false;
+async function rescan(){
+  if (!scanRes.length || !chW || rescanning) return;
+  rescanning=true; $("scRe").disabled=true; await pausePolling();
+  let cur="";
+  for (const x of scanRes){ if (cur!==x.tx){ await setUnit(x.tx, x.rx); cur=x.tx; }
+    const r=parseUds(await send("22"+x.did,800), x.did); x.prev=x.bytes; if (r && r.ok) x.bytes=r.data; }
+  await restoreBms();
+  $("scRe").disabled=false; rescanning=false; renderScan(); startPolling();
+}
+setInterval(()=>{ if ($("scAuto").checked && tab==="scan" && !scanning && !finding) rescan(); }, 5000);
+function renderScan(){
+  const el=$("scList");
+  if (!scanRes.length){ el.innerHTML='<div class="empty">Cevap veren kod yok</div>'; return; }
+  el.innerHTML = `<table><tr><th>Ünite</th><th>Kod</th><th>Ham değer</th><th>Önceki</th><th>1 bayt −50</th><th>2 bayt /100 −50</th><th></th></tr>`+
+    scanRes.map((x,i)=>{ const ch = x.prev && hexb(x.prev)!==hexb(x.bytes);
+      const t1 = x.bytes[x.bytes.length-1]-50, t2 = x.bytes.length>=2 ? u16(x.bytes)/100-50 : null;
+      return `<tr class="${ch?"chg":""}"><td>${x.unit}</td><td class="mono">${x.did}</td><td class="mono">${hexb(x.bytes)}</td><td class="mono">${x.prev?hexb(x.prev):""}</td><td>${t1}</td><td>${t2==null?"":t2.toFixed(2)}</td><td><button class="sec mini" data-add="${i}">Panele ekle</button></td></tr>`; }).join("")+`</table>`;
+}
+
+// ---- Panele ek değer ekleme (panel.html "extras") ----
+let addSel=null;
+function readBytesVal(bytes, start, len, signed){ let v=0; for (let i=0;i<len;i++) v=v*256+(bytes[start+i]??0); if (signed && v >= 2**(8*len-1)) v -= 2**(8*len); return v; }
+function addPreview(){ if (!addSel) return; const v=readBytesVal(addSel.bytes, +$("addStart").value||0, +$("addLen").value, $("addSigned").checked)*(parseFloat($("addScale").value.replace(",","."))||1)+(parseFloat($("addOffset").value.replace(",","."))||0);
+  $("addPreview").textContent = isFinite(v) ? (+v.toFixed(3)).toString().replace(".",",")+" "+$("addUnit").value : "–"; }
+function openAdd(x){ addSel=x; $("addBox").style.display=""; $("addWhat").textContent=`${x.unit} · ${x.tx}/${x.rx} · 22${x.did} · ham ${hexb(x.bytes)}`;
+  $("addLen").value=String(Math.min(2,x.bytes.length)); $("addStart").value=String(Math.max(0,x.bytes.length-+$("addLen").value)); addPreview(); renderExtras();
+  $("addBox").scrollIntoView({behavior:"smooth"}); }
+function renderExtras(){ const ex=store.get("panelExtras",[]);
+  $("extraList").innerHTML = ex.length ? `<table><tr><th>Panel'deki ek değerler</th><th>Kaynak</th><th></th></tr>`+ex.map((e,i)=>`<tr><td>${e.name} (${e.unit||""})</td><td class="mono">${e.tx.slice(4)}:${e.did} [${e.start},${e.len}]</td><td><button class="sec mini" data-exdel="${i}">Kaldır</button></td></tr>`).join("")+`</table>` : ""; }
+// =====================================================================
+//  Grafik
+// =====================================================================
+function chart(cv, o){
+  const dpr=window.devicePixelRatio||1, W=cv.clientWidth, H=cv.clientHeight; if (!W) return;
+  cv.width=W*dpr; cv.height=H*dpr; const g=cv.getContext("2d"); g.scale(dpr,dpr); g.clearRect(0,0,W,H);
+  const has1 = o.series.some(s=>s.axis===1);
+  const L=36,R=has1?36:8,T=8,B=20;
+  g.font="11px system-ui"; g.lineWidth=1;
+  const rng=[0,1].map(ax=>{ let lo=Infinity,hi=-Infinity;
+    for (const s of o.series) if ((s.axis||0)===ax) for (const [x,y] of s.pts) if (y!=null && x>=o.xMin && x<=o.xMax){ lo=Math.min(lo,y); hi=Math.max(hi,y); }
+    if (!isFinite(lo)) return null;
+    const minSpan = o.minSpan?.[ax] ?? 4;
+    if (hi-lo<minSpan){ const m=(hi+lo)/2; lo=m-minSpan/2; hi=m+minSpan/2; }
+    if (o.zero?.[ax]) lo=Math.min(lo,0);
+    const pad=(hi-lo)*0.06; return [o.zero?.[ax] && lo===0 ? 0 : lo-pad, hi+pad]; });
+  g.fillStyle="#8a94a6";
+  if (!rng[0] && !rng[1]){ g.fillText("Henüz veri yok", L, H/2); return; }
+  const X=x=>L+(W-L-R)*(x-o.xMin)/(o.xMax-o.xMin||1);
+  const Y=(v,ax)=>{ const [lo,hi]=rng[ax]; return T+(H-T-B)*(1-(v-lo)/(hi-lo)); };
+  g.strokeStyle="#252b35";
+  for (let i=0;i<=4;i++){
+    const yy=T+(H-T-B)*i/4; g.beginPath(); g.moveTo(L,yy); g.lineTo(W-R,yy); g.stroke();
+    if (rng[0]){ const v=rng[0][1]-(rng[0][1]-rng[0][0])*i/4; g.fillStyle="#8a94a6"; g.fillText(o.yFmt?.[0]?o.yFmt[0](v):v.toFixed(0), 2, yy+4); }
+    if (rng[1]){ const v=rng[1][1]-(rng[1][1]-rng[1][0])*i/4; const tx=o.yFmt?.[1]?o.yFmt[1](v):v.toFixed(0); g.fillStyle="#8a94a6"; g.fillText(tx, W-R+4, yy+4); }
+  }
+  g.fillStyle="#8a94a6";
+  for (let i=0;i<=4;i++){ const x=o.xMin+(o.xMax-o.xMin)*i/4, tx=o.xFmt(x), w=g.measureText(tx).width; g.fillText(tx, Math.min(Math.max(X(x)-w/2, 0), W-w), H-4); }
+  for (const s of o.series){ const ax=s.axis||0; if (!rng[ax]) continue;
+    g.strokeStyle=s.color; g.lineWidth=2.2; g.beginPath(); let on=false;
+    for (const [x,y] of s.pts){ if (y==null || x<o.xMin || x>o.xMax){ on=false; continue; } const px=X(x), py=Y(y,ax); on?g.lineTo(px,py):g.moveTo(px,py); on=true; }
+    g.stroke(); }
+}
+const C = {hot:"#ff7a45", warn:"#f5c04a", acc:"#4ea1ff", ok:"#3ccf8e"};
+
+// =====================================================================
+//  Görünüm
+// =====================================================================
+const $ = id => document.getElementById(id);
+const btnConn = $("btnConn");
+let tab = "conn";
+function fmt(v,d=1){ return v==null||!isFinite(v) ? "–" : v.toFixed(d).replace(".",","); }
+function setV(id,v,unit,d=1){ const el=$(id); if (el) el.innerHTML = fmt(v,d)+(unit?"<small>"+unit+"</small>":""); }
+function dur(ms){ if (ms==null) return "–"; const m=Math.floor(ms/60000), h=Math.floor(m/60);
+  return h ? `${h} sa ${String(m%60).padStart(2,"0")} dk` : m>=10 ? `${m} dk` : `${m} dk ${String(Math.floor(ms/1000)%60).padStart(2,"0")} sn`; }
+function dt(t){ return new Date(t).toLocaleString("tr-TR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}); }
+function rate(){
+  const now=Date.now(), pts=hist.filter(h=>h.avg!=null && now-h.t<=180e3);
+  if (pts.length<3) return null; const a=pts[0], b=pts[pts.length-1], m=(b.t-a.t)/60e3; return m>0.5 ? (b.avg-a.avg)/m : null;
+}
+function setState(id, cls, txt){ const el=$(id); el.className="state"+(cls?" "+cls:""); $(id+"Txt").textContent=txt; }
+
+function renderAll(){
+  for (const b of document.querySelectorAll("nav button")) b.classList.toggle("recording", !!active[b.dataset.tab]);
+  $("chgBtn").textContent = active.charge ? "Şarj kaydını bitir" : "Şarj kaydını başlat"; $("chgBtn").className = active.charge?"stop":"";
+  $("tripBtn").textContent = active.trip ? "Yolculuğu bitir" : "Yolculuğu başlat"; $("tripBtn").className = active.trip?"stop":"";
+  $("parkBtn").textContent = active.park ? "İzlemeyi bitir" : "Park izlemeyi başlat"; $("parkBtn").className = active.park?"stop":"";
+  $("heatBtn").textContent = active.heat ? "Testi bitir" : "Testi başlat"; $("heatBtn").className = active.heat?"stop":"";
+  if (tab==="live") renderLive();
+  if (tab==="charge") renderCharge();
+  if (tab==="cap") renderCap();
+  if (tab==="trip") renderTrip();
+  if (tab==="park") renderPark();
+  if (tab==="heat") renderHeat();
+}
+
+function thermalState(rt){
+  if (vals.cool==null || vals.avg==null) return {cls:null, short:"Veri bekleniyor", txt:"Veri bekleniyor"};
+  const d=vals.cool-vals.avg;
+  if (d>=3 && (rt==null||rt>0.05)) return {cls:"heat", short:"Isıtma aktif", txt:`Isıtma büyük ihtimalle aktif (sıvı bataryadan ${fmt(d,0)}°C sıcak)`};
+  if (d<=-3 && (rt==null||rt<-0.05)) return {cls:"cool", short:"Soğutma aktif", txt:`Soğutma büyük ihtimalle aktif (sıvı bataryadan ${fmt(-d,0)}°C soğuk)`};
+  if (rt!=null && rt>0.15) return {cls:"", short:"Batarya ısınıyor", txt:"Batarya ısınıyor (sürüş/şarj ısısı)"};
+  if (rt!=null && rt<-0.15) return {cls:"", short:"Batarya soğuyor", txt:"Batarya soğuyor"};
+  return {cls:"", short:"Sıcaklık sabit", txt:"Batarya sıcaklığı sabit"};
+}
+// Android uygulamasında Android Auto ekranına veri gönder
+function publishCar(connected){
+  try{
+    if (!window.AndroidBle || !AndroidBle.publish) return;
+    if (!connected){ AndroidBle.publish(JSON.stringify({conn:false})); return; }
+    const last=hist[hist.length-1]||{}, rt=rate(), st=thermalState(rt);
+    let rec=null;
+    if (active.charge){ const m=summarize(active.charge); rec=`Şarj kaydı · ${dur(m.dur)} · ${fmt(active.charge.eIn,1)} kWh girdi · en yüksek ${fmt(m.peakIn,0)} kW`; }
+    else if (active.trip){ const km=geo.dist/1000, net=active.trip.eOut-active.trip.eIn; rec=`Yolculuk · ${fmt(km,1)} km · ${km>0.5?fmt(net/km*100,1)+" kWh/100km":fmt(net,1)+" kWh"}`; }
+    else if (active.heat){ const e=heatEval(active.heat); rec=`Isıtma testi · ${dur(e.dur)} · ${e.d==null?"–":(e.d>0?"+":"")+fmt(e.d,1)+"°C"}`; }
+    else if (active.park){ const p=parkStats(active.park); rec=`Park izleme · ${dur(p.m.dur)} · kayıp %${fmt(p.drop,2)}`; }
+    AndroidBle.publish(JSON.stringify({conn:true, t:last.t||Date.now(), avg:vals.avg, max:vals.max, cool:vals.cool, soc:vals.soc, P:last.P, rate:rt,
+      state:st.short, stateCls:st.cls, rec}));
+  }catch(e){}
+}
+function renderLive(){
+  const last = hist[hist.length-1] || {};
+  if (chW && speed.samples.length>1){
+    const hz = (speed.samples.length-1) / ((speed.samples[speed.samples.length-1]-speed.samples[0])/1000 || 1);
+    const ms = speed.reqMs.reduce((a,b)=>a+b,0)/(speed.reqMs.length||1);
+    $("rateInfo").textContent = `Gerçek hız: ${fmt(hz,1)} ölçüm/sn · istek başına ${fmt(ms,0)} ms · tek-cevap modu ${reqSuffix?"açık":"kapalı"}`;
+  } else $("rateInfo").textContent = "";
+  for (const id of ["avg","max","soc","volt","cur"]) { setV("v_"+id, id==="cur"?last.cur:vals[id], {avg:"°C",max:"°C",soc:"%",volt:"V",cur:"A"}[id]); $("r_"+id).textContent = raw[id]?("ham: "+raw[id]):""; }
+  setV("v_cool", vals.cool, "°C", 0); $("r_cool").textContent = raw.cool?("ham: "+raw.cool):"";
+  setV("v_pow", last.P, "kW");
+  const rt=rate(); $("v_rate").innerHTML=(rt==null?"–":(rt>0?"+":"")+fmt(rt,2))+"<small>°C/dk</small>";
+  const st=thermalState(rt);
+  setState("liveState", st.cls, st.txt + (st.cls!=null && vals.avg!=null ? " · DC şarj için ideal yaklaşık 20–25°C" : ""));
+  const now=Date.now();
+  chart($("cvLive"), {xMin:now-30*60e3, xMax:now, xFmt:x=>{ const m=Math.round((now-x)/60e3); return m?"-"+m+" dk":"şimdi"; },
+    yFmt:[v=>v.toFixed(0)+"°"],
+    series:[["avg",C.hot],["max",C.warn],["cool",C.acc]].map(([k,c])=>({color:c, pts:hist.map(h=>[h.t,h[k]])}))});
+}
+
+function chargeChart(ss){
+  const pts = ss ? ss.samples.filter(x=>x.soc!=null) : [];
+  let lo=Math.min(...pts.map(x=>x.soc)), hi=Math.max(...pts.map(x=>x.soc));
+  if (!isFinite(lo)){ lo=0; hi=100; } lo=Math.max(0,Math.floor(lo/10)*10); hi=Math.min(100,Math.max(lo+10,Math.ceil(hi/10)*10));
+  chart($("cvCharge"), {xMin:lo, xMax:hi, xFmt:x=>"%"+x.toFixed(0), zero:[true], minSpan:[10,4],
+    yFmt:[v=>v.toFixed(0), v=>v.toFixed(0)+"°"],
+    series:[{color:C.ok, pts:pts.map(x=>[x.soc, x.P==null?null:-x.P])}, {color:C.hot, axis:1, pts:pts.map(x=>[x.soc, x.avg])}]});
+}
+function renderCharge(){
+  $("chgFirst").style.display = cfg.signKnown ? "none" : "";
+  const ss=active.charge, last=hist[hist.length-1]||{};
+  setV("c_kw", last.P==null?null:-last.P, "kW"); setV("c_soc", last.soc, "%"); setV("c_temp", last.avg, "°C");
+  if (ss){ const s=summarize(ss); setV("c_kwh", ss.eIn, "kWh", 2); setV("c_peak", s.peakIn, "kW"); $("c_dur").textContent=dur(s.dur); }
+  else { setV("c_kwh", null, "kWh"); setV("c_peak", null, "kW"); $("c_dur").textContent="–"; }
+  // seçim listesi
+  const pick=$("chgPick"), list=sessions.filter(s=>s.type==="charge").slice().reverse();
+  const opts=(ss?[`<option value="active">Şu anki şarj</option>`]:[]).concat(list.map(s=>`<option value="${s.id}">${dt(s.start)}</option>`));
+  const prev=pick.value; pick.innerHTML=opts.join("")||`<option value="">Kayıt yok</option>`;
+  if ([...pick.options].some(o=>o.value===prev)) pick.value=prev;
+  const shown = pick.value==="active" ? ss : list.find(s=>s.id===pick.value);
+  chargeChart(shown);
+  $("chgList").innerHTML = list.length ? `<table><tr><th>Tarih</th><th>Şarj %</th><th>Giren</th><th>En yüksek</th><th>Sıcaklık</th><th>Süre</th><th></th></tr>`+
+    list.map(s=>{ const m=summarize(s); return `<tr><td>${dt(s.start)}</td><td>${fmt(m.socA,0)}→${fmt(m.socB,0)}</td><td>${fmt(s.eIn,1)} kWh</td><td>${fmt(m.peakIn,0)} kW</td><td>${fmt(m.tA,0)}→${fmt(m.tB,0)}°C</td><td>${dur(m.dur)}</td><td><button class="sec mini" data-csv="${s.id}">CSV</button> <button class="sec mini" data-del="${s.id}">Sil</button></td></tr>`; }).join("")+`</table>`
+    : `<div class="empty">Henüz şarj kaydı yok</div>`;
+}
+
+function renderCap(){
+  $("capModel").value = cfg.capModel; $("capNew").value = cfg.capNew;
+  const rows = sessions.filter(s=>s.type==="charge").map(s=>({s, m:summarize(s)})).filter(x=>x.m.dSoc!=null && x.m.dSoc>=20 && x.s.eIn>1).reverse();
+  if (!rows.length){ setState("capState","","Henüz uygun şarj kaydı yok (en az %20'lik bir şarj kaydedin)"); $("capList").innerHTML='<div class="empty">Uygun kayıt yok</div>'; return; }
+  let wsum=0, esum=0;
+  const html = rows.map(({s,m})=>{ const est=s.eIn/m.dSoc*100; wsum+=m.dSoc; esum+=est*m.dSoc;
+    return `<tr><td>${dt(s.start)}</td><td>${fmt(m.socA,0)}→${fmt(m.socB,0)} (%${fmt(m.dSoc,0)})</td><td>${fmt(s.eIn,2)} kWh</td><td><b>${fmt(est,1)} kWh</b></td><td>${cfg.capNew?"%"+fmt(est/cfg.capNew*100,0):"–"}</td></tr>`; }).join("");
+  const avg = esum/wsum, soh = cfg.capNew ? avg/cfg.capNew*100 : null;
+  setState("capState","good", `Tahmini kullanılabilir kapasite: ${fmt(avg,1)} kWh`+(soh?` · yeniye göre yaklaşık %${fmt(soh,0)}`:"")+` (${rows.length} şarj)`);
+  $("capList").innerHTML = `<table><tr><th>Tarih</th><th>Şarj %</th><th>Giren</th><th>Tahmin</th><th>Yeniye göre</th></tr>${html}</table>`;
+}
+
+function renderTrip(){
+  const ss=active.trip;
+  $("tripGps").textContent = ss ? (geo.err || (geo.last?"GPS aktif":"GPS bekleniyor…")) : "";
+  if (ss){ const m=summarize(ss); tripTiles(ss, m, geo.dist/1000); }
+  else ["t_km","t_eff","t_out","t_reg","t_regp","t_soc","t_spd"].forEach(id=>setV(id,null,$(id).querySelector("small")?.textContent)), $("t_dur").textContent="–";
+  const list=sessions.filter(s=>s.type==="trip").slice().reverse();
+  $("tripList").innerHTML = list.length ? `<table><tr><th>Tarih</th><th>km</th><th>Tüketim</th><th>Harcanan</th><th>Rejen</th><th>Şarj %</th><th>Süre</th><th></th></tr>`+
+    list.map(s=>{ const m=summarize(s), km=s.meta.km; const net=s.eOut-s.eIn;
+      return `<tr><td>${dt(s.start)}</td><td>${fmt(km,1)}</td><td>${km>0.5?fmt(net/km*100,1)+" kWh/100km":"–"}</td><td>${fmt(s.eOut,2)} kWh</td><td>${fmt(s.eIn,2)} kWh</td><td>${fmt(m.socA,0)}→${fmt(m.socB,0)}</td><td>${dur(m.dur)}</td><td><button class="sec mini" data-csv="${s.id}">CSV</button> <button class="sec mini" data-del="${s.id}">Sil</button></td></tr>`; }).join("")+`</table>`
+    : `<div class="empty">Henüz yolculuk kaydı yok</div>`;
+}
+function tripTiles(ss, m, km){
+  const net=ss.eOut-ss.eIn;
+  setV("t_km", km, "km", 1); setV("t_eff", km>0.5?net/km*100:null, "kWh/100km");
+  setV("t_out", ss.eOut, "kWh", 2); setV("t_reg", ss.eIn, "kWh", 2); setV("t_regp", ss.eOut>0.05?ss.eIn/ss.eOut*100:null, "%", 0);
+  setV("t_soc", m.dSoc==null?null:-m.dSoc, "%"); setV("t_spd", m.dur>60e3?km/(m.dur/3600e3):null, "km/s", 0); $("t_dur").textContent=dur(m.dur);
+}
+
+function parkStats(ss){
+  const m=summarize(ss), hrs=m.dur/3600e3;
+  let therm=0; const sm=ss.samples;
+  for (let i=1;i<sm.length;i++){ const x=sm[i]; const on=(x.cool!=null && x.avg!=null && Math.abs(x.cool-x.avg)>3) || (x.P!=null && Math.abs(x.P)>0.3); if (on) therm+=Math.min(x.t-sm[i-1].t, 180e3); }
+  return {m, drop: m.dSoc==null?null:-m.dSoc, rate: (m.dSoc!=null && hrs>0.2)? -m.dSoc/hrs : null, therm};
+}
+function renderPark(){
+  const ss=active.park;
+  if (ss){ const p=parkStats(ss); setV("p_drop",p.drop,"%",2); setV("p_rate",p.rate,"%/sa",2); $("p_therm").textContent=dur(p.therm); $("p_dur").textContent=dur(p.m.dur); }
+  else { setV("p_drop",null,"%"); setV("p_rate",null,"%/sa"); $("p_therm").textContent="–"; $("p_dur").textContent="–"; }
+  const list=sessions.filter(s=>s.type==="park").slice().reverse();
+  const shown = ss || list[0];
+  const sm = shown ? shown.samples : [], t0 = shown?.start || Date.now(), t1 = shown ? (shown.end||Date.now()) : t0+3600e3;
+  const spanH = Math.max((t1-t0)/3600e3, 0.25);
+  chart($("cvPark"), {xMin:0, xMax:spanH, xFmt:x=> spanH<2 ? Math.round(x*60)+" dk" : x.toFixed(1)+" sa", minSpan:[1,4],
+    yFmt:[v=>"%"+v.toFixed(1), v=>v.toFixed(0)+"°"],
+    series:[{color:C.ok, pts:sm.map(x=>[(x.t-t0)/3600e3, x.soc])}, {color:C.hot, axis:1, pts:sm.map(x=>[(x.t-t0)/3600e3, x.avg])}, {color:C.acc, axis:1, pts:sm.map(x=>[(x.t-t0)/3600e3, x.cool])}]});
+  $("parkList").innerHTML = list.length ? `<table><tr><th>Başlangıç</th><th>Süre</th><th>Kayıp</th><th>Saatlik</th><th>Isıtma/soğutma</th><th>Sıcaklık</th><th></th></tr>`+
+    list.map(s=>{ const p=parkStats(s); return `<tr><td>${dt(s.start)}</td><td>${dur(p.m.dur)}</td><td>%${fmt(p.drop,2)}</td><td>%${fmt(p.rate,2)}/sa</td><td>${dur(p.therm)}</td><td>${fmt(p.m.tA,0)}→${fmt(p.m.tB,0)}°C</td><td><button class="sec mini" data-csv="${s.id}">CSV</button> <button class="sec mini" data-del="${s.id}">Sil</button></td></tr>`; }).join("")+`</table>`
+    : `<div class="empty">Henüz park kaydı yok</div>`;
+}
+
+function heatEval(ss){
+  const sm=ss.samples.filter(x=>x.avg!=null); if (!sm.length) return {d:null};
+  const a=sm[0], l=sm[sm.length-1], dur=(ss.end||Date.now())-ss.start;
+  const Ps=ss.samples.map(x=>x.P).filter(v=>v!=null), avgP = Ps.length? Ps.reduce((s,v)=>s+v,0)/Ps.length : null;
+  const maxDiff = Math.max(...ss.samples.map(x=>(x.cool!=null&&x.avg!=null)?x.cool-x.avg:-99));
+  const d = l.avg - a.avg;
+  let verdict, cls;
+  if (d>=1 || (maxDiff>=3 && avgP!=null && avgP>1)){ verdict="Isıtma tespit edildi"; cls="heat"; }
+  else if (dur<5*60e3){ verdict="Ölçülüyor… (en az 5 dakika bekleyin)"; cls=""; }
+  else { verdict="Isıtma tespit edilmedi"; cls="cool"; }
+  return {d, start:a.avg, end:l.avg, cur:l, maxDiff: maxDiff>-99?maxDiff:null, avgP, dur, verdict, cls};
+}
+function renderHeat(){
+  const ss=active.heat;
+  if (ss){ const e=heatEval(ss); setV("h_d", e.d, "°C"); setV("h_diff", e.cur&&e.cur.cool!=null?e.cur.cool-e.cur.avg:null, "°C");
+    setV("h_kw", e.cur?.P, "kW"); $("h_dur").textContent=dur(e.dur);
+    setState("heatState", e.cls, e.d==null ? "Veri bekleniyor" : `${e.verdict} · batarya ${fmt(e.start,1)}°C → ${fmt(e.end,1)}°C`); }
+  else { ["h_d","h_diff"].forEach(id=>setV(id,null,"°C")); setV("h_kw",null,"kW"); $("h_dur").textContent="–"; setState("heatState","","Test başlatılmadı"); }
+  const list=sessions.filter(s=>s.type==="heat").slice().reverse(), shown=ss||list[0];
+  const sm=shown?shown.samples:[], t0=shown?.start||Date.now(), spanM=Math.max(((shown?.end||Date.now())-t0)/60e3, 10);
+  chart($("cvHeat"), {xMin:0, xMax:spanM, xFmt:x=>Math.round(x)+" dk", minSpan:[4,2], yFmt:[v=>v.toFixed(0)+"°", v=>v.toFixed(1)],
+    series:[{color:C.hot, pts:sm.map(x=>[(x.t-t0)/60e3, x.avg])}, {color:C.acc, pts:sm.map(x=>[(x.t-t0)/60e3, x.cool])}, {color:C.ok, axis:1, pts:sm.map(x=>[(x.t-t0)/60e3, x.P])}]});
+  $("heatList").innerHTML = list.length ? `<table><tr><th>Tarih</th><th>Yöntem</th><th>Dış</th><th>Batarya</th><th>Ort. güç</th><th>Süre</th><th>Sonuç</th><th></th></tr>`+
+    list.map(s=>{ const e=heatEval(s); return `<tr><td>${dt(s.start)}</td><td>${s.meta.method||""}</td><td>${s.meta.out!=null?s.meta.out+"°C":"–"}</td><td>${fmt(e.start,1)}→${fmt(e.end,1)}°C</td><td>${fmt(e.avgP,1)} kW</td><td>${dur(e.dur)}</td><td>${e.verdict}</td><td><button class="sec mini" data-del="${s.id}">Sil</button></td></tr>`; }).join("")+`</table>`
+    : `<div class="empty">Henüz test yok</div>`;
+}
+
+// =====================================================================
+//  Yardımcılar ve olaylar
+// =====================================================================
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+function log(s){ const el=$("log"); const t=new Date().toLocaleTimeString("tr-TR"); el.textContent += t+"  "+s+"\n"; if (el.textContent.length>40000) el.textContent=el.textContent.slice(-30000); el.scrollTop=el.scrollHeight; }
+function setPill(cls,txt){ const p=$("pill"); p.className="pill "+cls; p.textContent=txt; }
+function showBanner(t){ const b=$("banner"); b.textContent=t; b.style.display="block"; }
+
+btnConn.onclick = () => { if (btnConn.textContent==="Kes") disconnect(); else { if (tab!=="panel") goTab("conn"); connect(false); } };
+function sizePanel(){ const f=$("panelFrame"); const h=document.querySelector("header").offsetHeight; f.style.height=(window.innerHeight-h)+"px"; }
+function goTab(t){ tab=t;
+  document.body.classList.toggle("panelmode", t==="panel");
+  if (t==="panel"){ const f=$("panelFrame"); if (!f.dataset.loaded){ f.dataset.loaded="1"; f.srcdoc = "<!DOCTYPE html>" + $("panelSrc").innerHTML; } sizePanel(); }
+  for (const x of document.querySelectorAll("nav button")) x.classList.toggle("act", x.dataset.tab===t);
+  for (const s of document.querySelectorAll("section")) s.classList.toggle("act", s.id==="tab-"+t);
+  window.scrollTo(0,0); renderAll(); }
+$("tabs").onclick = e => { const b=e.target.closest("button[data-tab]"); if(b) goTab(b.dataset.tab); };
+$("cnFind").onclick = () => connect(false);
+$("cnAll").onclick = () => connect(true);
+$("cnCopy").onclick = () => copyText(["EX30 Reader hata raporu "+new Date().toISOString(), "Adres: "+location.protocol+"//"+location.host, "UA: "+navigator.userAgent, "",
+  ...envResult.map(r=>`[${r[0]}] ${r[1]}${r[2]?" - "+r[2]:""}`), "",
+  ...STEPS.map(([id,t])=>`[${stepState[id]?.st||"-"}] ${t}${stepState[id]?.detail?" - "+stepState[id].detail:""}`), "", $("log").textContent].join("\n"), "Hata raporu");
+$("interval").value = String(cfg.interval);
+$("interval").onchange = () => { cfg.interval=+$("interval").value; saveCfg(); if (chW) startPolling(); };
+$("flipSign").checked = cfg.sign<0;
+$("flipSign").onchange = () => { cfg.sign = $("flipSign").checked ? -1 : 1; cfg.signKnown = true; saveCfg(); log("Akım yönü: "+(cfg.sign<0?"ters":"normal")); };
+$("chgAuto").checked = cfg.chgAuto;
+$("chgAuto").onchange = () => { cfg.chgAuto=$("chgAuto").checked; saveCfg(); };
+$("chgBtn").onclick = () => active.charge ? stopSession("charge") : startSession("charge", {auto:false});
+$("chgPick").onchange = () => renderCharge();
+$("tripBtn").onclick = () => {
+  if (!active.trip){ startSession("trip"); return; }
+  let km = geo.dist/1000;
+  if (km<0.5){ const v=parseFloat(($("manualKm")?.value||"").replace(",",".")); if (v>0) km=v;
+    else if (!$("manualKm")){ $("tripGps").innerHTML='GPS mesafesi yok. Km girin: <input id="manualKm" type="number" step="0.1" style="width:80px"> ve tekrar "Yolculuğu bitir"e basın.'; return; } }
+  stopSession("trip", {km:r2(km)});
+};
+$("parkBtn").onclick = () => active.park ? stopSession("park") : startSession("park");
+$("heatBtn").onclick = () => { if (active.heat){ stopSession("heat"); return; }
+  const out=parseFloat($("heatOut").value); startSession("heat", {method:$("heatMethod").value, out: isFinite(out)?out:null}); };
+$("capModel").onchange = () => { cfg.capModel=$("capModel").value; if (cfg.capModel!=="custom") cfg.capNew=+cfg.capModel; saveCfg(); renderCap(); };
+$("capNew").onchange = () => { cfg.capNew=parseFloat($("capNew").value)||null; cfg.capModel="custom"; saveCfg(); renderCap(); };
+$("scBtn").onclick = runScan;
+$("ufBtn").onclick = runFinder;
+$("scUnit").onchange = fillPresets;
+$("scPresets").onclick = e => { const b=e.target.closest("[data-range]"); if (!b) return; const [f,t]=b.dataset.range.split("-"); $("scFrom").value=f; $("scTo").value=t; };
+$("ufList").onclick = e => { const b=e.target.closest("[data-unit]"); if (!b) return; $("scUnit").value=b.dataset.unit; fillPresets(); const p=(UNIT_PRESETS[b.dataset.unit]||["0000-00FF"])[0].split("-"); $("scFrom").value=p[0]; $("scTo").value=p[1]; $("scUnit").scrollIntoView({behavior:"smooth"}); };
+$("scList").addEventListener("click", e => { const b=e.target.closest("[data-add]"); if (b) openAdd(scanRes[+b.dataset.add]); });
+for (const id of ["addStart","addLen","addSigned","addScale","addOffset","addUnit"]) $(id).addEventListener("input", addPreview);
+$("addCancel").onclick = () => { $("addBox").style.display="none"; addSel=null; };
+$("addOk").onclick = () => { if (!addSel) return; const name=$("addName").value.trim() || `${addSel.unit} ${addSel.did}`;
+  const ex=store.get("panelExtras",[]); ex.push({id:"x"+Date.now(), name, unit:$("addUnit").value.trim(), tx:addSel.tx, rx:addSel.rx, did:addSel.did,
+    start:+$("addStart").value||0, len:+$("addLen").value, signed:$("addSigned").checked, scale:parseFloat($("addScale").value.replace(",","."))||1, offset:parseFloat($("addOffset").value.replace(",","."))||0, every:3});
+  store.set("panelExtras", ex); renderExtras(); log(`"${name}" Panel'e eklendi`); $("addName").value="";
+  try{ panelWin && panelWin.ex30ReloadExtras && panelWin.ex30ReloadExtras(); }catch{} };
+$("extraList").onclick = e => { const b=e.target.closest("[data-exdel]"); if (!b) return; const ex=store.get("panelExtras",[]); ex.splice(+b.dataset.exdel,1); store.set("panelExtras",ex); renderExtras(); try{ panelWin && panelWin.ex30ReloadExtras && panelWin.ex30ReloadExtras(); }catch{} };
+fillUnitSelect(); renderUnits();
+if (location.hash==="#panel") setTimeout(()=>goTab("panel"), 0);
+$("scRe").onclick = rescan;
+$("scCopy").onclick = () => copyText("unite,istek,cevap,kod,ham,onceki\n"+scanRes.map(x=>`${x.unit},${x.tx},${x.rx},${x.did},${hexb(x.bytes)},${x.prev?hexb(x.prev):""}`).join("\n"), "Tarama sonucu");
+document.addEventListener("click", e => {
+  const d=e.target.closest("[data-del]"), c=e.target.closest("[data-csv]");
+  if (d){ if (d.dataset.confirm){ deleteSession(d.dataset.del); } else { d.dataset.confirm="1"; d.textContent="Emin misiniz?"; setTimeout(()=>{ if(d.isConnected){ delete d.dataset.confirm; d.textContent="Sil"; } }, 3000); } }
+  if (c){ const s=sessions.find(x=>x.id===c.dataset.csv); if (s) copyText(sessionCsv(s), "Kayıt CSV"); }
+});
+$("btnSend").onclick = async () => { const c=$("cmd").value.trim(); if(!c) return; const was=!!pollTimer||inPoll; await pausePolling(); const r=await send(c,5000); log(c+" → "+r.replace(/\s+/g," ")); if(was && chW) startPolling(); };
+$("cmd").onkeydown = e => { if (e.key==="Enter") $("btnSend").click(); };
+document.addEventListener("visibilitychange", ()=>{ if (document.visibilityState==="visible" && !chW) checkEnv(); });
+document.addEventListener("visibilitychange", async ()=>{ if (document.visibilityState==="visible" && chW && !wake){ try{ wake=await navigator.wakeLock?.request("screen"); }catch{} } });
+window.addEventListener("resize", ()=>{ renderAll(); if (tab==="panel") sizePanel(); });
+if (active.trip) geoStart();
+
+checkEnv(); renderSteps();
+renderAll();
+</script>
+</body>
+</html>

@@ -30,7 +30,7 @@
     <uses-permission android:name="android.car.permission.CAR_ENGINE_DETAILED_3P" />
 
     <application
-        android:label="EX30 Batarya"
+        android:label="EX30 Reader"
         android:icon="@android:drawable/ic_lock_idle_charging"
         android:theme="@android:style/Theme.Material.NoActionBar"
         android:allowBackup="false">

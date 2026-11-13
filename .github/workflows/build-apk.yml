@@ -1,4 +1,4 @@
-name: APK derle
+name: EX30 Reader derle
 
 on:
   push:
@@ -23,37 +23,38 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: HTML'yi uygulamaya kopyala
-        run: cp ex30-batarya.html panel.html android-app/app/src/main/assets/
+      - name: Tek HTML'yi oluştur ve uygulamaya kopyala
+        run: |
+          python3 tools/build.py
+          rm -f android-app/app/src/main/assets/*.html
+          cp ex30-reader.html android-app/app/src/main/assets/
 
-      - name: APK derle
+      - name: EX30 Reader derle
         working-directory: android-app
-        run: gradle assemblePhoneDebug assembleCarDebug bundleCarRelease --no-daemon --stacktrace
+        run: gradle assemblePhoneDebug bundleCarRelease --no-daemon --stacktrace
 
       - name: APK'yı adlandır
         run: |
-          cp android-app/app/build/outputs/apk/phone/debug/app-phone-debug.apk EX30-Batarya.apk
-          cp android-app/app/build/outputs/apk/car/debug/app-car-debug.apk EX30-Batarya-Arac.apk
-          cp android-app/app/build/outputs/bundle/carRelease/app-car-release.aab EX30-Batarya-Arac.aab
+          cp android-app/app/build/outputs/apk/phone/debug/app-phone-debug.apk EX30-Reader.apk
+          cp android-app/app/build/outputs/bundle/carRelease/app-car-release.aab EX30-Reader-Play.aab
 
       - uses: actions/upload-artifact@v4
         with:
-          name: EX30-Batarya-apk
+          name: EX30-Reader
           path: |
-            EX30-Batarya.apk
-            EX30-Batarya-Arac.apk
-            EX30-Batarya-Arac.aab
+            EX30-Reader.apk
+            EX30-Reader-Play.aab
 
       - name: Release olarak yayınla
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.${{ github.run_number }}
-          name: EX30 Batarya 1.${{ github.run_number }}
+          tag_name: v2.${{ github.run_number }}
+          name: EX30 Reader 2.${{ github.run_number }}
           body: |
-            Telefona kurmak için aşağıdaki EX30-Batarya.apk dosyasını indirip açın.
-            Her zaman son sürüm: https://github.com/${{ github.repository }}/releases/latest/download/EX30-Batarya.apk
+            EX30-Reader.apk: telefon, Android Auto ve orta ekran için tek uygulama.
+            EX30-Reader-Play.aab: yalnızca Google Play'e (orta ekran iç test kanalı) yüklemek için.
+            Her zaman son sürüm: https://github.com/${{ github.repository }}/releases/latest/download/EX30-Reader.apk
           files: |
-            EX30-Batarya.apk
-            EX30-Batarya-Arac.apk
-            EX30-Batarya-Arac.aab
+            EX30-Reader.apk
+            EX30-Reader-Play.aab
           make_latest: true

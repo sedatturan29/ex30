@@ -73,8 +73,8 @@ public class BatteryScreen extends Screen implements CarData.Listener {
         JSONObject d = CarData.latest();
         if (d == null || !d.optBoolean("conn", false)) {
             return new MessageTemplate.Builder(
-                    "Telefonda EX30 Batarya uygulamasını açıp OBD adaptörüne bağlanın. Bağlanınca değerler burada görünür.")
-                    .setTitle("EX30 Batarya")
+                    "Telefonda EX30 Reader uygulamasını açıp OBD adaptörüne bağlanın. Bağlanınca değerler burada görünür.")
+                    .setTitle("EX30 Reader")
                     .setHeaderAction(Action.APP_ICON)
                     .build();
         }
@@ -132,7 +132,7 @@ public class BatteryScreen extends Screen implements CarData.Listener {
         for (int i = 0; i < rows.size() && i < Math.max(1, limit); i++) pane.addRow(rows.get(i));
 
         return new PaneTemplate.Builder(pane.build())
-                .setTitle("EX30 Batarya")
+                .setTitle("EX30 Reader")
                 .setHeaderAction(Action.APP_ICON)
                 .build();
     }

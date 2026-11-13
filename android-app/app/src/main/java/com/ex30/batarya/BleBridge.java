@@ -133,7 +133,7 @@ public class BleBridge {
         permissionCb = null;
         if (r == null) return;
         if (hasPermissions()) r.run();
-        else reject(cb, "NotAllowedError", "Bluetooth izni verilmedi. Ayarlar > Uygulamalar > EX30 Batarya > İzinler'den 'Yakındaki cihazlar' iznini açın.");
+        else reject(cb, "NotAllowedError", "Bluetooth izni verilmedi. Ayarlar > Uygulamalar > EX30 Reader > İzinler'den 'Yakındaki cihazlar' iznini açın.");
     }
 
     // ---------------------------------------------------------------- JS'ten çağrılanlar

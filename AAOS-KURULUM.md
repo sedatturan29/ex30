@@ -1,4 +1,4 @@
-# EX30 orta ekranına kurulum (Android Automotive OS)
+# EX30 Reader – orta ekrana kurulum (Android Automotive OS)
 
 Amaç: uygulamayı EX30'un orta ekranında, Play Store'dan inen diğer uygulamalar gibi
 çalıştırmak. Orada hem OBD adaptörüne bağlanır hem de aracın Android Automotive
@@ -9,9 +9,8 @@ Her güncellemede GitHub üç dosya üretir (Releases sayfasında):
 
 | Dosya | Ne için |
 | --- | --- |
-| `EX30-Batarya.apk` | Telefon (+ Android Auto) |
-| `EX30-Batarya-Arac.aab` | Orta ekran: Google Play'e yüklenecek paket |
-| `EX30-Batarya-Arac.apk` | Orta ekran: USB bellek / ADB ile doğrudan kurulum |
+| `EX30-Reader.apk` | Tek uygulama: telefon, Android Auto ve orta ekrana doğrudan kurulum (USB bellek / ADB) |
+| `EX30-Reader-Play.aab` | Yalnızca Google Play'e (Android Automotive OS iç test kanalı) yüklenecek paket |
 
 ## Yol A – Google Play iç test (önerilen)
 
@@ -20,19 +19,19 @@ Uygulama Play Store'da yalnızca sizin hesabınıza görünür; herkese açık y
 1. **Geliştirici hesabı:** https://play.google.com/console adresinden, arabada
    kullandığınız Google hesabıyla (ya da başka bir hesapla) kayıt olun. Tek seferlik
    25 dolar ve kimlik doğrulaması gerekir; onay birkaç gün sürebilir.
-2. **Uygulama oluşturun:** Create app → ad "EX30 Batarya", tür App, ücretsiz.
+2. **Uygulama oluşturun:** Create app → ad "EX30 Reader", tür App, ücretsiz.
    Paket adı ilk yüklemede dosyadan alınır: `com.ex30.batarya`.
 3. **Araç form faktörünü ekleyin:** Test and release → Advanced settings →
    Form factors → Add form factor → **Android Automotive OS** (şartları kabul edin).
 4. **İç test sürümü:** Test and release → Testing → Internal testing. Sayfanın
    üstündeki form faktörü seçicisinden **Android Automotive OS only** kanalını seçin →
-   Create new release → `EX30-Batarya-Arac.aab` dosyasını yükleyin → Save → Start rollout.
+   Create new release → `EX30-Reader-Play.aab` dosyasını yükleyin → Save → Start rollout.
    İlk yüklemede Play App Signing'i kabul edin.
 5. **Test kullanıcısı:** Internal testing → Testers → bir e-posta listesi oluşturup
    **arabada oturum açık olan Google hesabını** ekleyin.
 6. **Daveti kabul edin:** Testers sekmesindeki "Copy link" bağlantısını o hesapla
    (telefonda ya da bilgisayarda) açıp "Become a tester" deyin.
-7. **Arabada:** Play Store → "EX30 Batarya" aratın (görünmesi birkaç saat sürebilir;
+7. **Arabada:** Play Store → "EX30 Reader" aratın (görünmesi birkaç saat sürebilir;
    görünmezse hesabınızın uygulama listesine bakın) → Yükle.
 
 Güncelleme: yeni `.aab` dosyasını aynı kanala yeni sürüm olarak yüklersiniz; araba
@@ -48,10 +47,10 @@ Notlar:
 ## Yol B – Doğrudan kurulum (hesap gerekmez, çalışırsa en hızlısı)
 
 1. Arabanın Play Store'undan bir dosya yöneticisi kurun (ör. AnExplorer).
-2. `EX30-Batarya-Arac.apk` dosyasını USB belleğe koyup arabaya takın, dosya
+2. `EX30-Reader.apk` dosyasını USB belleğe koyup arabaya takın, dosya
    yöneticisinden açıp kurun.
 3. Ya da: Ayarlar → Sistem → Hakkında → yazılım numarasına 7 kez dokunarak geliştirici
-   modunu açmayı deneyin; açılırsa `adb install EX30-Batarya-Arac.apk`.
+   modunu açmayı deneyin; açılırsa `adb install EX30-Reader.apk`.
 
 Volvo bu yolları kapatmış olabilir. Ayrıca bu yolla kurulan uygulamayı sistem sürüş
 sırasında gizleyebilir. Play'den (Yol A) gelen uygulamada bu kısıt büyük ihtimalle

@@ -20,7 +20,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
 /**
- * EX30 Batarya: HTML uygulamasını tam ekran gösterir. Uygulama içi tarayıcı Web Bluetooth'u
+ * EX30 Reader: HTML uygulamasını tam ekran gösterir. Uygulama içi tarayıcı Web Bluetooth'u
  * desteklemediği için navigator.bluetooth, BleBridge üzerinden Android'in kendi BLE
  * arayüzüne bağlanır (ble-polyfill.js).
  */
@@ -97,7 +97,7 @@ public class MainActivity extends Activity {
                 Uri u = request.getUrl();
                 if (!"ex30.app".equals(u.getHost())) return null;
                 String path = u.getPath();
-                String name = (path == null || path.equals("/") || path.isEmpty()) ? "ex30-batarya.html" : path.substring(1);
+                String name = (path == null || path.equals("/") || path.isEmpty()) ? "ex30-reader.html" : path.substring(1);
                 if (name.endsWith(".html")) {
                     String html = withPolyfill(readAsset(name));
                     return new WebResourceResponse("text/html", "UTF-8", new ByteArrayInputStream(html.getBytes(StandardCharsets.UTF_8)));
@@ -110,7 +110,7 @@ public class MainActivity extends Activity {
                 }
             }
         });
-        web.loadUrl("https://ex30.app/ex30-batarya.html");
+        web.loadUrl("https://ex30.app/ex30-reader.html");
     }
 
     private String withPolyfill(String html) {
