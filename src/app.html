@@ -516,7 +516,7 @@ async function connect(all=false){
     if (carOk) setStep("car","ok","Bağlantı tamam, Canlı sekmesine geçiliyor");
     else setStep("car","warn", "Araç cevap vermedi ("+lastR.replace(/\s+/g," ").slice(0,30)+"). Aracı açın, ekran açık olsun; bir dakika içinde kendiliğinden tekrar denenir.");
     setPill("on","Bağlı");
-    btnConn.textContent="Kes"; try{ window.AndroidBle && AndroidBle.keepAlive && AndroidBle.keepAlive(true); }catch{} $("btnSend").disabled=false; $("scBtn").disabled=false; $("ufBtn").disabled=false;
+    btnConn.textContent="Kes"; ensurePanel(); try{ window.AndroidBle && AndroidBle.keepAlive && AndroidBle.keepAlive(true); }catch{} $("btnSend").disabled=false; $("scBtn").disabled=false; $("ufBtn").disabled=false;
     try{ wake = await navigator.wakeLock?.request("screen"); }catch{}
     startPolling();
     if (carOk && tab==="conn") setTimeout(()=>goTab("live"), 900);
@@ -1068,9 +1068,11 @@ function showBanner(t){ const b=$("banner"); b.textContent=t; b.style.display="b
 
 btnConn.onclick = () => { if (btnConn.textContent==="Kes") disconnect(); else { if (tab!=="panel") goTab("conn"); connect(false); } };
 function sizePanel(){ const f=$("panelFrame"); const h=document.querySelector("header").offsetHeight; f.style.height=(window.innerHeight-h)+"px"; }
+// Panel bağlantı kurulunca arka planda da yüklenir: otomatik yolculuk, oturum kaydı ve tüm değerler hangi sekme açık olursa olsun sürer
+function ensurePanel(){ const f=$("panelFrame"); if (!f.dataset.loaded){ f.dataset.loaded="1"; f.srcdoc = "<!DOCTYPE html>" + $("panelSrc").innerHTML; } }
 function goTab(t){ tab=t;
   document.body.classList.toggle("panelmode", t==="panel");
-  if (t==="panel"){ const f=$("panelFrame"); if (!f.dataset.loaded){ f.dataset.loaded="1"; f.srcdoc = "<!DOCTYPE html>" + $("panelSrc").innerHTML; } sizePanel(); }
+  if (t==="panel"){ ensurePanel(); sizePanel(); }
   for (const x of document.querySelectorAll("nav button")) x.classList.toggle("act", x.dataset.tab===t);
   for (const s of document.querySelectorAll("section")) s.classList.toggle("act", s.id==="tab-"+t);
   window.scrollTo(0,0); renderAll(); }
