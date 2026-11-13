@@ -230,6 +230,22 @@ function saveTrip(){ store.set("panelTrips", trips); }
 let tripHist = store.get("tripHistory", []);
 function saveHist(){ while (tripHist.length>500) tripHist.shift(); store.set("tripHistory", tripHist); }
 
+// ============ Ek değerler (Tarayıcı → "Panele ekle") ============
+let extras = [];
+function loadExtras(){
+  extras = store.get("panelExtras", []).filter(e=>e && /^[0-9A-F]{8}$/i.test(e.tx) && /^[0-9A-F]{8}$/i.test(e.rx) && /^[0-9A-F]{4}$/i.test(e.did));
+  document.querySelectorAll(".t.extra").forEach(el=>el.remove());
+  const grid=$("grid");
+  for (const e of extras){
+    const d=document.createElement("div"); d.className="t extra"; d.id="t-"+e.id;
+    d.innerHTML=`<div class="k"><span></span><span class="src">Ek</span></div><div class="v">–<small></small></div><div class="s"></div>`;
+    d.querySelector(".k span").textContent=e.name; d.querySelector(".v small").textContent=e.unit||"";
+    d.querySelector(".src").textContent = UNIT_NAMES[e.tx.toUpperCase()] || e.tx.slice(4);
+    grid.appendChild(d);
+  }
+}
+window.ex30ReloadExtras = () => { loadExtras(); lastR=0; render(); };
+
 // ============ ELM327 / BLE ============
 let dev=null, chW=null, chN=null, buf="", waiter=null, busy=Promise.resolve(), manual=false, wake=null, suffix="";
 const enc=new TextEncoder(), dec=new TextDecoder();
@@ -333,6 +349,16 @@ async function loopBody(){
       if (b===undefined){ await useEcu(s.tx.toUpperCase(), s.rx.toUpperCase()); b = cache[ck] = parseDid(await readDid(did), did); }
       if (b){ const st=+s.start||0, ln=Math.min(4, Math.max(1,+s.len||1)); let v=0; for (let i=0;i<ln;i++) v=v*256+(b[st+i]??0);
         vals[k] = v*(+s.scale||1) + (+s.offset||0); raw[k]=b; }
+    }
+    for (const e of extras){
+      if (!running) break;
+      if (cycle % Math.max(1, +e.every||3) !== 0 && vals[e.id]!=null) continue;
+      const did=e.did.toUpperCase(), ck=e.tx.toUpperCase()+e.rx.toUpperCase()+did;
+      let b = cache[ck];
+      if (b===undefined){ await useEcu(e.tx.toUpperCase(), e.rx.toUpperCase()); b = cache[ck] = parseDid(await readDid(did), did); }
+      if (b){ let v=0; const ln=Math.min(4,Math.max(1,+e.len||1)); for (let i=0;i<ln;i++) v=v*256+(b[(+e.start||0)+i]??0);
+        if (e.signed && v >= 2**(8*ln-1)) v -= 2**(8*ln);
+        vals[e.id] = v*(+e.scale||1) + (+e.offset||0); raw[e.id]=b; }
     }
     sample(true);
     if (pcfg.interval) await sleep(pcfg.interval); else await sleep(0);
@@ -453,6 +479,8 @@ function render(){
   tile("soc", vals.soc, "%", 1);
   tile("volt", vals.volt, "V", 1); tile("amp", vals.cur!=null?vals.cur*sign:null, "A", 1);
   tile("kw", vals.kw, "kW", 1, vals.kw==null?"":vals.kw<-0.3?"Şarj / rejen":vals.kw>0.3?"Çekiş":"Bekleme", vals.kw>0.3?"pos":vals.kw<-0.3?"neg":"");
+  for (const e of extras){ const v=vals[e.id]; const dg = v==null ? 1 : Math.abs(v)>=100 ? 0 : Math.abs(v)>=10 ? 1 : 2;
+    tile(e.id, v, e.unit||"", dg, raw[e.id] ? "ham "+hex(raw[e.id]) : (chW ? "bekleniyor" : "")); }
   vals.torqueCalc = torqueCalc();
   for (const [id,k,unit,d] of [["motor","motor","°C",0],["cout","cout","°C",1],["rpm","rpm","d/dk",0],["torque","torque","Nm",0]]){
     if (id==="torque" && defined(k) && vals.torqueCalc!=null && vals.torqueCalc<-5 && (vals.torque==null || vals.torque<=1)){
@@ -552,14 +580,15 @@ function tx(store, mode){ return db.transaction(store, mode).objectStore(store);
 const idb = req => new Promise((res,rej)=>{ req.onsuccess=()=>res(req.result); req.onerror=()=>rej(req.error); });
 async function logStart(){
   if (!pcfg.logOn) return; if (!db) db = await openDb(); if (!db){ log("Kayıt veritabanı açılamadı"); return; }
-  logSess = {id:String(Date.now()), start:Date.now(), end:Date.now(), rows:0, bytes:0, mode:pcfg.logMode};
+  logSess = {id:String(Date.now()), start:Date.now(), end:Date.now(), rows:0, bytes:0, mode:pcfg.logMode, extra:extras.map(e=>({id:e.id, name:e.name}))};
   await idb(tx("sessions","readwrite").put(logSess)); logBuf=[]; lastLogRow=0;
   $("recPill").style.display=""; logFlushTimer=setInterval(logFlush, 15000); log("Oturum kaydı başladı");
 }
 function logRow(now){
   if (!logSess) return; if (+pcfg.logMode && now-lastLogRow < +pcfg.logMode) return; lastLogRow=now;
   const v = Object.assign({}, vals, {vspd: carSpeed().v, p_fl: aaosTire("fl") ?? vals.p_fl, p_fr: aaosTire("fr") ?? vals.p_fr, p_rl: aaosTire("rl") ?? vals.p_rl, p_rr: aaosTire("rr") ?? vals.p_rr, gps: (geo.t && now-geo.t<5000) ? geo.spd : null, lat: geo.last?.lat, lon: geo.last?.lon, alt: (geo.alt!=null && now-geo.altT<15000) ? geo.alt : null, auto: trips.auto ? 1 : 0});
-  const line = localStamp(now) + "," + LOG_COLS.map(([k])=>{ const x=v[k]; return x==null||!isFinite(x) ? "" : (k==="lat"||k==="lon" ? (+x).toFixed(6) : +(+x).toFixed(3)); }).join(",");
+  const cols = LOG_COLS.map(c=>c[0]).concat((logSess.extra||[]).map(e=>e.id));
+  const line = localStamp(now) + "," + cols.map(k=>{ const x=v[k]; return x==null||!isFinite(x) ? "" : (k==="lat"||k==="lon" ? (+x).toFixed(6) : +(+x).toFixed(3)); }).join(",");
   logBuf.push(line); logSess.rows++; logSess.bytes += line.length+1; logSess.end=now;
 }
 async function logFlush(){
@@ -583,7 +612,7 @@ async function logExport(id){
   if (logSess && logSess.id===id) await logFlush();
   const s = await idb(tx("sessions","readonly").get(id)); if (!s) return;
   const chunks = await idb(tx("chunks","readonly").index("sid").getAll(id));
-  const text = LOG_HEADER + "\n" + chunks.map(c=>c.text).join("");
+  const text = LOG_HEADER + (s.extra||[]).map(e=>","+String(e.name).replace(/[,\n]/g," ")).join("") + "\n" + chunks.map(c=>c.text).join("");
   const name = "EX30_" + localStamp(s.start).slice(0,19).replace(/[: ]/g,"-") + ".csv";
   saveText(name, text);
 }
@@ -660,6 +689,8 @@ const CARAPI = window.AndroidCar || (HOST ? window.parent.AndroidCar : null);
 if (CARAPI){ $("aaosBox").style.display=""; try{ CARAPI.start(); }catch(e){} }
 $("btnAaosRetry").onclick=()=>{ try{ CARAPI && CARAPI.start(); }catch{} };
 setInterval(()=>{ if (!running) sample(false); if (CARAPI && $("dlg").open) renderAaos(); }, 1000);
+loadExtras();
+window.addEventListener("storage", e=>{ if (e.key==="ex30.panelExtras") window.ex30ReloadExtras(); });
 if (HOST){ try{ HOST.register(window); }catch{} }
 geoStart(); render();
 </script>

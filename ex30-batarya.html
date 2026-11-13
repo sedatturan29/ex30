@@ -272,23 +272,57 @@
   <!-- ============ TARAYICI ============ -->
   <section id="tab-scan">
     <div class="card" style="margin-top:0">
-      <h2>Kod tarayıcı (sadece okuma)</h2>
+      <h2>1. Ünite bulucu (sadece okuma)</h2>
       <div class="row">
+        <label>Adres <input id="ufFrom" value="1600" style="width:70px"></label>
+        <label>– <input id="ufTo" value="17FF" style="width:70px"></label>
+        <button id="ufBtn" disabled>Üniteleri bul</button>
+      </div>
+      <progress id="ufProg" value="0" max="1" style="margin-top:10px"></progress>
+      <p class="note" id="ufInfo">Araçtaki her olası ünite adresine yalnızca "parça numaranı söyle" okuma isteği (UDS 22 F187) gönderir; araca hiçbir şey yazmaz. Park halinde, araç açıkken çalıştırın. 512 adres yaklaşık 1–2 dakika sürer.</p>
+      <div class="tbl" id="ufList"></div>
+    </div>
+    <div class="card">
+      <h2>2. Kod tarayıcı (sadece okuma)</h2>
+      <div class="row">
+        <label>Ünite <select id="scUnit"></select></label>
         <label>Başlangıç <input id="scFrom" value="4800" style="width:80px"></label>
         <label>Bitiş <input id="scTo" value="49FF" style="width:80px"></label>
         <button id="scBtn" disabled>Tara</button>
       </div>
+      <div class="row" style="margin-top:6px" id="scPresets"></div>
       <progress id="scProg" value="0" max="1" style="margin-top:10px"></progress>
-      <p class="note" id="scInfo">Batarya yönetim sistemine yalnızca okuma isteği (UDS 0x22) gönderir; hiçbir şey yazmaz. Tarama sırasında canlı okuma durur. 512 kod yaklaşık 2–4 dakika sürer.</p>
+      <p class="note" id="scInfo">Seçili üniteye yalnızca okuma isteği (UDS 22) gönderir; hiçbir şey yazmaz. Tarama sırasında canlı okuma durur. 512 kod yaklaşık 2–4 dakika sürer.</p>
     </div>
     <div class="card">
-      <h2>Cevap veren kodlar</h2>
+      <h2>3. Cevap veren kodlar</h2>
       <div class="row" style="margin-bottom:8px">
         <button class="sec" id="scRe" disabled>Tekrar oku (değişenleri işaretle)</button>
+        <label class="note"><input type="checkbox" id="scAuto"> 5 sn'de bir tekrar oku</label>
         <button class="sec" id="scCopy" disabled>CSV olarak kopyala</button>
       </div>
       <div class="tbl" id="scList"><div class="empty">Henüz tarama yapılmadı</div></div>
-      <p class="note">Örneğin park halindeyken okuyun, sonra ısıtma çalışırken tekrar okuyun: değişen kodlar sarı görünür. "1 bayt −50" ve "2 bayt /100 −50" sütunları sıcaklık olabilecek değerleri gösterir.</p>
+      <p class="note">Park halindeyken okuyun, sonra sürüşte, şarjda ya da ısıtma çalışırken tekrar okuyun: değişen kodlar sarı görünür. "1 bayt −50" ve "2 bayt /100 −50" sütunları sıcaklık olabilecek değerleri gösterir. Bir değerin anlamını bulduğunuzda <b>Panele ekle</b> ile Panel'de kutu olarak izleyebilirsiniz.</p>
+    </div>
+    <div class="card" id="addBox" style="display:none">
+      <h2>Panele ekle</h2>
+      <div class="row">
+        <span class="mono" id="addWhat"></span>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label>Ad <input id="addName" placeholder="ör. Lastik sol ön sıcaklık" style="width:200px"></label>
+        <label>Birim <input id="addUnit" placeholder="°C" style="width:60px"></label>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label>Başlangıç baytı <input id="addStart" type="number" value="0" min="0" style="width:60px"></label>
+        <label>Uzunluk <select id="addLen"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
+        <label><input type="checkbox" id="addSigned"> İşaretli</label>
+        <label>Çarpan <input id="addScale" value="1" style="width:70px"></label>
+        <label>Ekleme <input id="addOffset" value="0" style="width:70px"></label>
+      </div>
+      <p class="note">Değer = (seçilen baytlar) × çarpan + ekleme. Şu anki ham değerle sonuç: <b id="addPreview">–</b></p>
+      <div class="row"><button id="addOk">Panele ekle</button><button class="sec" id="addCancel">Vazgeç</button></div>
+      <div class="tbl" id="extraList" style="margin-top:10px"></div>
     </div>
   </section>
 </main>
@@ -479,7 +513,7 @@ async function connect(all=false){
     if (carOk) setStep("car","ok","Bağlantı tamam, Canlı sekmesine geçiliyor");
     else setStep("car","warn", "Araç cevap vermedi ("+lastR.replace(/\s+/g," ").slice(0,30)+"). Aracı açın, ekran açık olsun; bir dakika içinde kendiliğinden tekrar denenir.");
     setPill("on","Bağlı");
-    btnConn.textContent="Kes"; $("btnSend").disabled=false; $("scBtn").disabled=false;
+    btnConn.textContent="Kes"; $("btnSend").disabled=false; $("scBtn").disabled=false; $("ufBtn").disabled=false;
     try{ wake = await navigator.wakeLock?.request("screen"); }catch{}
     startPolling();
     if (carOk && tab==="conn") setTimeout(()=>goTab("live"), 900);
@@ -492,7 +526,7 @@ async function connect(all=false){
   }
 }
 function onDisconnect(){ if(manual){manual=false;return;} log("Bağlantı koptu"); setPill("err","Bağlantı koptu"); cleanup(); }
-function cleanup(){ publishCar(false); stopPolling(); chW=null; btnConn.textContent="Bağlan"; $("btnSend").disabled=true; $("scBtn").disabled=true; try{wake?.release()}catch{} wake=null; }
+function cleanup(){ publishCar(false); stopPolling(); chW=null; btnConn.textContent="Bağlan"; $("btnSend").disabled=true; $("scBtn").disabled=true; $("ufBtn").disabled=true; try{wake?.release()}catch{} wake=null; }
 function disconnect(){ manual=true; try{ dev?.gatt?.disconnect(); }catch{} setPill("","Bağlı değil"); cleanup(); }
 
 // =====================================================================
@@ -683,20 +717,90 @@ function hav(a,b){ const R=6371000, toR=Math.PI/180, dLa=(b.lat-a.lat)*toR, dLo=
 //  Tarayıcı
 // =====================================================================
 let scanRes = [], scanning=false;
+// ---- UDS cevabı: tek ve çok çerçeveli (ISO-TP) cevapları birleştirir ----
+function parseUds(resp, did){
+  const frames = resp.toUpperCase().split(/[\r\n]+/).map(l=>l.replace(/[^0-9A-F]/g,"")).filter(l=>l.length>=10);
+  const byHdr = {};
+  for (const ln of frames){ const h=ln.slice(0,8), d=ln.slice(8); (byHdr[h] = byHdr[h] || []).push(d); }
+  for (const h in byHdr){
+    const fr = byHdr[h]; let payload = null;
+    const b0 = parseInt(fr[0].slice(0,2),16);
+    if ((b0>>4)===0){ payload = fr[0].slice(2, 2+(b0&0x0F)*2); }
+    else if ((b0>>4)===1){
+      const len = ((b0&0x0F)<<8) | parseInt(fr[0].slice(2,4),16);
+      let hex = fr[0].slice(4);
+      for (const f of fr.slice(1)) if ((parseInt(f.slice(0,2),16)>>4)===2) hex += f.slice(2);
+      payload = hex.slice(0, len*2);
+    }
+    if (!payload) continue;
+    const bytes=[]; for (let i=0;i+1<payload.length;i+=2) bytes.push(parseInt(payload.slice(i,i+2),16));
+    if (bytes[0]===0x62 && (did==null || ((bytes[1]<<8)|bytes[2])===parseInt(did,16))) return {hdr:h, ok:true, data:bytes.slice(3)};
+    if (bytes[0]===0x7F) return {hdr:h, ok:false, nrc:bytes[2]};
+  }
+  return null;
+}
+const KNOWN_UNITS = {"1DD01601":"VCU","1DD01631":"Ön motor","1DD01635":"Batarya (BMS)","1DD01637":"Arka motor","1DD01650":"Şarj cihazı","1DD01701":"Şasi"};
+const UNIT_PRESETS = {"1DD01635":["4800-49FF","DD00-DDFF","EE00-EEFF"],"1DD01637":["E300-E3FF","EE00-EEFF"],"1DD01601":["4A00-4AFF","D900-D9FF","E300-E3FF"],"1DD01650":["EE00-EEFF"],"1DD01701":["2B00-2BFF","F400-F4FF","FD00-FEFF"]};
+const rxFor = tx => (0x1EC00E80 + ((parseInt(tx.slice(4),16) - 0x1600) << 13)).toString(16).toUpperCase();
+let units = store.get("units", []);   // [{tx, rx, name, part}]
+function unitList(){ const m={}; for (const tx in KNOWN_UNITS) m[tx]={tx, rx:rxFor(tx), name:KNOWN_UNITS[tx]}; for (const u of units) m[u.tx]=Object.assign(m[u.tx]||{}, u); return Object.values(m).sort((a,b)=>a.tx.localeCompare(b.tx)); }
+function fillUnitSelect(){
+  const sel=$("scUnit"), prev=sel.value||"1DD01635";
+  sel.innerHTML = unitList().map(u=>`<option value="${u.tx}">${u.tx.slice(4)} · ${u.name||"Bilinmeyen ünite"}</option>`).join("");
+  sel.value = [...sel.options].some(o=>o.value===prev) ? prev : "1DD01635"; fillPresets();
+}
+function fillPresets(){ const tx=$("scUnit").value; $("scPresets").innerHTML = (UNIT_PRESETS[tx]||["0000-00FF","D000-D1FF","F100-F1FF"]).map(r=>`<button class="sec mini" data-range="${r}">${r}</button>`).join("") + `<span class="note" style="margin:0">hazır aralıklar</span>`; }
+async function setUnit(tx, rx){ await send("ATCP"+tx.slice(0,2)); await send("ATSH"+tx.slice(2)); await send("ATCRA"+rx); await send("ATFCSH"+tx); }
+const ascii = b => b.map(x=>x>=32&&x<127?String.fromCharCode(x):"").join("").trim();
+
+let finding=false;
+async function runFinder(){
+  if (finding){ finding=false; return; }
+  const a=parseInt($("ufFrom").value,16), b=parseInt($("ufTo").value,16);
+  if (!(a>=0x1600 && b<=0x17FF && b>=a)){ $("ufInfo").textContent="Adres aralığı 1600–17FF içinde olmalı"; return; }
+  finding=true; $("ufBtn").textContent="Durdur"; $("ufBtn").className="stop";
+  await pausePolling(); await send("ATST20");
+  const prog=$("ufProg"); prog.max=b-a+1; const found=[];
+  for (let n=a; n<=b && finding && chW; n++){
+    const tx="1DD0"+n.toString(16).toUpperCase().padStart(4,"0"), rx=rxFor(tx);
+    await setUnit(tx, rx);
+    const r=parseUds(await send("22F187", 600), "F187");
+    if (r){
+      const u={tx, rx:r.hdr||rx, name:KNOWN_UNITS[tx]||"", part: r.ok ? ascii(r.data) : `(cevap var, kod ${r.nrc?.toString(16).toUpperCase()})`};
+      // ek kimlik: yazılım sürümü
+      if (r.ok){ const v=parseUds(await send("22F195",600),"F195"); if (v&&v.ok) u.sw=ascii(v.data); }
+      found.push(u);
+    }
+    prog.value=n-a+1; $("ufInfo").textContent=`${tx.slice(4)} soruluyor · ${found.length} ünite cevap verdi`;
+  }
+  await send("ATST64"); await restoreBms();
+  finding=false; $("ufBtn").textContent="Üniteleri bul"; $("ufBtn").className="";
+  if (found.length){ const m={}; for (const u of units) m[u.tx]=u; for (const u of found) m[u.tx]=u; units=Object.values(m); store.set("units", units); }
+  $("ufInfo").textContent=`Bitti: ${found.length} ünite cevap verdi. Bilinmeyenler için kod tarayıcıda üniteyi seçip tarayın.`;
+  renderUnits(found); fillUnitSelect();
+  if (chW) startPolling();
+}
+function renderUnits(list){
+  list = list || units; if (!list.length){ $("ufList").innerHTML=""; return; }
+  $("ufList").innerHTML = `<table><tr><th>Adres</th><th>Cevap ID</th><th>Ünite</th><th>Parça no / yazılım</th><th></th></tr>`+
+    list.map(u=>`<tr><td class="mono">${u.tx}</td><td class="mono">${u.rx}</td><td>${u.name||"<b>Yeni</b>"}</td><td class="mono">${u.part||""}${u.sw?" · "+u.sw:""}</td><td><button class="sec mini" data-unit="${u.tx}">Tara</button></td></tr>`).join("")+`</table>`;
+}
+
 async function runScan(){
   if (scanning){ scanning=false; return; }
   const a=parseInt($("scFrom").value,16), b=parseInt($("scTo").value,16);
   if (!(a>=0 && b>=a && b<=0xFFFF && b-a<=4096)){ $("scInfo").textContent="Geçersiz aralık (en fazla 4096 kod, onaltılık yazın)"; return; }
+  const u = unitList().find(x=>x.tx===$("scUnit").value) || {tx:"1DD01635", rx:"1EC6AE80"};
   scanning=true; $("scBtn").textContent="Durdur"; $("scBtn").className="stop";
-  await pausePolling();
+  await pausePolling(); await setUnit(u.tx, u.rx);
   const found=[], prog=$("scProg"); prog.max=b-a+1;
   for (let d=a; d<=b && scanning && chW; d++){
     const did=d.toString(16).toUpperCase().padStart(4,"0");
-    const r=await send("22"+did, 800);
-    const by=parseDid(r,did);
-    if (by) found.push({did, bytes:by, prev:null});
-    prog.value=d-a+1; $("scInfo").textContent=`${did} okunuyor · ${found.length} kod cevap verdi`;
+    const r=parseUds(await send("22"+did, 800), did);
+    if (r && r.ok && r.data.length) found.push({tx:u.tx, rx:u.rx, unit:u.name||u.tx.slice(4), did, bytes:r.data, prev:null});
+    prog.value=d-a+1; $("scInfo").textContent=`${u.tx.slice(4)}:${did} okunuyor · ${found.length} kod cevap verdi`;
   }
+  await restoreBms();
   scanRes = found; scanning=false;
   $("scBtn").textContent="Tara"; $("scBtn").className="";
   $("scInfo").textContent=`Tarama bitti: ${found.length} kod cevap verdi`;
@@ -704,21 +808,36 @@ async function runScan(){
   renderScan();
   if (chW) startPolling();
 }
+let rescanning=false;
 async function rescan(){
-  if (!scanRes.length || !chW) return;
-  $("scRe").disabled=true; await pausePolling();
-  for (const x of scanRes){ const r=await send("22"+x.did,800); const by=parseDid(r,x.did); x.prev=x.bytes; if (by) x.bytes=by; }
-  $("scRe").disabled=false; renderScan(); startPolling();
+  if (!scanRes.length || !chW || rescanning) return;
+  rescanning=true; $("scRe").disabled=true; await pausePolling();
+  let cur="";
+  for (const x of scanRes){ if (cur!==x.tx){ await setUnit(x.tx, x.rx); cur=x.tx; }
+    const r=parseUds(await send("22"+x.did,800), x.did); x.prev=x.bytes; if (r && r.ok) x.bytes=r.data; }
+  await restoreBms();
+  $("scRe").disabled=false; rescanning=false; renderScan(); startPolling();
 }
+setInterval(()=>{ if ($("scAuto").checked && tab==="scan" && !scanning && !finding) rescan(); }, 5000);
 function renderScan(){
   const el=$("scList");
   if (!scanRes.length){ el.innerHTML='<div class="empty">Cevap veren kod yok</div>'; return; }
-  el.innerHTML = `<table><tr><th>Kod</th><th>Ham değer</th><th>Önceki</th><th>1 bayt −50</th><th>2 bayt /100 −50</th></tr>`+
-    scanRes.map(x=>{ const ch = x.prev && hexb(x.prev)!==hexb(x.bytes);
+  el.innerHTML = `<table><tr><th>Ünite</th><th>Kod</th><th>Ham değer</th><th>Önceki</th><th>1 bayt −50</th><th>2 bayt /100 −50</th><th></th></tr>`+
+    scanRes.map((x,i)=>{ const ch = x.prev && hexb(x.prev)!==hexb(x.bytes);
       const t1 = x.bytes[x.bytes.length-1]-50, t2 = x.bytes.length>=2 ? u16(x.bytes)/100-50 : null;
-      return `<tr class="${ch?"chg":""}"><td class="mono">${x.did}</td><td class="mono">${hexb(x.bytes)}</td><td class="mono">${x.prev?hexb(x.prev):""}</td><td>${t1}</td><td>${t2==null?"":t2.toFixed(2)}</td></tr>`; }).join("")+`</table>`;
+      return `<tr class="${ch?"chg":""}"><td>${x.unit}</td><td class="mono">${x.did}</td><td class="mono">${hexb(x.bytes)}</td><td class="mono">${x.prev?hexb(x.prev):""}</td><td>${t1}</td><td>${t2==null?"":t2.toFixed(2)}</td><td><button class="sec mini" data-add="${i}">Panele ekle</button></td></tr>`; }).join("")+`</table>`;
 }
 
+// ---- Panele ek değer ekleme (panel.html "extras") ----
+let addSel=null;
+function readBytesVal(bytes, start, len, signed){ let v=0; for (let i=0;i<len;i++) v=v*256+(bytes[start+i]??0); if (signed && v >= 2**(8*len-1)) v -= 2**(8*len); return v; }
+function addPreview(){ if (!addSel) return; const v=readBytesVal(addSel.bytes, +$("addStart").value||0, +$("addLen").value, $("addSigned").checked)*(parseFloat($("addScale").value.replace(",","."))||1)+(parseFloat($("addOffset").value.replace(",","."))||0);
+  $("addPreview").textContent = isFinite(v) ? (+v.toFixed(3)).toString().replace(".",",")+" "+$("addUnit").value : "–"; }
+function openAdd(x){ addSel=x; $("addBox").style.display=""; $("addWhat").textContent=`${x.unit} · ${x.tx}/${x.rx} · 22${x.did} · ham ${hexb(x.bytes)}`;
+  $("addLen").value=String(Math.min(2,x.bytes.length)); $("addStart").value=String(Math.max(0,x.bytes.length-+$("addLen").value)); addPreview(); renderExtras();
+  $("addBox").scrollIntoView({behavior:"smooth"}); }
+function renderExtras(){ const ex=store.get("panelExtras",[]);
+  $("extraList").innerHTML = ex.length ? `<table><tr><th>Panel'deki ek değerler</th><th>Kaynak</th><th></th></tr>`+ex.map((e,i)=>`<tr><td>${e.name} (${e.unit||""})</td><td class="mono">${e.tx.slice(4)}:${e.did} [${e.start},${e.len}]</td><td><button class="sec mini" data-exdel="${i}">Kaldır</button></td></tr>`).join("")+`</table>` : ""; }
 // =====================================================================
 //  Grafik
 // =====================================================================
@@ -976,8 +1095,22 @@ $("heatBtn").onclick = () => { if (active.heat){ stopSession("heat"); return; }
 $("capModel").onchange = () => { cfg.capModel=$("capModel").value; if (cfg.capModel!=="custom") cfg.capNew=+cfg.capModel; saveCfg(); renderCap(); };
 $("capNew").onchange = () => { cfg.capNew=parseFloat($("capNew").value)||null; cfg.capModel="custom"; saveCfg(); renderCap(); };
 $("scBtn").onclick = runScan;
+$("ufBtn").onclick = runFinder;
+$("scUnit").onchange = fillPresets;
+$("scPresets").onclick = e => { const b=e.target.closest("[data-range]"); if (!b) return; const [f,t]=b.dataset.range.split("-"); $("scFrom").value=f; $("scTo").value=t; };
+$("ufList").onclick = e => { const b=e.target.closest("[data-unit]"); if (!b) return; $("scUnit").value=b.dataset.unit; fillPresets(); const p=(UNIT_PRESETS[b.dataset.unit]||["0000-00FF"])[0].split("-"); $("scFrom").value=p[0]; $("scTo").value=p[1]; $("scUnit").scrollIntoView({behavior:"smooth"}); };
+$("scList").addEventListener("click", e => { const b=e.target.closest("[data-add]"); if (b) openAdd(scanRes[+b.dataset.add]); });
+for (const id of ["addStart","addLen","addSigned","addScale","addOffset","addUnit"]) $(id).addEventListener("input", addPreview);
+$("addCancel").onclick = () => { $("addBox").style.display="none"; addSel=null; };
+$("addOk").onclick = () => { if (!addSel) return; const name=$("addName").value.trim() || `${addSel.unit} ${addSel.did}`;
+  const ex=store.get("panelExtras",[]); ex.push({id:"x"+Date.now(), name, unit:$("addUnit").value.trim(), tx:addSel.tx, rx:addSel.rx, did:addSel.did,
+    start:+$("addStart").value||0, len:+$("addLen").value, signed:$("addSigned").checked, scale:parseFloat($("addScale").value.replace(",","."))||1, offset:parseFloat($("addOffset").value.replace(",","."))||0, every:3});
+  store.set("panelExtras", ex); renderExtras(); log(`"${name}" Panel'e eklendi`); $("addName").value="";
+  try{ panelWin && panelWin.ex30ReloadExtras && panelWin.ex30ReloadExtras(); }catch{} };
+$("extraList").onclick = e => { const b=e.target.closest("[data-exdel]"); if (!b) return; const ex=store.get("panelExtras",[]); ex.splice(+b.dataset.exdel,1); store.set("panelExtras",ex); renderExtras(); try{ panelWin && panelWin.ex30ReloadExtras && panelWin.ex30ReloadExtras(); }catch{} };
+fillUnitSelect(); renderUnits();
 $("scRe").onclick = rescan;
-$("scCopy").onclick = () => copyText("kod,ham,onceki\n"+scanRes.map(x=>`${x.did},${hexb(x.bytes)},${x.prev?hexb(x.prev):""}`).join("\n"), "Tarama sonucu");
+$("scCopy").onclick = () => copyText("unite,istek,cevap,kod,ham,onceki\n"+scanRes.map(x=>`${x.unit},${x.tx},${x.rx},${x.did},${hexb(x.bytes)},${x.prev?hexb(x.prev):""}`).join("\n"), "Tarama sonucu");
 document.addEventListener("click", e => {
   const d=e.target.closest("[data-del]"), c=e.target.closest("[data-csv]");
   if (d){ if (d.dataset.confirm){ deleteSession(d.dataset.del); } else { d.dataset.confirm="1"; d.textContent="Emin misiniz?"; setTimeout(()=>{ if(d.isConnected){ delete d.dataset.confirm; d.textContent="Sil"; } }, 3000); } }
