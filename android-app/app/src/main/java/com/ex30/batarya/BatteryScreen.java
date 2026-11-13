@@ -69,8 +69,10 @@ public class BatteryScreen extends Screen implements CarData.Listener {
     public Template onGetTemplate() {
         JSONObject d = CarData.latest();
         if (d == null || !d.optBoolean("conn", false)) {
-            return new MessageTemplate.Builder(
-                    "Telefonda EX30 Reader uygulamasını açıp OBD adaptörüne bağlanın. Bağlanınca değerler burada görünür.")
+            String st = d == null ? "" : d.optString("status", "");
+            return new MessageTemplate.Builder(st.isEmpty()
+                    ? "OBD adaptörüne bağlanılıyor… Araç açık ve adaptör takılı olmalı. İlk kullanımda telefonda bir kez Bağlan'a basıp adaptörü seçin."
+                    : st)
                     .setTitle("EX30 Reader")
                     .setHeaderAction(Action.APP_ICON)
                     .build();

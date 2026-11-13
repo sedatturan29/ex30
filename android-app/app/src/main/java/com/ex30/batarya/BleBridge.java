@@ -79,7 +79,8 @@ public class BleBridge {
         Entry(String id, String name, String label) { this.id = id; this.name = name; this.label = label; }
     }
 
-    private final Activity act;
+    private final Context ctx;          // uygulama bağlamı (her zaman var)
+    private volatile Activity act;      // telefon ekranı açıkken; Android Auto'dan başlatılınca null olabilir
     private final WebView web;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Map<String, BluetoothGatt> gatts = new HashMap<>();
@@ -91,22 +92,48 @@ public class BleBridge {
     private ScanCallback scanCb;
     private AlertDialog dialog;
 
-    BleBridge(Activity act, WebView web) {
-        this.act = act;
+    BleBridge(Context ctx, WebView web) {
+        this.ctx = ctx.getApplicationContext();
         this.web = web;
     }
+
+    void setActivity(Activity a) { this.act = a; }
+
+    private android.content.SharedPreferences prefs() { return ctx.getSharedPreferences("ex30", Context.MODE_PRIVATE); }
+
+    /** Son seçilen adaptör (Android Auto'dan otomatik bağlanmak için). {"id","name"} ya da "". */
+    @JavascriptInterface
+    public String lastDevice() {
+        String id = prefs().getString("lastId", null);
+        if (id == null) return "";
+        try {
+            JSONObject o = new JSONObject();
+            o.put("id", id);
+            o.put("name", prefs().getString("lastName", ""));
+            return o.toString();
+        } catch (Exception e) { return ""; }
+    }
+
+    /** Uygulama Android Auto'dan başlatıldıysa sayfa kendiliğinden bağlanır. */
+    @JavascriptInterface
+    public boolean autoRequested() { return WebHost.autoRequested(); }
+
+    @JavascriptInterface
+    public boolean hasScreen() { return act != null; }
 
     /** Bağlıyken arka planda okumaya devam etmek için ön plan hizmetini aç/kapat. */
     @JavascriptInterface
     public void keepAlive(final boolean on) {
         main.post(() -> {
+            WebHost.setKeepAlive(on);
             if (on) {
-                if (Build.VERSION.SDK_INT >= 33 && act.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                    try { act.requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 31); } catch (Exception ignored) { }
+                Activity a = act;
+                if (a != null && Build.VERSION.SDK_INT >= 33 && a.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    try { a.requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 31); } catch (Exception ignored) { }
                 }
-                ReaderService.start(act);
+                ReaderService.start(ctx);
             } else {
-                ReaderService.stop(act);
+                ReaderService.stop(ctx);
             }
         });
     }
@@ -125,7 +152,7 @@ public class BleBridge {
     }
 
     private BluetoothAdapter adapter() {
-        BluetoothManager m = (BluetoothManager) act.getSystemService(Context.BLUETOOTH_SERVICE);
+        BluetoothManager m = (BluetoothManager) ctx.getSystemService(Context.BLUETOOTH_SERVICE);
         return m == null ? null : m.getAdapter();
     }
 
@@ -137,7 +164,7 @@ public class BleBridge {
 
     private boolean hasPermissions() {
         for (String p : permissions())
-            if (act.checkSelfPermission(p) != PackageManager.PERMISSION_GRANTED) return false;
+            if (ctx.checkSelfPermission(p) != PackageManager.PERMISSION_GRANTED) return false;
         return true;
     }
 
@@ -161,6 +188,7 @@ public class BleBridge {
     @JavascriptInterface
     public void requestDevice(final String opts, final String cb) {
         main.post(() -> {
+            if (act == null) { reject(cb, "NotFoundError", "Cihaz seçmek için telefonda uygulamayı açın"); return; }
             if (!hasPermissions()) {
                 afterPermission = () -> startPicker(opts, cb);
                 permissionCb = cb;
@@ -181,7 +209,7 @@ public class BleBridge {
             if (old != null) { try { old.close(); } catch (Exception ignored) { } }
             connectCb = cb;
             connectingId = id;
-            final BluetoothGatt g = a.getRemoteDevice(id).connectGatt(act, false, gattCb, BluetoothDevice.TRANSPORT_LE);
+            final BluetoothGatt g = a.getRemoteDevice(id).connectGatt(ctx, false, gattCb, BluetoothDevice.TRANSPORT_LE);
             gatts.put(id, g);
             main.postDelayed(() -> {
                 if (cb.equals(connectCb)) {
@@ -269,23 +297,24 @@ public class BleBridge {
                     v.put(MediaStore.Downloads.DISPLAY_NAME, name);
                     v.put(MediaStore.Downloads.MIME_TYPE, mime);
                     v.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/EX30");
-                    Uri uri = act.getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+                    Uri uri = ctx.getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
                     if (uri == null) throw new IllegalStateException("dosya oluşturulamadı");
-                    try (OutputStream o = act.getContentResolver().openOutputStream(uri)) { o.write(bytes); }
-                    Toast.makeText(act, "İndirilenler/EX30 klasörüne kaydedildi", Toast.LENGTH_LONG).show();
+                    try (OutputStream o = ctx.getContentResolver().openOutputStream(uri)) { o.write(bytes); }
+                    Toast.makeText(ctx, "İndirilenler/EX30 klasörüne kaydedildi", Toast.LENGTH_LONG).show();
                     Intent share = new Intent(Intent.ACTION_SEND);
                     share.setType(mime);
                     share.putExtra(Intent.EXTRA_STREAM, uri);
                     share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                    act.startActivity(Intent.createChooser(share, "Kaydı paylaş"));
+                    Activity a = act;
+                    if (a != null) a.startActivity(Intent.createChooser(share, "Kaydı paylaş"));
                 } else {
-                    File dir = act.getExternalFilesDir(null);
+                    File dir = ctx.getExternalFilesDir(null);
                     File f = new File(dir, name);
                     try (FileOutputStream o = new FileOutputStream(f)) { o.write(bytes); }
-                    Toast.makeText(act, "Kaydedildi: " + f.getAbsolutePath(), Toast.LENGTH_LONG).show();
+                    Toast.makeText(ctx, "Kaydedildi: " + f.getAbsolutePath(), Toast.LENGTH_LONG).show();
                 }
             } catch (Exception e) {
-                Toast.makeText(act, "Kaydedilemedi: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                Toast.makeText(ctx, "Kaydedilemedi: " + e.getMessage(), Toast.LENGTH_LONG).show();
             }
         });
     }
@@ -293,9 +322,9 @@ public class BleBridge {
     @JavascriptInterface
     public void copy(final String text) {
         main.post(() -> {
-            ClipboardManager cm = (ClipboardManager) act.getSystemService(Context.CLIPBOARD_SERVICE);
+            ClipboardManager cm = (ClipboardManager) ctx.getSystemService(Context.CLIPBOARD_SERVICE);
             if (cm != null) cm.setPrimaryClip(ClipData.newPlainText("EX30", text));
-            Toast.makeText(act, "Panoya kopyalandı", Toast.LENGTH_SHORT).show();
+            Toast.makeText(ctx, "Panoya kopyalandı", Toast.LENGTH_SHORT).show();
         });
     }
 
@@ -388,6 +417,7 @@ public class BleBridge {
                     picked[0] = true;
                     stopScan();
                     Entry d = found.get(which);
+                    prefs().edit().putString("lastId", d.id).putString("lastName", d.name == null ? "" : d.name).apply();
                     try {
                         JSONObject res = new JSONObject();
                         res.put("id", d.id);

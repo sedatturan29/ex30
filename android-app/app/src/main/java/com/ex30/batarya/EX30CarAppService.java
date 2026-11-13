@@ -21,6 +21,13 @@ public class EX30CarAppService extends CarAppService {
     @Override
     public Session onCreateSession() {
         return new Session() {
+            {
+                getLifecycle().addObserver((androidx.lifecycle.LifecycleEventObserver) (src, ev) -> {
+                    if (ev == androidx.lifecycle.Lifecycle.Event.ON_CREATE) WebHost.onCarStart(getCarContext());
+                    else if (ev == androidx.lifecycle.Lifecycle.Event.ON_DESTROY) WebHost.onCarStop();
+                });
+            }
+
             @NonNull
             @Override
             public Screen onCreateScreen(@NonNull Intent intent) {

@@ -458,7 +458,20 @@ async function checkEnv(){
   $("cnFind").disabled = $("cnAll").disabled = blocked;
 }
 
-async function connect(all=false){
+// Android Auto'dan açılınca: son adaptöre seçim penceresi olmadan bağlan, olmazsa 15 sn'de bir yeniden dene
+let autoBusy=false, autoTimer=null;
+function autoStatus(t){ try{ window.AndroidBle && AndroidBle.publish(JSON.stringify({conn:false, status:t})); }catch{} }
+window.ex30AutoConnect = async () => {
+  if (autoBusy || chW || !window.AndroidBle || !navigator.bluetooth || !navigator.bluetooth.lastDevice) return;
+  clearTimeout(autoTimer);
+  if (!navigator.bluetooth.lastDevice()){ autoStatus("Kayıtlı adaptör yok. Telefonda EX30 Reader'ı açıp bir kez Bağlan'a basın ve adaptörü seçin; sonrakilerde Android Auto'dan açmanız yeter."); return; }
+  autoBusy=true; autoStatus("OBD adaptörüne bağlanılıyor…");
+  try{ await connect(false, true); }catch{}
+  autoBusy=false;
+  if (!chW){ autoStatus("Adaptöre bağlanılamadı; 15 sn sonra tekrar denenecek. Araç açık, adaptör takılı ve Car Scanner kapalı olmalı.");
+    autoTimer=setTimeout(()=>{ if (AndroidBle.autoRequested && AndroidBle.autoRequested()) ex30AutoConnect(); }, 15000); }
+};
+async function connect(all=false, auto=false){
   if (!navigator.bluetooth){ goTab("conn"); checkEnv(); return; }
   for (const k in stepState) delete stepState[k]; renderSteps();
   setPill("busy","Cihaz aranıyor"); setStep("pick","run","Açılan listeden IOS-Vlink ya da Android-Vlink'i seçin");
@@ -466,7 +479,8 @@ async function connect(all=false){
     const filters = [{namePrefix:"IOS-Vlink"},{namePrefix:"iOS-Vlink"},{namePrefix:"Android-Vlink"},{namePrefix:"V-LINK"},{namePrefix:"vLinker"},{namePrefix:"OBD"},{namePrefix:"Vgate"},
       ...SERVICES.map(u=>({services:[u]}))];
     try{
-      dev = await navigator.bluetooth.requestDevice(all ? {acceptAllDevices:true, optionalServices:SERVICES} : {filters, optionalServices:SERVICES});
+      dev = auto ? navigator.bluetooth.lastDevice() : await navigator.bluetooth.requestDevice(all ? {acceptAllDevices:true, optionalServices:SERVICES} : {filters, optionalServices:SERVICES});
+      if (!dev) throw Object.assign(new Error("Kayıtlı adaptör yok"), {name:"NotFoundError"});
     }catch(e){
       if (e.name==="NotFoundError") throw Object.assign(new Error(all ? "Cihaz seçilmedi" : "Cihaz seçilmedi ya da listede yoktu. Adaptör takılı ve araç açık mı? 'Tüm cihazları göster' ile de deneyin."), {step:"pick"});
       if (e.name==="SecurityError") throw Object.assign(new Error("Tarayıcı Bluetooth'a izin vermedi (https ya da çerçeve sorunu)."), {step:"pick"});
@@ -528,7 +542,8 @@ async function connect(all=false){
     cleanup();
   }
 }
-function onDisconnect(){ if(manual){manual=false;return;} log("Bağlantı koptu"); setPill("err","Bağlantı koptu"); cleanup(); }
+function onDisconnect(){ if(manual){manual=false;return;} log("Bağlantı koptu"); setPill("err","Bağlantı koptu"); cleanup();
+  try{ if (window.AndroidBle && AndroidBle.autoRequested && AndroidBle.autoRequested()){ autoStatus("Bağlantı koptu, yeniden bağlanılıyor…"); setTimeout(()=>ex30AutoConnect(), 5000); } }catch{} }
 function cleanup(){ publishCar(false); try{ window.AndroidBle && AndroidBle.keepAlive && AndroidBle.keepAlive(false); }catch{} stopPolling(); chW=null; btnConn.textContent="Bağlan"; $("btnSend").disabled=true; $("scBtn").disabled=true; $("ufBtn").disabled=true; try{wake?.release()}catch{} wake=null; }
 function disconnect(){ manual=true; try{ dev?.gatt?.disconnect(); }catch{} setPill("","Bağlı değil"); cleanup(); }
 
@@ -1123,6 +1138,7 @@ $("addOk").onclick = () => { if (!addSel) return; const name=$("addName").value.
 $("extraList").onclick = e => { const b=e.target.closest("[data-exdel]"); if (!b) return; const ex=store.get("panelExtras",[]); ex.splice(+b.dataset.exdel,1); store.set("panelExtras",ex); renderExtras(); try{ panelWin && panelWin.ex30ReloadExtras && panelWin.ex30ReloadExtras(); }catch{} };
 fillUnitSelect(); renderUnits();
 if (location.hash==="#panel") setTimeout(()=>goTab("panel"), 0);
+try{ if (window.AndroidBle && AndroidBle.autoRequested && AndroidBle.autoRequested()) setTimeout(()=>ex30AutoConnect(), 500); }catch{}
 $("scRe").onclick = rescan;
 $("scCopy").onclick = () => copyText("unite,istek,cevap,kod,ham,onceki\n"+scanRes.map(x=>`${x.unit},${x.tx},${x.rx},${x.did},${hexb(x.bytes)},${x.prev?hexb(x.prev):""}`).join("\n"), "Tarama sonucu");
 document.addEventListener("click", e => {

@@ -88,7 +88,9 @@
         return (k === 'services' || k === 'optionalServices') && Array.isArray(v) ? v.map(norm) : v;
       }));
       return call('requestDevice', JSON.stringify(o)).then(mkDevice);
-    }
+    },
+    // EX30 Reader eki: son seçilen adaptör (seçim penceresi olmadan bağlanmak için)
+    lastDevice: function () { try { var j = AndroidBle.lastDevice && AndroidBle.lastDevice(); return j ? mkDevice(JSON.parse(j)) : null; } catch (e) { return null; } }
   };
   try { Object.defineProperty(navigator, 'bluetooth', { value: bt, configurable: true }); } catch (e) {}
   try { Object.defineProperty(navigator, 'clipboard', { value: { writeText: function (t) { AndroidBle.copy(String(t)); return Promise.resolve(); } }, configurable: true }); } catch (e) {}
