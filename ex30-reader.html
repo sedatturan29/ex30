@@ -928,7 +928,7 @@ function publishCar(connected){
     else if (active.heat){ const e=heatEval(active.heat); rec=`Isıtma testi · ${dur(e.dur)} · ${e.d==null?"–":(e.d>0?"+":"")+fmt(e.d,1)+"°C"}`; }
     else if (active.park){ const p=parkStats(active.park); rec=`Park izleme · ${dur(p.m.dur)} · kayıp %${fmt(p.drop,2)}`; }
     AndroidBle.publish(JSON.stringify({conn:true, t:last.t||Date.now(), avg:vals.avg, max:vals.max, cool:vals.cool, soc:vals.soc, P:last.P, rate:rt,
-      state:st.short, stateCls:st.cls, rec}));
+      state:st.short, stateCls:st.cls, rec, aa:(panelWin && vals.aa) ? vals.aa : null}));
   }catch(e){}
 }
 function renderLive(){
@@ -1576,7 +1576,7 @@ function sample(fromLoop){
   }
   lastS={t:now, P, vs};
   tripTick(now, vs);
-  if (HOST && fromLoop && now-lastFeed>=500){ lastFeed=now; try{ HOST.feed({avg:vals.avg, max:vals.max, cool:vals.cin, soc:vals.soc, volt:vals.volt, cur:vals.cur}); }catch{} }
+  if (HOST && fromLoop && now-lastFeed>=500){ lastFeed=now; try{ HOST.feed({avg:vals.avg, max:vals.max, cool:vals.cin, soc:vals.soc, volt:vals.volt, cur:vals.cur, aa:autoSnap(now, vs)}); }catch{} }
   logRow(now);
   render();
 }
@@ -1611,6 +1611,19 @@ const $=id=>document.getElementById(id), sleep=ms=>new Promise(r=>setTimeout(r,m
 const fmt=(v,d=1)=>v==null||!isFinite(v)?"–":v.toFixed(d).replace(".",",");
 function tile(id, v, unit, d=1, sub, cls){ const el=$("t-"+id); if(!el) return; el.querySelector(".v").innerHTML=`<span class="${cls||""}">${fmt(v,d)}</span><small>${unit}</small>`; if (sub!=null) el.querySelector(".s").textContent=sub; }
 let lastR=0;
+// Android Auto ekranı için tek seferde gönderilen özet
+function autoSnap(now, vs){
+  const n = v => (v==null || !isFinite(v)) ? null : +v;
+  const tq = (vals.torque===0 && vals.torqueCalc!=null && vals.torqueCalc<0) ? vals.torqueCalc : vals.torque;
+  const a = (trips.auto && trips.auto.start) ? trips.auto : trips.A;
+  let tr=null;
+  if (a && a.start){ const km=tripKm(a), net=a.eOut-a.eIn;
+    tr={name: a===trips.auto?"Oto":"A", km:n(km), cons: km>0.5?n(net/km*100):null, avgS:n(tripAvgSpeed(a)), out:n(a.eOut), reg:n(a.eIn), min:Math.round((now-a.start)/60000)}; }
+  const tp={}; for (const w of ["fl","fr","rl","rr"]){ const pa=aaosTire(w); tp[w]=n(pa!=null?pa:vals["p_"+w]); }
+  return {kw:n(vals.kw), volt:n(vals.volt), cur:n(vals.cur!=null?vals.cur*sign:null), vs:n(vs), cin:n(vals.cin), cout:n(vals.cout), motor:n(vals.motor),
+    rpm:n(vals.rpm), tq:n(tq), out:n(aaos("ENV_OUTSIDE_TEMPERATURE")), rng:aaos("RANGE_REMAINING")!=null?n(aaos("RANGE_REMAINING")/1000):null, tp, trip:tr};
+}
+
 function render(){
   const now=Date.now(); if (now-lastR<250) return; lastR=now;
   tile("avg", vals.avg, "°C", 1, raw.avg?"ham "+hex(raw.avg):"");

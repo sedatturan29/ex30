@@ -928,7 +928,7 @@ function publishCar(connected){
     else if (active.heat){ const e=heatEval(active.heat); rec=`Isıtma testi · ${dur(e.dur)} · ${e.d==null?"–":(e.d>0?"+":"")+fmt(e.d,1)+"°C"}`; }
     else if (active.park){ const p=parkStats(active.park); rec=`Park izleme · ${dur(p.m.dur)} · kayıp %${fmt(p.drop,2)}`; }
     AndroidBle.publish(JSON.stringify({conn:true, t:last.t||Date.now(), avg:vals.avg, max:vals.max, cool:vals.cool, soc:vals.soc, P:last.P, rate:rt,
-      state:st.short, stateCls:st.cls, rec}));
+      state:st.short, stateCls:st.cls, rec, aa:(panelWin && vals.aa) ? vals.aa : null}));
   }catch(e){}
 }
 function renderLive(){
