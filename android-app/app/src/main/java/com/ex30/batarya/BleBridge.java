@@ -390,7 +390,37 @@ public class BleBridge {
                 main.post(() -> { if (dialog != null) dialog.setTitle("Tarama başarısız (kod " + errorCode + ")"); });
             }
         };
-        scanner.startScan(scanCb);
+        // Bizim uygulamanın açık bıraktığı BLE bağlantısı adaptörün yayınını keser (listede görünmez): kapat
+        synchronized (gatts) {
+            for (BluetoothGatt g : gatts.values()) { try { g.disconnect(); g.close(); } catch (Exception ignored) { } }
+            gatts.clear();
+        }
+        // Son kullanılan BLE adaptörü: tarama sonuç vermese de (Android sık taramayı kısıtlar) doğrudan bağlanılabilir
+        try {
+            String lastId = prefs().getString("lastId", null);
+            if (lastId != null && !lastId.startsWith(SPP_PREFIX)) {
+                String ln = prefs().getString("lastName", "");
+                String label = (ln.isEmpty() ? lastId : ln) + "   Bluetooth LE  ★ son kullanılan";
+                found.add(new Entry(lastId, ln, label));
+                labels.add(label);
+            }
+        } catch (Exception ignored) { }
+        // Telefona zaten bağlı BLE cihazları (başka uygulama tutuyor olabilir)
+        try {
+            BluetoothManager bm = (BluetoothManager) ctx.getSystemService(Context.BLUETOOTH_SERVICE);
+            for (BluetoothDevice d : bm.getConnectedDevices(BluetoothProfile.GATT)) {
+                String name = d.getName();
+                if (name == null || !name.toLowerCase().contains("vlink")) continue;
+                boolean dup = false; for (Entry x : found) if (x.id.equals(d.getAddress())) dup = true;
+                if (dup) continue;
+                String label = name + "   Bluetooth LE  (şu an bağlı)";
+                found.add(new Entry(d.getAddress(), name, label));
+                labels.add(label);
+            }
+        } catch (Exception ignored) { }
+        android.bluetooth.le.ScanSettings ss = new android.bluetooth.le.ScanSettings.Builder()
+                .setScanMode(android.bluetooth.le.ScanSettings.SCAN_MODE_LOW_LATENCY).build();
+        try { scanner.startScan(null, ss, scanCb); } catch (Exception e) { scanner.startScan(scanCb); }
 
         // Telefonda eşleşmiş klasik Bluetooth adaptörleri (ör. Android-Vlink)
         try {
