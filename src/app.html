@@ -460,6 +460,8 @@ async function checkEnv(){
 
 // Android Auto'dan açılınca: son adaptöre seçim penceresi olmadan bağlan, olmazsa 15 sn'de bir yeniden dene
 let autoBusy=false, autoTimer=null;
+// Android Auto'dan açıldıysa ya da orta ekranda (Android Automotive) çalışıyorsa otomatik bağlan
+const autoMode = () => { try{ return !!(window.AndroidCar || (window.AndroidBle && AndroidBle.autoRequested && AndroidBle.autoRequested())); }catch{ return false; } };
 function autoStatus(t){ try{ window.AndroidBle && AndroidBle.publish(JSON.stringify({conn:false, status:t})); }catch{} }
 window.ex30AutoConnect = async () => {
   if (autoBusy || chW || !window.AndroidBle || !navigator.bluetooth || !navigator.bluetooth.lastDevice) return;
@@ -469,7 +471,7 @@ window.ex30AutoConnect = async () => {
   try{ await connect(false, true); }catch{}
   autoBusy=false;
   if (!chW){ autoStatus("Adaptöre bağlanılamadı; 15 sn sonra tekrar denenecek. Araç açık, adaptör takılı ve Car Scanner kapalı olmalı.");
-    autoTimer=setTimeout(()=>{ if (AndroidBle.autoRequested && AndroidBle.autoRequested()) ex30AutoConnect(); }, 15000); }
+    autoTimer=setTimeout(()=>{ if (autoMode()) ex30AutoConnect(); }, 15000); }
 };
 async function connect(all=false, auto=false){
   if (!navigator.bluetooth){ goTab("conn"); checkEnv(); return; }
@@ -543,7 +545,7 @@ async function connect(all=false, auto=false){
   }
 }
 function onDisconnect(){ if(manual){manual=false;return;} log("Bağlantı koptu"); setPill("err","Bağlantı koptu"); cleanup();
-  try{ if (window.AndroidBle && AndroidBle.autoRequested && AndroidBle.autoRequested()){ autoStatus("Bağlantı koptu, yeniden bağlanılıyor…"); setTimeout(()=>ex30AutoConnect(), 5000); } }catch{} }
+  try{ if (autoMode()){ autoStatus("Bağlantı koptu, yeniden bağlanılıyor…"); setTimeout(()=>ex30AutoConnect(), 5000); } }catch{} }
 function cleanup(){ publishCar(false); try{ window.AndroidBle && AndroidBle.keepAlive && AndroidBle.keepAlive(false); }catch{} stopPolling(); chW=null; btnConn.textContent="Bağlan"; $("btnSend").disabled=true; $("scBtn").disabled=true; $("ufBtn").disabled=true; try{wake?.release()}catch{} wake=null; }
 function disconnect(){ manual=true; try{ dev?.gatt?.disconnect(); }catch{} setPill("","Bağlı değil"); cleanup(); }
 
@@ -1138,7 +1140,7 @@ $("addOk").onclick = () => { if (!addSel) return; const name=$("addName").value.
 $("extraList").onclick = e => { const b=e.target.closest("[data-exdel]"); if (!b) return; const ex=store.get("panelExtras",[]); ex.splice(+b.dataset.exdel,1); store.set("panelExtras",ex); renderExtras(); try{ panelWin && panelWin.ex30ReloadExtras && panelWin.ex30ReloadExtras(); }catch{} };
 fillUnitSelect(); renderUnits();
 if (location.hash==="#panel") setTimeout(()=>goTab("panel"), 0);
-try{ if (window.AndroidBle && AndroidBle.autoRequested && AndroidBle.autoRequested()) setTimeout(()=>ex30AutoConnect(), 500); }catch{}
+try{ if (autoMode()) setTimeout(()=>ex30AutoConnect(), 500); }catch{}
 $("scRe").onclick = rescan;
 $("scCopy").onclick = () => copyText("unite,istek,cevap,kod,ham,onceki\n"+scanRes.map(x=>`${x.unit},${x.tx},${x.rx},${x.did},${hexb(x.bytes)},${x.prev?hexb(x.prev):""}`).join("\n"), "Tarama sonucu");
 document.addEventListener("click", e => {
