@@ -375,7 +375,7 @@ public class BleBridge {
                 }
                 if (!match) return;
                 final String nm = name;
-                final String label = (name != null ? name : "(isimsiz)") + "   Bluetooth LE";
+                final String label = (name != null ? name : "(isimsiz)") + "   Bluetooth LE" + (name != null && name.toLowerCase().contains("vlink") ? "  ✓ önerilen" : "");
                 main.post(() -> {
                     for (Entry x : found) if (x.id.equals(d.getAddress())) return;
                     found.add(new Entry(d.getAddress(), nm, label));
@@ -404,7 +404,7 @@ public class BleBridge {
                     for (String p : prefixes) if (ln.startsWith(p)) { match = true; break; }
                 }
                 if (!match) continue;
-                String label = (name != null ? name : d.getAddress()) + "   klasik Bluetooth (eşleşmiş)";
+                String label = (name != null ? name : d.getAddress()) + "   klasik Bluetooth (eşleşmiş, yedek)";
                 found.add(new Entry(SPP_PREFIX + d.getAddress(), name, label));
                 labels.add(label);
             }
@@ -447,10 +447,20 @@ public class BleBridge {
             BluetoothDevice d = a.getRemoteDevice(addr);
             BluetoothSocket s = null;
             String error = null;
-            for (int attempt = 0; attempt < 2 && s == null; attempt++) {
+            // Vgate iCar Pro aynı anda tek bağlantı kabul eder: bizim açık bıraktığımız BLE bağlantısı varsa kapat
+            synchronized (gatts) {
+                for (BluetoothGatt g : gatts.values()) { try { g.disconnect(); g.close(); } catch (Exception ignored) { } }
+                gatts.clear();
+            }
+            BluetoothSocket prev = sockets.remove(id);
+            if (prev != null) { try { prev.close(); } catch (Exception ignored) { } try { Thread.sleep(600); } catch (InterruptedException ignored) { } }
+            for (int attempt = 0; attempt < 4 && s == null; attempt++) {
                 BluetoothSocket t = null;
                 try {
-                    t = attempt == 0 ? d.createRfcommSocketToServiceRecord(SPP) : d.createInsecureRfcommSocketToServiceRecord(SPP);
+                    if (attempt > 0) Thread.sleep(attempt == 3 ? 1500 : 400);
+                    if (attempt == 0) t = d.createRfcommSocketToServiceRecord(SPP);
+                    else if (attempt == 1) t = d.createInsecureRfcommSocketToServiceRecord(SPP);
+                    else t = (BluetoothSocket) d.getClass().getMethod("createRfcommSocket", int.class).invoke(d, 1);   // SDP'siz, kanal 1
                     t.connect();
                     s = t;
                 } catch (Exception e) {
@@ -459,7 +469,7 @@ public class BleBridge {
                 }
             }
             if (s == null) {
-                reject(cb, "NetworkError", "Klasik Bluetooth bağlantısı kurulamadı (" + error + "). Car Scanner gibi başka bir uygulama adaptöre bağlı olabilir.");
+                reject(cb, "NetworkError", "Klasik Bluetooth bağlantısı kurulamadı (" + error + "). Adaptör başka bir telefona/uygulamaya bağlı olabilir; ya da 'IOS-Vlink' (BLE) ile deneyin");
                 return;
             }
             BluetoothSocket old = sockets.put(id, s);
