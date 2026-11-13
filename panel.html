@@ -201,15 +201,10 @@ const DEFAULT_SOURCES = {
   rpm:    {tx:"1DD01637", rx:"1EC6EE80", did:"E303", start:"0", len:"2", scale:"1",   offset:"-16384", every:"2"},
   torque: {tx:"1DD01637", rx:"1EC6EE80", did:"E304", start:"0", len:"2", scale:"1",   offset:"-8188",  every:"2"},
   cout:   {tx:"1DD01601", rx:"1EC02E80", did:"4A34", start:"2", len:"2", scale:"0.1", offset:"-40",    every:"5"},
-  // Aday (doğrulanmadı): şasi ünitesi, standart OBD hız kodu
+  // Şasi ünitesi, standart OBD hız kodu: GPS ile ±0,5 km/s içinde doğrulandı (13.11.2026 sürüşleri)
   vspd:   {tx:"1DD01701", rx:"1EE02E80", did:"F40D", start:"0", len:"1", scale:"1",   offset:"0",      every:"1"},
-  // Aday (doğrulanmadı): FEE7 = 4 × 2 bayt; ham × 1,6 kPa varsayımıyla psi (157 → 36,4 psi, 177 → 41,1 psi)
-  p_fl:   {tx:"1DD01701", rx:"1EE02E80", did:"FEE7", start:"0", len:"2", scale:"0.23206", offset:"0", every:"10"},
-  p_fr:   {tx:"1DD01701", rx:"1EE02E80", did:"FEE7", start:"2", len:"2", scale:"0.23206", offset:"0", every:"10"},
-  p_rl:   {tx:"1DD01701", rx:"1EE02E80", did:"FEE7", start:"4", len:"2", scale:"0.23206", offset:"0", every:"10"},
-  p_rr:   {tx:"1DD01701", rx:"1EE02E80", did:"FEE7", start:"6", len:"2", scale:"0.23206", offset:"0", every:"10"},
 };
-const CANDIDATE = new Set(["vspd","p_fl","p_fr","p_rl","p_rr"]);   // ekranda "aday" olarak işaretlenir
+const CANDIDATE = new Set([]);   // ekranda "aday" olarak işaretlenir
 const INIT = ["ATZ","ATE0","ATL0","ATS0","ATH1","ATAL","ATST64","ATSP7"];
 const SERVICES = [0xfff0, 0xffe0, 0x18f0, "e7810a71-73ae-499d-8c15-faa9aef0c3f2"];
 
@@ -219,6 +214,9 @@ const mainCfg = store.get("cfg", {});
 const sign = mainCfg.sign || 1;
 const pcfg = Object.assign({interval:0, sources:{}, logOn:true, logMode:"1000"}, store.get("panel", {}));
 for (const k in DEFAULT_SOURCES) if (pcfg.sources[k] === undefined) pcfg.sources[k] = Object.assign({}, DEFAULT_SOURCES[k]);
+// v1.8–v1.11'de lastik basıncı için denenen FEE7 kodu lastik değilmiş: kayıtlı ayarlardan kaldır
+for (const w of ["fl","fr","rl","rr"]){ const x=pcfg.sources["p_"+w]; if (x && String(x.did).toUpperCase()==="FEE7"){ pcfg.sources["p_"+w]=null; } }
+store.set("panel", pcfg);
 function savePcfg(){ store.set("panel", pcfg); }
 // ============ Yolculuklar: Trip A, Trip B, otomatik ============
 const AUTO_STOP_MS = 5*60e3;   // araç bu kadar süre durursa otomatik yolculuk biter
@@ -349,7 +347,7 @@ window.__car = o => { carv[o.area ? o.name+"@"+o.area : o.name] = o.value; if (!
 window.__carStatus = t => { const el=document.getElementById("aaosStatus"); if (el) el.textContent = t; };
 function aaosSpeed(){ const v = aaos("PERF_VEHICLE_SPEED") ?? aaos("PERF_VEHICLE_SPEED_DISPLAY"); return v==null ? null : Math.abs(v)*3.6; }
 function aaosTire(w){ const v = aaos("TIRE_PRESSURE@"+WHEEL_AREA[w]); return v==null ? null : v*0.1450377; }   // kPa → psi
-function carSpeed(){ const a = aaosSpeed(); if (a!=null) return {v:a, src:"Araç"}; if (defined("vspd") && vals.vspd!=null) return {v:vals.vspd, src:"Araç (aday)"}; return {v:null, src:"GPS"}; }
+function carSpeed(){ const a = aaosSpeed(); if (a!=null) return {v:a, src:"Araç"}; if (defined("vspd") && vals.vspd!=null) return {v:vals.vspd, src:"Araç"}; return {v:null, src:"GPS"}; }
 function renderAaos(){ const el=$("aaosList"); if (!el) return; const keys=Object.keys(carv).sort();
   el.textContent = keys.length ? keys.map(k=>k+" = "+(typeof carv[k]==="number" ? +carv[k].toFixed(3) : JSON.stringify(carv[k]))).join("\n") : "Henüz değer gelmedi"; }
 
@@ -455,7 +453,12 @@ function render(){
   tile("soc", vals.soc, "%", 1);
   tile("volt", vals.volt, "V", 1); tile("amp", vals.cur!=null?vals.cur*sign:null, "A", 1);
   tile("kw", vals.kw, "kW", 1, vals.kw==null?"":vals.kw<-0.3?"Şarj / rejen":vals.kw>0.3?"Çekiş":"Bekleme", vals.kw>0.3?"pos":vals.kw<-0.3?"neg":"");
+  vals.torqueCalc = torqueCalc();
   for (const [id,k,unit,d] of [["motor","motor","°C",0],["cout","cout","°C",1],["rpm","rpm","d/dk",0],["torque","torque","Nm",0]]){
+    if (id==="torque" && defined(k) && vals.torqueCalc!=null && vals.torqueCalc<-5 && (vals.torque==null || vals.torque<=1)){
+      tile("torque", vals.torqueCalc, "Nm", 0, "Rejen · güç ve devirden hesaplanan (ünite rejende 0 veriyor)", "neg");
+      $("t-torque").classList.remove("na"); $("t-torque").querySelector(".src").textContent="Hesap"; continue;
+    }
     const def=defined(k); $("t-"+id).classList.toggle("na", !def);
     tile(id, vals[k], unit, d, def ? (raw[k]?"ham "+hex(raw[k]):"bekleniyor") : "Kaynak tanımlı değil (Ayarlar)", id==="rpm"||id==="torque" ? (vals[k]<0?"neg":vals[k]>0?"pos":"") : "");
     $("t-"+id).querySelector(".src").textContent = def ? (UNIT_NAMES[pcfg.sources[k].tx.toUpperCase()]||"tanımlı") : "tanımsız";
@@ -468,7 +471,8 @@ function render(){
     el.textContent = [out!=null?`Dış ${fmt(out,1)} °C`:null, rng!=null?`Menzil ${fmt(rng/1000,0)} km`:null].filter(Boolean).join(" · "); }
   const pct = (a,b) => (a!=null && b!=null && b>5) ? ` · fark ${(a-b>=0?"+":"")}${fmt((a-b)/b*100,1)}%` : "";
   $("spdSrc").textContent = cs.src;
-  tile("spd", car!=null ? car : gps, "km/s", 0, car!=null ? `GPS: ${fmt(gps,0)} km/s${pct(car,gps)}` : (fresh?"Araç hızı okunamıyor; GPS gösteriliyor":"GPS bekleniyor"));
+  const dispS = aaos("PERF_VEHICLE_SPEED_DISPLAY");
+  tile("spd", car!=null ? car : gps, "km/s", 0, car!=null ? `Gerçek hız · GPS: ${fmt(gps,0)} km/s${pct(car,gps)}${dispS!=null?` · gösterge: ${fmt(Math.abs(dispS)*3.6,0)}`:""}` : (fresh?"Araç hızı okunamıyor; GPS gösteriliyor":"GPS bekleniyor"));
   renderTrip(now, pct);
   let anyTire=false, cand=false, fromCar=false;
   for (const w of ["fl","fr","rl","rr"]){
@@ -481,7 +485,7 @@ function render(){
     $("tx-"+w).textContent = `psi · ${fmt(p==null?null:p/14.5038,2)} bar${t!=null?` · ${fmt(t,0)} °C`:""}`;
   }
   $("tireSrc").textContent = fromCar ? "Araç" : anyTire ? (cand ? "aday" : "tanımlı") : "tanımsız"; $("t-tires").classList.toggle("na", !anyTire);
-  $("tireNote").textContent = fromCar ? "Kaynak: aracın kendi lastik basıncı verisi." : cand ? "Kaynak doğrulanmadı: araç ekranındaki basınçla karşılaştırın." : "";
+  $("tireNote").textContent = fromCar ? "Kaynak: aracın kendi lastik basıncı verisi." : !anyTire ? "OBD'de lastik basıncı kodu henüz bulunamadı. Orta ekranda araç bu veriyi verirse burada görünür." : cand ? "Kaynak doğrulanmadı: araç ekranındaki basınçla karşılaştırın." : "";
   if (speed.cyc.length>1){ const hz=(speed.cyc.length-1)/((speed.cyc.at(-1)-speed.cyc[0])/1000||1), ms=speed.req.reduce((a,b)=>a+b,0)/(speed.req.length||1);
     $("rateInfo").textContent=`${fmt(hz,1)} tur/sn · istek ${fmt(ms,0)} ms · tek-cevap ${suffix?"açık":"kapalı"}`; }
 }
@@ -524,13 +528,19 @@ function renderTripHist(){
     if (k==="km_arac") return fmt(h.km_arac||h.km_gps,1); const v=h[k]; return typeof v==="number" ? fmt(v, Number.isInteger(v)?0:1) : (v??"–"); };
   $("tripTable").innerHTML = `<tr>${cols.map(c=>`<th>${c[1]}</th>`).join("")}</tr>` + ([...tripHist].reverse().map(h=>`<tr>${cols.map(c=>`<td style="white-space:nowrap">${cell(h,c[0])}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="${cols.length}" class="note">Henüz yolculuk yok</td></tr>`);
 }
+// Motor torku tahmini: batarya gücü / açısal hız. Rejende negatif.
+// (Ünitenin E304 değeri yalnızca çekiş torkunu veriyor, rejende 0'da kalıyor.)
+function torqueCalc(){
+  const P=vals.kw, rpm=vals.rpm; if (P==null || rpm==null || Math.abs(rpm)<500) return null;
+  const w=Math.abs(rpm)*2*Math.PI/60; return P>0 ? P*1000*0.9/w : P*1000/0.9/w;
+}
 const hex=b=>b.map(x=>x.toString(16).padStart(2,"0")).join(" ").toUpperCase();
 
 // ============ Oturum kaydı (IndexedDB, CSV) ============
 const LOG_COLS = [["avg","bat_ort_C"],["cin","sogutma_giris_C"],["cout","guc_aktarma_sogutma_C"],["motor","motor_C"],["soc","sarj_yuzde"],
   ["volt","voltaj_V"],["cur","akim_A"],["kw","guc_kW"],["rpm","motor_devri"],["torque","tork_Nm"],["vspd","arac_hizi_kmsa"],["gps","gps_hizi_kmsa"],
   ["lat","enlem"],["lon","boylam"],["odo","km_sayaci"],["p_fl","basinc_sol_on_psi"],["p_fr","basinc_sag_on_psi"],["p_rl","basinc_sol_arka_psi"],["p_rr","basinc_sag_arka_psi"],
-  ["t_fl","lastik_sol_on_C"],["t_fr","lastik_sag_on_C"],["t_rl","lastik_sol_arka_C"],["t_rr","lastik_sag_arka_C"],["alt","irtifa_m"],["auto","oto_yolculuk"]];
+  ["t_fl","lastik_sol_on_C"],["t_fr","lastik_sag_on_C"],["t_rl","lastik_sol_arka_C"],["t_rr","lastik_sag_arka_C"],["alt","irtifa_m"],["auto","oto_yolculuk"],["torqueCalc","tork_hesap_Nm"]];
 const p2=n=>String(n).padStart(2,"0");
 const localStamp = t => { const d=new Date(t); return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3,"0")}`; };
 const LOG_HEADER = "zaman," + LOG_COLS.map(c=>c[1]).join(",");
