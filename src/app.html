@@ -12,6 +12,8 @@
   header{position:sticky;top:0;background:var(--bg);z-index:3;border-bottom:1px solid var(--line)}
   .bar{display:flex;align-items:center;gap:10px;padding:12px 14px 8px}
   .bar h1{font-size:17px;margin:0;flex:1;font-weight:600}
+  #btnSet{padding:8px 12px}
+  #btnSet{font-size:16px} #btnSet .lbl{font-size:14px} @media (max-width:420px){ #btnSet .lbl{display:none} }
   nav{display:flex;gap:6px;overflow-x:auto;padding:0 14px 10px;scrollbar-width:none}
   nav::-webkit-scrollbar{display:none}
   nav button{background:var(--card);color:var(--mut);border:1px solid var(--line);padding:7px 12px;font-weight:500;white-space:nowrap;position:relative}
@@ -80,6 +82,7 @@
   <div class="bar">
     <h1>EX30 Reader</h1>
     <span id="pill" class="pill">Bağlı değil</span>
+    <button id="btnSet" class="sec" title="Ayarlar" aria-label="Ayarlar">⚙<span class="lbl"> Ayarlar</span></button>
     <button id="btnConn">Bağlan</button>
   </div>
   <nav id="tabs">
@@ -136,7 +139,7 @@
       <canvas id="cvLive"></canvas>
       <div class="legend"><span><i style="background:var(--hot)"></i>Ortalama</span><span><i style="background:var(--warn)"></i>Maks.</span><span><i style="background:var(--acc)"></i>Soğutma sıvısı</span></div>
     </div>
-    <div class="card">
+    <div class="card" id="setCard">
       <h2>Ayarlar</h2>
       <div class="row">
         <label>Okuma aralığı
@@ -1068,6 +1071,11 @@ function goTab(t){ tab=t;
   for (const x of document.querySelectorAll("nav button")) x.classList.toggle("act", x.dataset.tab===t);
   for (const s of document.querySelectorAll("section")) s.classList.toggle("act", s.id==="tab-"+t);
   window.scrollTo(0,0); renderAll(); }
+$("btnSet").onclick = () => {
+  if (tab==="panel"){ try{ $("panelFrame").contentWindow.document.getElementById("btnSet").click(); return; }catch{} }
+  if (tab!=="live") goTab("live");
+  setTimeout(()=>$("setCard").scrollIntoView({behavior:"smooth",block:"start"}), 50);
+};
 $("tabs").onclick = e => { const b=e.target.closest("button[data-tab]"); if(b) goTab(b.dataset.tab); };
 $("cnFind").onclick = () => connect(false);
 $("cnAll").onclick = () => connect(true);
