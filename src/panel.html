@@ -470,7 +470,11 @@ function geoStart(){
 function hav(a,b){ const R=6371000,r=Math.PI/180,dLa=(b.lat-a.lat)*r,dLo=(b.lon-a.lon)*r; const h=Math.sin(dLa/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLo/2)**2; return 2*R*Math.asin(Math.sqrt(h)); }
 
 // ============ Görünüm ============
-const $=id=>document.getElementById(id), sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const $=id=>document.getElementById(id);
+const __tw=new Set();
+// Arka planda (başka uygulama açıkken) tarayıcı zamanlayıcıları yavaşlar; Android uygulaması 100 ms'de bir __ex30tick çağırarak bekleyenleri zamanında uyandırır.
+window.__ex30tick=()=>{ const n=performance.now(); for (const t of [...__tw]) if (n>=t.at){ __tw.delete(t); t.r(); } };
+const sleep = ms => new Promise(r=>{ const t={at:performance.now()+ms, r}; __tw.add(t); setTimeout(()=>{ if (__tw.delete(t)) r(); }, ms); });
 const fmt=(v,d=1)=>v==null||!isFinite(v)?"–":v.toFixed(d).replace(".",",");
 function tile(id, v, unit, d=1, sub, cls){ const el=$("t-"+id); if(!el) return; el.querySelector(".v").innerHTML=`<span class="${cls||""}">${fmt(v,d)}</span><small>${unit}</small>`; if (sub!=null) el.querySelector(".s").textContent=sub; }
 let lastR=0;

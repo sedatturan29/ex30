@@ -96,6 +96,21 @@ public class BleBridge {
         this.web = web;
     }
 
+    /** Bağlıyken arka planda okumaya devam etmek için ön plan hizmetini aç/kapat. */
+    @JavascriptInterface
+    public void keepAlive(final boolean on) {
+        main.post(() -> {
+            if (on) {
+                if (Build.VERSION.SDK_INT >= 33 && act.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    try { act.requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 31); } catch (Exception ignored) { }
+                }
+                ReaderService.start(act);
+            } else {
+                ReaderService.stop(act);
+            }
+        });
+    }
+
     // ---------------------------------------------------------------- JS yardımcıları
     private static String q(String s) { return JSONObject.quote(s == null ? "" : s); }
 

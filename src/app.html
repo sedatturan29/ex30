@@ -516,7 +516,7 @@ async function connect(all=false){
     if (carOk) setStep("car","ok","Bağlantı tamam, Canlı sekmesine geçiliyor");
     else setStep("car","warn", "Araç cevap vermedi ("+lastR.replace(/\s+/g," ").slice(0,30)+"). Aracı açın, ekran açık olsun; bir dakika içinde kendiliğinden tekrar denenir.");
     setPill("on","Bağlı");
-    btnConn.textContent="Kes"; $("btnSend").disabled=false; $("scBtn").disabled=false; $("ufBtn").disabled=false;
+    btnConn.textContent="Kes"; try{ window.AndroidBle && AndroidBle.keepAlive && AndroidBle.keepAlive(true); }catch{} $("btnSend").disabled=false; $("scBtn").disabled=false; $("ufBtn").disabled=false;
     try{ wake = await navigator.wakeLock?.request("screen"); }catch{}
     startPolling();
     if (carOk && tab==="conn") setTimeout(()=>goTab("live"), 900);
@@ -529,7 +529,7 @@ async function connect(all=false){
   }
 }
 function onDisconnect(){ if(manual){manual=false;return;} log("Bağlantı koptu"); setPill("err","Bağlantı koptu"); cleanup(); }
-function cleanup(){ publishCar(false); stopPolling(); chW=null; btnConn.textContent="Bağlan"; $("btnSend").disabled=true; $("scBtn").disabled=true; $("ufBtn").disabled=true; try{wake?.release()}catch{} wake=null; }
+function cleanup(){ publishCar(false); try{ window.AndroidBle && AndroidBle.keepAlive && AndroidBle.keepAlive(false); }catch{} stopPolling(); chW=null; btnConn.textContent="Bağlan"; $("btnSend").disabled=true; $("scBtn").disabled=true; $("ufBtn").disabled=true; try{wake?.release()}catch{} wake=null; }
 function disconnect(){ manual=true; try{ dev?.gatt?.disconnect(); }catch{} setPill("","Bağlı değil"); cleanup(); }
 
 // =====================================================================
@@ -541,8 +541,8 @@ const pollInterval = () => active.park ? Math.max(60000, cfg.interval) : cfg.int
 let gen=0;
 function startPolling(){
   if (panelWin){ stopPolling(); paused=false; try{ panelWin.ex30Resume(); }catch{} return; }
-  stopPolling(); const my=++gen; paused=false; const loop=async()=>{ if(my!==gen) return; await pollOnce(); if(!paused && chW && my===gen) pollTimer=setTimeout(loop, pollInterval()); }; loop(); }
-function stopPolling(){ paused=true; clearTimeout(pollTimer); pollTimer=null; }
+  stopPolling(); const my=++gen; paused=false; const loop=async()=>{ if(my!==gen) return; await pollOnce(); if(!paused && chW && my===gen){ pollTimer=1; await sleep(pollInterval()); pollTimer=null; loop(); } }; loop(); }
+function stopPolling(){ paused=true; gen++; pollTimer=null; }
 async function pausePolling(){ stopPolling(); while(inPoll) await sleep(50);
   if (panelWin){ try{ await panelWin.ex30Pause(); }catch{} await restoreBms(); } }
 let reqSuffix="", cycleNo=0;
@@ -1058,7 +1058,10 @@ function renderHeat(){
 // =====================================================================
 //  Yardımcılar ve olaylar
 // =====================================================================
-const sleep = ms => new Promise(r=>setTimeout(r,ms));
+const __tw=new Set();
+// Arka planda (başka uygulama açıkken) tarayıcı zamanlayıcıları yavaşlar; Android uygulaması 100 ms'de bir __ex30tick çağırarak bekleyenleri zamanında uyandırır.
+window.__ex30tick=()=>{ const n=performance.now(); for (const t of [...__tw]) if (n>=t.at){ __tw.delete(t); t.r(); } try{ if (typeof panelWin!=="undefined" && panelWin && panelWin.__ex30tick) panelWin.__ex30tick(); }catch{} };
+const sleep = ms => new Promise(r=>{ const t={at:performance.now()+ms, r}; __tw.add(t); setTimeout(()=>{ if (__tw.delete(t)) r(); }, ms); });
 function log(s){ const el=$("log"); const t=new Date().toLocaleTimeString("tr-TR"); el.textContent += t+"  "+s+"\n"; if (el.textContent.length>40000) el.textContent=el.textContent.slice(-30000); el.scrollTop=el.scrollHeight; }
 function setPill(cls,txt){ const p=$("pill"); p.className="pill "+cls; p.textContent=txt; }
 function showBanner(t){ const b=$("banner"); b.textContent=t; b.style.display="block"; }

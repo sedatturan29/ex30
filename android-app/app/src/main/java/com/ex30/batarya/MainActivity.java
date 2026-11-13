@@ -4,6 +4,8 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.WindowManager;
 import android.net.Uri;
 import android.webkit.GeolocationPermissions;
@@ -31,6 +33,23 @@ public class MainActivity extends Activity {
 
     private WebView web;
     private BleBridge ble;
+
+    // Bağlıyken 100 ms'de bir sayfadaki bekleyen zamanlayıcıları uyandırır (arka planda tarayıcı zamanlayıcıları yavaşlar)
+    private static volatile MainActivity inst;
+    private static volatile boolean keepAlive;
+    private final Handler tickH = new Handler(Looper.getMainLooper());
+    private final Runnable tick = new Runnable() {
+        @Override public void run() {
+            if (!keepAlive || web == null) return;
+            web.evaluateJavascript("window.__ex30tick&&__ex30tick()", null);
+            tickH.postDelayed(this, 100);
+        }
+    };
+    static void setKeepAlive(boolean on) {
+        keepAlive = on;
+        MainActivity m = inst;
+        if (m != null) m.tickH.post(() -> { m.tickH.removeCallbacks(m.tick); if (on) m.tickH.post(m.tick); });
+    }
     private Object carBridge;   // yalnızca Android Automotive'de (CarBridge)
     private GeolocationPermissions.Callback geoCb;
     private String geoOrigin;
@@ -43,6 +62,8 @@ public class MainActivity extends Activity {
         getWindow().setNavigationBarColor(0xFF0E1116);
 
         web = new WebView(this);
+        inst = this;
+        if (android.os.Build.VERSION.SDK_INT >= 26) web.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false);
         web.setBackgroundColor(0xFF0E1116);
         android.widget.FrameLayout root = new android.widget.FrameLayout(this);
         root.setBackgroundColor(0xFF0E1116);
@@ -154,6 +175,9 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        tickH.removeCallbacks(tick);
+        if (inst == this) inst = null;
+        ReaderService.stop(this);
         ble.shutdown();
         if (carBridge != null) ((CarBridge) carBridge).shutdown();
         web.destroy();
