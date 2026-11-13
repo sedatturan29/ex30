@@ -448,7 +448,7 @@ function sample(fromLoop){
   lastS={t:now, P, vs};
   tripTick(now, vs);
   if (HOST && fromLoop && now-lastFeed>=500){ lastFeed=now; try{ HOST.feed({avg:vals.avg, max:vals.max, cool:vals.cin, soc:vals.soc, volt:vals.volt, cur:vals.cur, aa:autoSnap(now, vs)}); }catch{} }
-  logRow(now);
+  if (fromLoop) logRow(now);   // okuma duraklatıldığında (Tarayıcı/terminal) eski değerleri tekrar tekrar yazma
   render();
 }
 const geo={last:null, spd:null, t:0, alt:null, altT:0};
