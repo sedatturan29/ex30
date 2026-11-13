@@ -1262,8 +1262,9 @@ renderAll();
   <div class="t" id="t-amp"><div class="k">Akım <span class="src">BMS</span></div><div class="v">–<small>A</small></div><div class="s"></div></div>
   <div class="t" id="t-soc"><div class="k">Şarj <span class="src">BMS</span></div><div class="v">–<small>%</small></div><div class="s"></div></div>
   <div class="t" id="t-avgspd"><div class="k">Ortalama hız (yolculuk) <span class="src" id="avgSrc">GPS</span></div><div class="v">–<small>km/s</small></div><div class="s"></div></div>
-  <div class="t w2 r2" id="t-trip"><div class="k tripk"><span class="seg" id="tripSeg"><button data-trip="A">Trip A</button><button data-trip="B">Trip B</button><button data-trip="auto">Otomatik</button></span>
-      <span><button class="sec mini" id="btnTripReset">Sıfırla</button> <button class="sec mini" id="btnTripHist">Geçmiş</button></span></div>
+  <div class="t w2 r2" id="t-trip"><div class="k tripk"><span class="seg" id="tripSeg"></span>
+      <span><button class="sec mini" id="btnTripPause">Durdur</button> <button class="sec mini" id="btnTripReset">Sıfırla</button> <button class="sec mini" id="btnTripDel">Kaldır</button> <button class="sec mini" id="btnTripHist">Geçmiş</button></span></div>
+    <div id="tripAddBox" class="row" style="display:none;margin-top:6px;gap:6px"><input id="tripName" maxlength="20" placeholder="Ad (ör. İş yolu)" style="flex:1;min-width:0;background:#0f1218;color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px 8px"><button class="mini" id="btnTripAddOk">Ekle</button><button class="sec mini" id="btnTripAddNo">Vazgeç</button></div>
     <div class="v">–<small>kWh/100km</small></div>
     <div class="tripinfo" id="tripInfo"></div>
     <div class="s"></div></div>
@@ -1383,11 +1384,17 @@ function savePcfg(){ store.set("panel", pcfg); }
 // ============ Yolculuklar: Trip A, Trip B, otomatik ============
 const AUTO_STOP_MS = 5*60e3;   // araç bu kadar süre durursa otomatik yolculuk biter
 const TRIP_NAMES = {A:"Trip A", B:"Trip B", auto:"Otomatik"};
-const newAcc = kind => ({kind, start:Date.now(), lastMove:null, km:0, kmCar:0, eOut:0, eIn:0, movingMs:0, movingMsCar:0,
+const newAcc = (kind, name) => ({kind, name: name||null, paused:false, start:Date.now(), lastMove:null, km:0, kmCar:0, eOut:0, eIn:0, movingMs:0, movingMsCar:0,
   odoStart:null, odoEnd:null, socStart:null, socEnd:null, altStart:null, altEnd:null, altRef:null, up:0, down:0, st:{}, lastStat:0});
 let trips = Object.assign({A:newAcc("A"), B:newAcc("B"), auto:null}, store.get("panelTrips", {}));
 let tripView = store.get("tripView", "A");
-const accs = () => [trips.A, trips.B, trips.auto].filter(Boolean);
+if (!trips.A) trips.A=newAcc("A"); if (!trips.B) trips.B=newAcc("B");
+if (tripView!=="auto" && !trips[tripView]) tripView="A";
+let lastTripSave=0;
+// Trip A, B ve kullanıcının eklediği sayaçlar (c1, c2…) silinene ya da sıfırlanana kadar sürer; araç kapansa, günler geçse de kaldığı yerden devam eder.
+const tripKeys = () => ["A","B", ...Object.keys(trips).filter(k=>/^c\d+$/.test(k) && trips[k]).sort((x,y)=>+x.slice(1)-+y.slice(1))];
+const tripName = a => a.name || TRIP_NAMES[a.kind] || a.kind;
+const accs = () => [...tripKeys().map(k=>trips[k]).filter(a=>a && !a.paused), trips.auto].filter(Boolean);
 function saveTrip(){ store.set("panelTrips", trips); }
 let tripHist = store.get("tripHistory", []);
 function saveHist(){ while (tripHist.length>500) tripHist.shift(); store.set("tripHistory", tripHist); }
@@ -1553,6 +1560,7 @@ function tripTick(now, vs){
     for (const a of accs()) a.lastMove = now;
   }
   if (trips.auto && trips.auto.lastMove && now - trips.auto.lastMove > AUTO_STOP_MS) endAuto();
+  if (now-lastTripSave>10000){ lastTripSave=now; saveTrip(); }
   const outT = aaos("ENV_OUTSIDE_TEMPERATURE");
   for (const a of accs()){
     if (now - a.lastStat < 1000) continue; a.lastStat = now;
@@ -1573,7 +1581,7 @@ function tripKm(a){ return a.kmCar>0.5 ? a.kmCar : a.km; }
 function tripAvgSpeed(a){ const car = a.movingMsCar>60e3; const h=(car?a.movingMsCar:a.movingMs)/3600e3; return h>0.01 ? (car?a.kmCar:a.km)/h : null; }
 function summarizeAcc(a, endT){
   const st=k=>a.st[k]||{}, avg=k=>a.st[k]&&a.st[k].n ? a.st[k].sum/a.st[k].n : null, km=tripKm(a), net=a.eOut-a.eIn;
-  return {tur:TRIP_NAMES[a.kind], baslangic:localStamp(a.start).slice(0,16), bitis:localStamp(endT).slice(0,16), sure_dk:Math.round((endT-a.start)/60000),
+  return {tur:tripName(a), baslangic:localStamp(a.start).slice(0,16), bitis:localStamp(endT).slice(0,16), sure_dk:Math.round((endT-a.start)/60000), surus_dk:Math.round((a.movingMsCar>60e3?a.movingMsCar:a.movingMs)/60000),
     km_arac:r1(a.kmCar), km_gps:r1(a.km), km_sayac:(a.odoStart!=null&&a.odoEnd!=null)?a.odoEnd-a.odoStart:null,
     harcanan_kWh:r2(a.eOut), rejen_kWh:r2(a.eIn), tuketim_kWh100:km>0.5?r1(net/km*100):null, ort_hiz_kmsa:r1(tripAvgSpeed(a)),
     irtifa_bas_m:r0(a.altStart), irtifa_bit_m:r0(a.altEnd), tirmanis_m:r0(a.up), inis_m:r0(a.down),
@@ -1697,8 +1705,16 @@ function render(){
     $("rateInfo").textContent=`${fmt(hz,1)} tur/sn · istek ${fmt(ms,0)} ms · tek-cevap ${suffix?"açık":"kapalı"}`; }
 }
 function renderTrip(now, pct){
-  for (const b of document.querySelectorAll("#tripSeg button")) b.classList.toggle("act", b.dataset.trip===tripView);
-  $("btnTripReset").style.visibility = tripView==="auto" ? "hidden" : "";
+  const keys=[...tripKeys(),"auto"], sig=keys.map(k=>k+":"+(k==="auto"?"":tripName(trips[k])+(trips[k].paused?"⏸":""))).join("|");
+  const seg=$("tripSeg");
+  if (seg.dataset.sig!==sig){ seg.dataset.sig=sig;
+    seg.innerHTML = keys.map(k=>`<button data-trip="${k}">${k==="auto"?"Otomatik":(trips[k].paused?"‖ ":"")+tripName(trips[k]).replace(/[<>&"]/g,"")}</button>`).join("") + `<button data-add="1" title="Yeni sayaç ekle">+</button>`; }
+  for (const b of seg.querySelectorAll("button[data-trip]")) b.classList.toggle("act", b.dataset.trip===tripView);
+  const isAuto = tripView==="auto";
+  $("btnTripReset").style.display = isAuto ? "none" : "";
+  $("btnTripPause").style.display = isAuto ? "none" : "";
+  $("btnTripDel").style.display = /^c\d+$/.test(tripView) ? "" : "none";
+  if (!isAuto) $("btnTripPause").textContent = trips[tripView].paused ? "Devam et" : "Durdur";
   const a = trips[tripView];
   if (!a){
     const last = [...tripHist].reverse().find(h=>h.tur==="Otomatik");
@@ -1708,7 +1724,7 @@ function renderTrip(now, pct){
     return;
   }
   const avgS = tripAvgSpeed(a);
-  $("avgSrc").textContent = (a.movingMsCar>60e3 ? "Araç" : "GPS") + " · " + TRIP_NAMES[a.kind];
+  $("avgSrc").textContent = (a.movingMsCar>60e3 ? "Araç" : "GPS") + " · " + tripName(a);
   const hG = a.movingMs/3600e3, avgG = hG>0.01 ? a.km/hG : null;
   tile("avgspd", avgS, "km/s", 0, a.movingMsCar>60e3 ? `GPS: ${fmt(avgG,0)} km/s${pct(avgS,avgG)}` : `${fmt(a.km,1)} km · hareket ${Math.round(a.movingMs/60000)} dk`);
   const km = tripKm(a), net = a.eOut-a.eIn;
@@ -1717,10 +1733,11 @@ function renderTrip(now, pct){
   const P=k=>{ const s=st(k); return s&&s.n ? fmt(s.sum/s.n,1) : "–"; };
   const odoKm = (a.odoStart!=null && a.odoEnd!=null) ? a.odoEnd-a.odoStart : null;
   const altNow = (geo.alt!=null && now-geo.altT<15000) ? geo.alt : a.altEnd;
-  const dur = Math.round((now-a.start)/60000);
+  const dur = Math.round((a.movingMsCar>60e3?a.movingMsCar:a.movingMs)/60000);
   $("tripInfo").innerHTML =
     `<b>Mesafe</b><span>araç ${fmt(a.kmCar,1)} · GPS ${fmt(a.km,1)}${pct(a.kmCar,a.km>0.1?a.km:null)} · sayaç ${odoKm==null?"–":odoKm} km</span>`+
-    `<b>Süre</b><span>${dur>=60?Math.floor(dur/60)+" sa "+(dur%60)+" dk":dur+" dk"} · başlangıç ${localStamp(a.start).slice(5,16)}</span>`+
+    (a.paused ? `<b>Durum</b><span style="color:var(--warn)">Durduruldu — "Devam et" ile kaldığı yerden sürer</span>` : "")+
+    `<b>Sürüş süresi</b><span>${dur>=60?Math.floor(dur/60)+" sa "+(dur%60)+" dk":dur+" dk"} · başlangıç ${localStamp(a.start).slice(0,16)}</span>`+
     `<b>Enerji</b><span>harcanan ${fmt(a.eOut,2)} · rejen ${fmt(a.eIn,2)} kWh · şarj ${fmt(a.socStart,1)} → ${fmt(a.socEnd,1)} %</span>`+
     `<b>İrtifa</b><span>${fmt(a.altStart,0)} → ${fmt(altNow,0)} m · ↑ ${fmt(a.up,0)} m · ↓ ${fmt(a.down,0)} m</span>`+
     `<b>Batarya</b><span>${T("avg")}</span>`+
@@ -1729,7 +1746,7 @@ function renderTrip(now, pct){
     `<b>Lastik ort.</b><span>SÖ ${P("p_fl")} · SağÖ ${P("p_fr")} · SA ${P("p_rl")} · SağA ${P("p_rr")} psi</span>`;
 }
 function renderTripHist(){
-  const cols=[["tur","Tür"],["baslangic","Başlangıç"],["sure_dk","dk"],["km_arac","km"],["tuketim_kWh100","kWh/100"],["ort_hiz_kmsa","Ort. hız"],["irtifa_bas_m","İrtifa"],["tirmanis_m","↑ m"],["inis_m","↓ m"],["bat_bas_C","Batarya °C"],["sogutma_bas_C","Soğutma °C"],["basinc_ort_sol_on_psi","Lastik ort. psi"]];
+  const cols=[["tur","Tür"],["baslangic","Başlangıç"],["surus_dk","Sürüş dk"],["km_arac","km"],["tuketim_kWh100","kWh/100"],["ort_hiz_kmsa","Ort. hız"],["irtifa_bas_m","İrtifa"],["tirmanis_m","↑ m"],["inis_m","↓ m"],["bat_bas_C","Batarya °C"],["sogutma_bas_C","Soğutma °C"],["basinc_ort_sol_on_psi","Lastik ort. psi"]];
   const cell=(h,k)=>{ if (k==="irtifa_bas_m") return `${fmt(h.irtifa_bas_m,0)}→${fmt(h.irtifa_bit_m,0)}`; if (k==="bat_bas_C") return `${fmt(h.bat_bas_C,1)}→${fmt(h.bat_bit_C,1)} (${fmt(h.bat_min_C,1)}–${fmt(h.bat_maks_C,1)})`;
     if (k==="sogutma_bas_C") return `${fmt(h.sogutma_bas_C,0)}→${fmt(h.sogutma_bit_C,0)}`; if (k==="basinc_ort_sol_on_psi") return [h.basinc_ort_sol_on_psi,h.basinc_ort_sag_on_psi,h.basinc_ort_sol_arka_psi,h.basinc_ort_sag_arka_psi].map(x=>fmt(x,1)).join(" / ");
     if (k==="km_arac") return fmt(h.km_arac||h.km_gps,1); const v=h[k]; return typeof v==="number" ? fmt(v, Number.isInteger(v)?0:1) : (v??"–"); };
@@ -1848,11 +1865,22 @@ $("logMode").onchange=()=>{ pcfg.logMode=$("logMode").value; savePcfg(); };
 $("btnClose").onclick=()=>$("dlg").close();
 $("interval").onchange=()=>{ pcfg.interval=+$("interval").value; savePcfg(); };
 $("btnConn").onclick=()=> $("btnConn").textContent==="Kes" ? (HOST ? HOST.disconnect() : disconnect()) : connect();
-$("tripSeg").onclick=e=>{ const b=e.target.closest("[data-trip]"); if(!b) return; tripView=b.dataset.trip; store.set("tripView",tripView); lastR=0; render(); };
+$("tripSeg").onclick=e=>{ if (e.target.closest("[data-add]")){ $("tripAddBox").style.display="flex"; $("tripName").value=""; $("tripName").focus(); return; }
+  const b=e.target.closest("[data-trip]"); if(!b) return; tripView=b.dataset.trip; store.set("tripView",tripView); lastR=0; render(); };
+$("btnTripAddNo").onclick=()=>{ $("tripAddBox").style.display="none"; };
+$("btnTripAddOk").onclick=()=>{ let n=1; while (trips["c"+n]) n++; const k="c"+n, name=$("tripName").value.trim() || ("Trip "+String.fromCharCode(66+n));
+  trips[k]=newAcc(k, name); trips[k].altStart=trips[k].altRef=geo.alt; saveTrip(); tripView=k; store.set("tripView",k); $("tripAddBox").style.display="none"; lastR=0; render(); };
+$("tripName").onkeydown=e=>{ if (e.key==="Enter") $("btnTripAddOk").click(); };
+$("btnTripPause").onclick=()=>{ const a=trips[tripView]; if (!a || tripView==="auto") return; a.paused=!a.paused; log(tripName(a)+(a.paused?" durduruldu":" devam ediyor")); saveTrip(); lastR=0; render(); };
+$("btnTripDel").onclick=()=>{ const b=$("btnTripDel"); if (!/^c\d+$/.test(tripView)) return;
+  if (!b.dataset.ok){ b.dataset.ok="1"; b.textContent="Emin misiniz?"; setTimeout(()=>{ delete b.dataset.ok; b.textContent="Kaldır"; },3000); return; }
+  delete b.dataset.ok; b.textContent="Kaldır";
+  const a=trips[tripView]; if (a && (a.km>0.2||a.kmCar>0.2)){ tripHist.push(summarizeAcc(a, Date.now())); saveHist(); }
+  delete trips[tripView]; tripView="A"; store.set("tripView","A"); saveTrip(); lastR=0; render(); };
 $("btnTripReset").onclick=()=>{ const b=$("btnTripReset"); if (!b.dataset.ok){ b.dataset.ok="1"; b.textContent="Emin misiniz?"; setTimeout(()=>{ delete b.dataset.ok; b.textContent="Sıfırla"; },3000); return; }
   delete b.dataset.ok; b.textContent="Sıfırla";
   const a=trips[tripView]; if (a && (a.km>0.2||a.kmCar>0.2)){ tripHist.push(summarizeAcc(a, Date.now())); saveHist(); }
-  trips[tripView]=newAcc(tripView); trips[tripView].altStart=trips[tripView].altRef=geo.alt; saveTrip(); lastR=0; render(); };
+  const old=trips[tripView]; trips[tripView]=newAcc(old.kind, old.name); trips[tripView].altStart=trips[tripView].altRef=geo.alt; saveTrip(); lastR=0; render(); };
 $("btnTripHist").onclick=()=>{ renderTripHist(); $("dlgTrips").showModal(); };
 $("btnTripClose").onclick=()=>$("dlgTrips").close();
 $("btnTripCsv").onclick=()=>{ if (!tripHist.length) return; const keys=Object.keys(tripHist[0]);
