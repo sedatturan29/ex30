@@ -63,6 +63,8 @@
   .chk.bad .d{color:#ffb3b3}
   .bigbtn{width:100%;padding:16px;font-size:17px;margin-top:4px}
   @media (min-width:900px){.tile.big .v{font-size:56px}}
+  body.panelmode main{max-width:none;padding:0}
+  body.panelmode #banner{display:none !important}
   /* telefon yatay: başlık ve sekmeler sıkışık, kutular küçük */
   @media (orientation:landscape) and (max-height:520px){
     .bar{padding:6px 12px 4px} .bar h1{font-size:15px} nav{padding:0 12px 6px} nav button{padding:5px 10px;font-size:13px}
@@ -83,6 +85,7 @@
   <nav id="tabs">
     <button data-tab="conn" class="act">Bağlantı</button>
     <button data-tab="live">Canlı</button>
+    <button data-tab="panel">Panel</button>
     <button data-tab="charge">Şarj<span class="rec"></span></button>
     <button data-tab="cap">Kapasite</button>
     <button data-tab="trip">Yolculuk<span class="rec"></span></button>
@@ -114,8 +117,9 @@
     </div>
   </section>
 
+  <section id="tab-panel"><iframe id="panelFrame" title="Canlı panel" allow="bluetooth; geolocation; clipboard-write" style="display:block;width:100%;border:0;background:var(--bg)"></iframe></section>
+
   <section id="tab-live">
-    <a href="panel.html" class="card" style="display:flex;align-items:center;gap:10px;margin:0 0 12px;text-decoration:none;color:var(--fg)"><span style="flex:1"><b>Canlı panel</b><br><span class="note" style="margin:0">Tüm değerler tek ekranda: güç, sıcaklıklar, hız, tüketim, lastikler</span></span><span style="color:var(--acc);font-weight:600">Aç →</span></a>
     <div class="grid">
       <div class="tile big"><div class="k">Ortalama batarya sıcaklığı</div><div class="v" id="v_avg">–<small>°C</small></div><div class="r" id="r_avg"></div></div>
       <div class="tile"><div class="k">Maks. hücre sıcaklığı</div><div class="v" id="v_max">–<small>°C</small></div><div class="r" id="r_max"></div></div>
@@ -478,7 +482,7 @@ async function connect(all=false){
     btnConn.textContent="Kes"; $("btnSend").disabled=false; $("scBtn").disabled=false;
     try{ wake = await navigator.wakeLock?.request("screen"); }catch{}
     startPolling();
-    if (carOk) setTimeout(()=>goTab("live"), 900);
+    if (carOk && tab==="conn") setTimeout(()=>goTab("live"), 900);
   }catch(err){
     const st = err.step || Object.keys(stepState).find(k=>stepState[k].st==="run") || "pick";
     setStep(st, "bad", err.message);
@@ -498,9 +502,12 @@ const vals = {}, raw = {}, hist = [];
 let pollTimer=null, inPoll=false, paused=false;
 const pollInterval = () => active.park ? Math.max(60000, cfg.interval) : cfg.interval;
 let gen=0;
-function startPolling(){ stopPolling(); const my=++gen; paused=false; const loop=async()=>{ if(my!==gen) return; await pollOnce(); if(!paused && chW && my===gen) pollTimer=setTimeout(loop, pollInterval()); }; loop(); }
+function startPolling(){
+  if (panelWin){ stopPolling(); paused=false; try{ panelWin.ex30Resume(); }catch{} return; }
+  stopPolling(); const my=++gen; paused=false; const loop=async()=>{ if(my!==gen) return; await pollOnce(); if(!paused && chW && my===gen) pollTimer=setTimeout(loop, pollInterval()); }; loop(); }
 function stopPolling(){ paused=true; clearTimeout(pollTimer); pollTimer=null; }
-async function pausePolling(){ stopPolling(); while(inPoll) await sleep(50); }
+async function pausePolling(){ stopPolling(); while(inPoll) await sleep(50);
+  if (panelWin){ try{ await panelWin.ex30Pause(); }catch{} await restoreBms(); } }
 let reqSuffix="", cycleNo=0;
 const speed = {reqMs:[], samples:[]};
 async function pollOnce(){
@@ -564,6 +571,24 @@ function throttledRender(){
   if (!renderTimer) renderTimer=setTimeout(()=>{ renderTimer=null; lastRender=Date.now(); renderAll(); }, 500-(now-lastRender));
 }
 const r2 = v => v==null||!isFinite(v) ? null : Math.round(v*100)/100;
+
+// =====================================================================
+//  Panel sekmesi: bağlantıyı paylaşır. Panel açıldıktan sonra okumayı panel
+//  yürütür (daha çok ünite) ve değerleri buraya da gönderir; sekmeler çalışmaya devam eder.
+// =====================================================================
+let panelWin = null, lastPanelFeed = 0;
+async function restoreBms(){ if (!chW) return; for (const c of ["ATCP1D","ATSHD01635","ATCRA1EC6AE80","ATFCSH1DD01635"]) await send(c); }
+window.EX30_HOST = {
+  register(w){ panelWin = w; stopPolling(); },
+  connected: () => !!chW,
+  send: (c, t) => send(c, t),
+  suffix: () => reqSuffix,
+  connect: () => connect(false),
+  disconnect: () => disconnect(),
+  feed(v){ for (const k in v) vals[k] = v[k]; onSample(makeSample(Date.now())); }
+};
+window.__car = o => { try{ panelWin && panelWin.__car && panelWin.__car(o); }catch{} };
+window.__carStatus = t => { try{ panelWin && panelWin.__carStatus && panelWin.__carStatus(t); }catch{} };
 
 // =====================================================================
 //  Kayıt yönetimi (şarj, yolculuk, park, ısıtma testi)
@@ -916,8 +941,11 @@ function log(s){ const el=$("log"); const t=new Date().toLocaleTimeString("tr-TR
 function setPill(cls,txt){ const p=$("pill"); p.className="pill "+cls; p.textContent=txt; }
 function showBanner(t){ const b=$("banner"); b.textContent=t; b.style.display="block"; }
 
-btnConn.onclick = () => { if (btnConn.textContent==="Kes") disconnect(); else { goTab("conn"); connect(false); } };
+btnConn.onclick = () => { if (btnConn.textContent==="Kes") disconnect(); else { if (tab!=="panel") goTab("conn"); connect(false); } };
+function sizePanel(){ const f=$("panelFrame"); const h=document.querySelector("header").offsetHeight; f.style.height=(window.innerHeight-h)+"px"; }
 function goTab(t){ tab=t;
+  document.body.classList.toggle("panelmode", t==="panel");
+  if (t==="panel"){ const f=$("panelFrame"); if (!f.src) f.src="panel.html?embed=1"; sizePanel(); }
   for (const x of document.querySelectorAll("nav button")) x.classList.toggle("act", x.dataset.tab===t);
   for (const s of document.querySelectorAll("section")) s.classList.toggle("act", s.id==="tab-"+t);
   window.scrollTo(0,0); renderAll(); }
@@ -959,7 +987,7 @@ $("btnSend").onclick = async () => { const c=$("cmd").value.trim(); if(!c) retur
 $("cmd").onkeydown = e => { if (e.key==="Enter") $("btnSend").click(); };
 document.addEventListener("visibilitychange", ()=>{ if (document.visibilityState==="visible" && !chW) checkEnv(); });
 document.addEventListener("visibilitychange", async ()=>{ if (document.visibilityState==="visible" && chW && !wake){ try{ wake=await navigator.wakeLock?.request("screen"); }catch{} } });
-window.addEventListener("resize", renderAll);
+window.addEventListener("resize", ()=>{ renderAll(); if (tab==="panel") sizePanel(); });
 if (active.trip) geoStart();
 
 checkEnv(); renderSteps();

@@ -39,6 +39,17 @@
   .legend{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:11px;color:var(--mut);margin-top:6px}
   .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
   .cmp{font-size:12px;color:var(--mut);margin-top:2px}
+  .seg{display:inline-flex;background:#0f1218;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .seg button{background:none;color:var(--mut);border-radius:0;padding:4px 9px;font-size:12px;font-weight:600}
+  .seg button.act{background:var(--acc);color:#fff}
+  .tripk{flex-wrap:wrap;align-items:center !important}
+  .tripinfo{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:12px;margin-top:6px;font-variant-numeric:tabular-nums}
+  .tripinfo b{color:var(--mut);font-weight:500;white-space:nowrap}
+  .tripinfo span{color:var(--fg)}
+  #t-trip{justify-content:flex-start}
+  body.embed header h1, body.embed #pill, body.embed #btnConn{display:none}
+  body.embed header{justify-content:flex-end;padding:6px 12px;border-bottom:0;position:static}
+  th{white-space:nowrap}
   /* dar telefon (dikey) */
   @media (max-width:420px){ .rtxt{display:none} header{gap:6px;padding:10px 10px} header h1{font-size:15px} main{padding:10px;gap:8px} .t .v{font-size:28px} .t.big .v{font-size:40px} }
   /* telefon yatay: kısa ekran, daha sık ızgara */
@@ -89,9 +100,13 @@
   <div class="t" id="t-torque"><div class="k">Motor torku <span class="src">tanımsız</span></div><div class="v">–<small>Nm</small></div><div class="s"></div></div>
   <div class="t" id="t-volt"><div class="k">Voltaj <span class="src">BMS</span></div><div class="v">–<small>V</small></div><div class="s"></div></div>
   <div class="t" id="t-amp"><div class="k">Akım <span class="src">BMS</span></div><div class="v">–<small>A</small></div><div class="s"></div></div>
-  <div class="t r2" id="t-soc"><div class="k">Şarj <span class="src">BMS</span></div><div class="v">–<small>%</small></div><div class="s"></div></div>
-  <div class="t r2" id="t-avgspd"><div class="k">Ortalama hız (yolculuk) <span class="src" id="avgSrc">GPS</span></div><div class="v">–<small>km/s</small></div><div class="s"></div></div>
-  <div class="t w2 r2" id="t-trip"><div class="k">Yolculuk tüketimi (uygulama) <button class="sec mini" id="btnTripReset">Sıfırla</button></div><div class="v">–<small>kWh/100km</small></div><div class="s"></div></div>
+  <div class="t" id="t-soc"><div class="k">Şarj <span class="src">BMS</span></div><div class="v">–<small>%</small></div><div class="s"></div></div>
+  <div class="t" id="t-avgspd"><div class="k">Ortalama hız (yolculuk) <span class="src" id="avgSrc">GPS</span></div><div class="v">–<small>km/s</small></div><div class="s"></div></div>
+  <div class="t w2 r2" id="t-trip"><div class="k tripk"><span class="seg" id="tripSeg"><button data-trip="A">Trip A</button><button data-trip="B">Trip B</button><button data-trip="auto">Otomatik</button></span>
+      <span><button class="sec mini" id="btnTripReset">Sıfırla</button> <button class="sec mini" id="btnTripHist">Geçmiş</button></span></div>
+    <div class="v">–<small>kWh/100km</small></div>
+    <div class="tripinfo" id="tripInfo"></div>
+    <div class="s"></div></div>
   <div class="t tires" id="t-tires"><div class="k">Lastik basıncı ve sıcaklığı <span class="src" id="tireSrc">tanımsız</span></div>
     <svg class="tiresvg" viewBox="0 0 440 300" role="img" aria-label="Dört lastiğin basıncı">
       <rect x="160" y="16" width="120" height="268" rx="38" fill="#0f1218" stroke="#2b3240" stroke-width="2"/>
@@ -116,6 +131,13 @@
     <div class="s" id="tireNote"></div>
   </div>
 </main>
+
+<dialog id="dlgTrips">
+  <h2>Yolculuk geçmişi</h2>
+  <p class="note">Otomatik yolculuklar araç durduktan 5 dakika sonra, Trip A/B ise sıfırlanınca buraya kaydedilir. Sıcaklıklar: başlangıç → bitiş (en düşük–en yüksek).</p>
+  <div style="overflow-x:auto;max-height:60vh"><table id="tripTable"></table></div>
+  <div class="row" style="margin-top:8px"><button class="sec mini" id="btnTripCsv">CSV indir</button><button class="sec mini" id="btnTripClear">Tümünü sil</button><button class="mini" id="btnTripClose" style="margin-left:auto">Kapat</button></div>
+</dialog>
 
 <dialog id="dlg">
   <h2>Ayarlar</h2>
@@ -149,6 +171,9 @@
 
 <script>
 "use strict";
+// Ana uygulamanın sekmesi içinde açıldıysa bağlantıyı ana uygulama yönetir (EX30_HOST)
+const HOST = (()=>{ try{ return window.parent!==window && window.parent.EX30_HOST ? window.parent.EX30_HOST : null; }catch{ return null; } })();
+if (HOST) document.documentElement.classList.add("embed");
 // ============ Bilinen BMS kodları (EX30 / Geely SEA) ============
 const BMS = {tx:"1DD01635", rx:"1EC6AE80"};
 const u16 = d => d.length>=2 ? d[d.length-2]*256 + d[d.length-1] : NaN;
@@ -157,6 +182,7 @@ const BMS_PIDS = [
   {id:"volt", did:"4803", every:1,  f:d => 0.01*u16(d)},
   {id:"avg",  did:"491B", every:3,  f:d => u16(d)/100 - 50},
   {id:"cin",  did:"4804", every:3,  f:d => d[d.length-1] - 50},
+  {id:"max",  did:"4945", every:6,  f:d => u16(d)/100 - 50},
   {id:"soc",  did:"4801", every:10, f:d => 1.0625*0.002*u16(d) - 3.125},
   // Aday: kilometre sayacı (3 bayt, km); her modda seyrek okunur
   {id:"odo",  did:"DD01", every:30, slow:true, f:d => d.length>=3 ? d[d.length-3]*65536 + d[d.length-2]*256 + d[d.length-1] : NaN},
@@ -194,15 +220,24 @@ const sign = mainCfg.sign || 1;
 const pcfg = Object.assign({interval:0, sources:{}, logOn:true, logMode:"1000"}, store.get("panel", {}));
 for (const k in DEFAULT_SOURCES) if (pcfg.sources[k] === undefined) pcfg.sources[k] = Object.assign({}, DEFAULT_SOURCES[k]);
 function savePcfg(){ store.set("panel", pcfg); }
-const newTrip = () => ({start:Date.now(), km:0, eOut:0, eIn:0, movingMs:0, kmCar:0, movingMsCar:0, odoStart:null});
-let trip = Object.assign(newTrip(), store.get("panelTrip", {}));
-function saveTrip(){ store.set("panelTrip", trip); }
+// ============ Yolculuklar: Trip A, Trip B, otomatik ============
+const AUTO_STOP_MS = 5*60e3;   // araç bu kadar süre durursa otomatik yolculuk biter
+const TRIP_NAMES = {A:"Trip A", B:"Trip B", auto:"Otomatik"};
+const newAcc = kind => ({kind, start:Date.now(), lastMove:null, km:0, kmCar:0, eOut:0, eIn:0, movingMs:0, movingMsCar:0,
+  odoStart:null, odoEnd:null, socStart:null, socEnd:null, altStart:null, altEnd:null, altRef:null, up:0, down:0, st:{}, lastStat:0});
+let trips = Object.assign({A:newAcc("A"), B:newAcc("B"), auto:null}, store.get("panelTrips", {}));
+let tripView = store.get("tripView", "A");
+const accs = () => [trips.A, trips.B, trips.auto].filter(Boolean);
+function saveTrip(){ store.set("panelTrips", trips); }
+let tripHist = store.get("tripHistory", []);
+function saveHist(){ while (tripHist.length>500) tripHist.shift(); store.set("tripHistory", tripHist); }
 
 // ============ ELM327 / BLE ============
 let dev=null, chW=null, chN=null, buf="", waiter=null, busy=Promise.resolve(), manual=false, wake=null, suffix="";
 const enc=new TextEncoder(), dec=new TextDecoder();
 function onNotify(e){ buf += dec.decode(e.target.value); if (buf.includes(">") && waiter){ const r=buf.replace(/>/g,"").trim(); buf=""; const w=waiter; waiter=null; w(r); } }
 function send(cmd, timeout=2500){
+  if (HOST) return HOST.send(cmd, timeout);
   const p = busy.then(()=>new Promise(async res=>{
     if (!chW){ res("NOT CONNECTED"); return; }
     buf=""; const t=setTimeout(()=>{ if(waiter){ waiter=null; res("TIMEOUT"); } }, timeout);
@@ -230,7 +265,25 @@ async function useEcu(tx, rx){
   if (!curEcu){ await send("ATFCSD300000"); await send("ATFCSM1"); }
   curEcu = key;
 }
+// ---- Gömülü mod: ana uygulamanın bağlantısını kullanır ----
+let hostPaused=false, loopBusy=false;
+async function startEmbedded(){
+  if (!HOST || running || hostPaused || !HOST.connected()) return;
+  chW={host:true}; suffix=HOST.suffix(); curEcu=""; curCp="";
+  setPill("on","Bağlı"); $("btnConn").textContent="Kes";
+  if (!logSess) logStart();
+  loop();
+}
+function stopEmbedded(){ running=false; chW=null; logStop(); setPill("","Bağlı değil"); $("btnConn").textContent="Bağlan"; }
+window.ex30Pause = async () => { hostPaused=true; running=false; while (loopBusy) await sleep(30); curEcu=""; curCp=""; };
+window.ex30Resume = () => { hostPaused=false; curEcu=""; curCp=""; startEmbedded(); };
+if (HOST){
+  document.body.classList.add("embed");
+  setInterval(()=>{ if (!HOST.connected()){ if (chW) stopEmbedded(); } else if (!running && !hostPaused) startEmbedded(); }, 1000);
+}
+
 async function connect(){
+  if (HOST){ HOST.connect(); return; }
   if (!navigator.bluetooth){ log("Bu tarayıcıda Bluetooth yok. Android'de Chrome (https) ya da EX30 Batarya uygulamasını kullanın."); setPill("err","Bluetooth yok"); return; }
   setPill("busy","Cihaz aranıyor");
   try{
@@ -259,7 +312,10 @@ function disconnect(){ manual=true; try{ dev?.gatt?.disconnect(); }catch{} setPi
 const vals={}, raw={}; let running=false, cycle=0; const speed={req:[], cyc:[]};
 async function readDid(did){ const t0=performance.now(); const r=await send("22"+did+suffix); speed.req.push(performance.now()-t0); if (speed.req.length>50) speed.req.shift(); return r; }
 async function loop(){
-  if (running) return; running=true;
+  if (running || loopBusy) return; running=true; loopBusy=true;
+  try{ await loopBody(); } finally { loopBusy=false; }
+}
+async function loopBody(){
   while (running && chW){
     cycle++; const fast = pcfg.interval < 1000;
     await useEcu(BMS.tx, BMS.rx);
@@ -280,7 +336,7 @@ async function loop(){
       if (b){ const st=+s.start||0, ln=Math.min(4, Math.max(1,+s.len||1)); let v=0; for (let i=0;i<ln;i++) v=v*256+(b[st+i]??0);
         vals[k] = v*(+s.scale||1) + (+s.offset||0); raw[k]=b; }
     }
-    sample();
+    sample(true);
     if (pcfg.interval) await sleep(pcfg.interval); else await sleep(0);
   }
 }
@@ -298,20 +354,71 @@ function renderAaos(){ const el=$("aaosList"); if (!el) return; const keys=Objec
   el.textContent = keys.length ? keys.map(k=>k+" = "+(typeof carv[k]==="number" ? +carv[k].toFixed(3) : JSON.stringify(carv[k]))).join("\n") : "Henüz değer gelmedi"; }
 
 // ============ Yolculuk: enerji, mesafe, hız ============
-let lastS=null;
-function sample(){
-  const now=Date.now(); speed.cyc.push(now); while (speed.cyc.length && now-speed.cyc[0]>10000) speed.cyc.shift();
-  const P = (vals.volt!=null && vals.cur!=null) ? vals.volt*vals.cur/1000*sign : null; vals.kw = P;
-  if (lastS && P!=null && lastS.P!=null){ const dt=Math.min(now-lastS.t, 15000)/3600e3, Pm=(P+lastS.P)/2; trip.eOut+=Math.max(Pm,0)*dt; trip.eIn+=Math.max(-Pm,0)*dt; }
-  // araç hızından mesafe (hız km/sa × süre)
+let lastS=null, lastFeed=0;
+const tirePsi = w => aaosTire(w) ?? (defined("p_"+w) ? vals["p_"+w] : null);
+function stat(a, k, v){ if (v==null || !isFinite(v)) return; const s = a.st[k] || (a.st[k] = {f:v, l:v, min:v, max:v, sum:0, n:0});
+  s.l=v; if (v<s.min) s.min=v; if (v>s.max) s.max=v; s.sum+=v; s.n++; }
+// Otomatik yolculuk + istatistikler (saniyede bir)
+function tripTick(now, vs){
+  const gps = (geo.t && now-geo.t<5000) ? geo.spd : null;
+  const moving = vs!=null ? vs>0.5 : (gps!=null && gps>5);
+  if (moving){
+    if (!trips.auto){ trips.auto = newAcc("auto"); trips.auto.altStart = trips.auto.altRef = geo.alt; log("Otomatik yolculuk başladı"); }
+    for (const a of accs()) a.lastMove = now;
+  }
+  if (trips.auto && trips.auto.lastMove && now - trips.auto.lastMove > AUTO_STOP_MS) endAuto();
+  const outT = aaos("ENV_OUTSIDE_TEMPERATURE");
+  for (const a of accs()){
+    if (now - a.lastStat < 1000) continue; a.lastStat = now;
+    if (vals.soc!=null){ if (a.socStart==null) a.socStart=vals.soc; a.socEnd=vals.soc; }
+    if (vals.odo!=null){ if (a.odoStart==null) a.odoStart=vals.odo; a.odoEnd=vals.odo; }
+    stat(a,"avg",vals.avg); stat(a,"max",vals.max); stat(a,"cin",vals.cin); stat(a,"cout",defined("cout")?vals.cout:null); stat(a,"motor",defined("motor")?vals.motor:null);
+    stat(a,"outT",outT);
+    if (moving) for (const w of ["fl","fr","rl","rr"]) stat(a,"p_"+w,tirePsi(w));
+  }
+}
+function endAuto(){
+  const a = trips.auto; if (!a) return; trips.auto = null;
+  if (a.km>0.2 || a.kmCar>0.2) { tripHist.push(summarizeAcc(a, Math.max(a.start, a.lastMove||Date.now()))); saveHist(); log("Otomatik yolculuk kaydedildi"); }
+  saveTrip();
+}
+const r0=v=>v==null||!isFinite(v)?null:Math.round(v), r1=v=>v==null||!isFinite(v)?null:Math.round(v*10)/10, r2=v=>v==null||!isFinite(v)?null:Math.round(v*100)/100;
+function tripKm(a){ return a.kmCar>0.5 ? a.kmCar : a.km; }
+function tripAvgSpeed(a){ const car = a.movingMsCar>60e3; const h=(car?a.movingMsCar:a.movingMs)/3600e3; return h>0.01 ? (car?a.kmCar:a.km)/h : null; }
+function summarizeAcc(a, endT){
+  const st=k=>a.st[k]||{}, avg=k=>a.st[k]&&a.st[k].n ? a.st[k].sum/a.st[k].n : null, km=tripKm(a), net=a.eOut-a.eIn;
+  return {tur:TRIP_NAMES[a.kind], baslangic:localStamp(a.start).slice(0,16), bitis:localStamp(endT).slice(0,16), sure_dk:Math.round((endT-a.start)/60000),
+    km_arac:r1(a.kmCar), km_gps:r1(a.km), km_sayac:(a.odoStart!=null&&a.odoEnd!=null)?a.odoEnd-a.odoStart:null,
+    harcanan_kWh:r2(a.eOut), rejen_kWh:r2(a.eIn), tuketim_kWh100:km>0.5?r1(net/km*100):null, ort_hiz_kmsa:r1(tripAvgSpeed(a)),
+    irtifa_bas_m:r0(a.altStart), irtifa_bit_m:r0(a.altEnd), tirmanis_m:r0(a.up), inis_m:r0(a.down),
+    sarj_bas:r1(a.socStart), sarj_bit:r1(a.socEnd),
+    bat_bas_C:r1(st("avg").f), bat_bit_C:r1(st("avg").l), bat_min_C:r1(st("avg").min), bat_maks_C:r1(st("avg").max), bat_ort_C:r1(avg("avg")), hucre_maks_C:r1(st("max").max),
+    sogutma_bas_C:r0(st("cin").f), sogutma_bit_C:r0(st("cin").l), sogutma_min_C:r0(st("cin").min), sogutma_maks_C:r0(st("cin").max),
+    guc_akt_sogutma_bas_C:r1(st("cout").f), guc_akt_sogutma_bit_C:r1(st("cout").l), guc_akt_sogutma_maks_C:r1(st("cout").max), motor_maks_C:r0(st("motor").max),
+    basinc_ort_sol_on_psi:r1(avg("p_fl")), basinc_ort_sag_on_psi:r1(avg("p_fr")), basinc_ort_sol_arka_psi:r1(avg("p_rl")), basinc_ort_sag_arka_psi:r1(avg("p_rr")),
+    dis_sicaklik_ort_C:r1(avg("outT"))};
+}
+function sample(fromLoop){
+  const now=Date.now();
+  if (fromLoop){ speed.cyc.push(now); while (speed.cyc.length && now-speed.cyc[0]>10000) speed.cyc.shift(); }
+  const P = (vals.volt!=null && vals.cur!=null) ? vals.volt*vals.cur/1000*sign : (aaos("EV_BATTERY_INSTANTANEOUS_CHARGE_RATE")!=null ? -aaos("EV_BATTERY_INSTANTANEOUS_CHARGE_RATE")/1e6 : null);
+  vals.kw = (vals.volt!=null && vals.cur!=null) ? P : vals.kw;
   const vs = carSpeed().v;
-  if (lastS && vs!=null && lastS.vs!=null){ const dth=Math.min(now-lastS.t, 15000)/3600e3, vm=(vs+lastS.vs)/2; trip.kmCar += vm*dth; if (vm>3) trip.movingMsCar += dth*3600e3; }
-  if (vals.odo!=null && trip.odoStart==null) trip.odoStart = vals.odo;
+  if (lastS){
+    const dth = Math.min(now-lastS.t, 15000)/3600e3;
+    for (const a of accs()){
+      if (P!=null && lastS.P!=null){ const Pm=(P+lastS.P)/2; a.eOut+=Math.max(Pm,0)*dth; a.eIn+=Math.max(-Pm,0)*dth; }
+      if (vs!=null && lastS.vs!=null){ const vm=(vs+lastS.vs)/2; a.kmCar += vm*dth; if (vm>3) a.movingMsCar += dth*3600e3; }
+    }
+  }
   lastS={t:now, P, vs};
+  tripTick(now, vs);
+  if (HOST && fromLoop && now-lastFeed>=500){ lastFeed=now; try{ HOST.feed({avg:vals.avg, max:vals.max, cool:vals.cin, soc:vals.soc, volt:vals.volt, cur:vals.cur}); }catch{} }
   logRow(now);
   render();
 }
-const geo={last:null, spd:null, t:0};
+const geo={last:null, spd:null, t:0, alt:null, altT:0};
+const ALT_STEP = 3;   // m: bu kadar değişmeden tırmanış/iniş sayılmaz (GPS gürültüsü)
 function geoStart(){
   if (!navigator.geolocation) return;
   try{ navigator.geolocation.watchPosition(p=>{
@@ -319,7 +426,16 @@ function geoStart(){
     let v = c.speed!=null && c.speed>=0 ? c.speed*3.6 : null;
     if (geo.last && c.accuracy<=40){
       const d=hav(geo.last,pt), dt=(pt.t-geo.last.t)/1000;
-      if (dt>0 && d/dt<70){ if (d>=3) trip.km += d/1000; if (v==null) v=d/dt*3.6; if (v>3) trip.movingMs += dt*1000; }
+      if (dt>0 && d/dt<70){ if (v==null) v=d/dt*3.6; for (const a of accs()){ if (d>=3) a.km += d/1000; if (v>3) a.movingMs += dt*1000; } }
+    }
+    if (c.altitude!=null && isFinite(c.altitude) && (c.altitudeAccuracy==null || c.altitudeAccuracy<=25) && c.accuracy<=40){
+      geo.alt=c.altitude; geo.altT=Date.now();
+      for (const a of accs()){
+        if (a.altStart==null){ a.altStart=c.altitude; a.altRef=c.altitude; }
+        a.altEnd=c.altitude; if (a.altRef==null) a.altRef=c.altitude;
+        const dAlt=c.altitude-a.altRef;
+        if (dAlt>=ALT_STEP){ a.up+=dAlt; a.altRef=c.altitude; } else if (dAlt<=-ALT_STEP){ a.down+=-dAlt; a.altRef=c.altitude; }
+      }
     }
     if (c.accuracy<=40) geo.last=pt;
     geo.spd=v; geo.t=Date.now(); render();
@@ -353,14 +469,7 @@ function render(){
   const pct = (a,b) => (a!=null && b!=null && b>5) ? ` · fark ${(a-b>=0?"+":"")}${fmt((a-b)/b*100,1)}%` : "";
   $("spdSrc").textContent = cs.src;
   tile("spd", car!=null ? car : gps, "km/s", 0, car!=null ? `GPS: ${fmt(gps,0)} km/s${pct(car,gps)}` : (fresh?"Araç hızı okunamıyor; GPS gösteriliyor":"GPS bekleniyor"));
-  const hrsG=trip.movingMs/3600e3, hrsC=trip.movingMsCar/3600e3;
-  const avgG = hrsG>0.01 ? trip.km/hrsG : null, avgC = hrsC>0.01 ? trip.kmCar/hrsC : null;
-  $("avgSrc").textContent = avgC!=null ? "Araç + GPS" : "GPS";
-  tile("avgspd", avgC!=null ? avgC : avgG, "km/s", 0, avgC!=null ? `GPS: ${fmt(avgG,0)} km/s${pct(avgC,avgG)}` : `${fmt(trip.km,1)} km · hareket ${Math.round(trip.movingMs/60000)} dk`);
-  const odoKm = (vals.odo!=null && trip.odoStart!=null) ? vals.odo - trip.odoStart : null;
-  const km = trip.kmCar>0.5 ? trip.kmCar : trip.km;   // tüketim için araç mesafesi öncelikli
-  const net=trip.eOut-trip.eIn;
-  tile("trip", km>0.5?net/km*100:null, "kWh/100km", 1, `Mesafe – araç: ${fmt(trip.kmCar,1)} km · GPS: ${fmt(trip.km,1)} km${pct(trip.kmCar,trip.km>0.1?trip.km:null).replace("· fark","· fark")} · sayaç: ${odoKm==null?"–":odoKm+" km"} · harcanan ${fmt(trip.eOut,2)} · rejen ${fmt(trip.eIn,2)} kWh`);
+  renderTrip(now, pct);
   let anyTire=false, cand=false, fromCar=false;
   for (const w of ["fl","fr","rl","rr"]){
     const pa=aaosTire(w), p = pa!=null ? pa : vals["p_"+w], t=vals["t_"+w], st=tireStage(p);
@@ -376,13 +485,52 @@ function render(){
   if (speed.cyc.length>1){ const hz=(speed.cyc.length-1)/((speed.cyc.at(-1)-speed.cyc[0])/1000||1), ms=speed.req.reduce((a,b)=>a+b,0)/(speed.req.length||1);
     $("rateInfo").textContent=`${fmt(hz,1)} tur/sn · istek ${fmt(ms,0)} ms · tek-cevap ${suffix?"açık":"kapalı"}`; }
 }
+function renderTrip(now, pct){
+  for (const b of document.querySelectorAll("#tripSeg button")) b.classList.toggle("act", b.dataset.trip===tripView);
+  $("btnTripReset").style.visibility = tripView==="auto" ? "hidden" : "";
+  const a = trips[tripView];
+  if (!a){
+    const last = [...tripHist].reverse().find(h=>h.tur==="Otomatik");
+    tile("avgspd", null, "km/s", 0, "Araç hareket edince başlar");
+    tile("trip", null, "kWh/100km", 1, "");
+    $("tripInfo").innerHTML = `<b>Durum</b><span>Araç hareket edince başlar, 5 dk durunca biter</span>` + (last ? `<b>Son</b><span>${last.baslangic} · ${fmt(last.km_arac||last.km_gps,1)} km · ${fmt(last.tuketim_kWh100,1)} kWh/100km</span>` : "");
+    return;
+  }
+  const avgS = tripAvgSpeed(a);
+  $("avgSrc").textContent = (a.movingMsCar>60e3 ? "Araç" : "GPS") + " · " + TRIP_NAMES[a.kind];
+  const hG = a.movingMs/3600e3, avgG = hG>0.01 ? a.km/hG : null;
+  tile("avgspd", avgS, "km/s", 0, a.movingMsCar>60e3 ? `GPS: ${fmt(avgG,0)} km/s${pct(avgS,avgG)}` : `${fmt(a.km,1)} km · hareket ${Math.round(a.movingMs/60000)} dk`);
+  const km = tripKm(a), net = a.eOut-a.eIn;
+  tile("trip", km>0.5?net/km*100:null, "kWh/100km", 1, "");
+  const st=k=>a.st[k], T=(k,d=1)=>{ const s=st(k); return s ? `${fmt(s.f,d)} → ${fmt(s.l,d)} °C <small style="color:var(--mut)">(${fmt(s.min,d)}–${fmt(s.max,d)})</small>` : "–"; };
+  const P=k=>{ const s=st(k); return s&&s.n ? fmt(s.sum/s.n,1) : "–"; };
+  const odoKm = (a.odoStart!=null && a.odoEnd!=null) ? a.odoEnd-a.odoStart : null;
+  const altNow = (geo.alt!=null && now-geo.altT<15000) ? geo.alt : a.altEnd;
+  const dur = Math.round((now-a.start)/60000);
+  $("tripInfo").innerHTML =
+    `<b>Mesafe</b><span>araç ${fmt(a.kmCar,1)} · GPS ${fmt(a.km,1)}${pct(a.kmCar,a.km>0.1?a.km:null)} · sayaç ${odoKm==null?"–":odoKm} km</span>`+
+    `<b>Süre</b><span>${dur>=60?Math.floor(dur/60)+" sa "+(dur%60)+" dk":dur+" dk"} · başlangıç ${localStamp(a.start).slice(5,16)}</span>`+
+    `<b>Enerji</b><span>harcanan ${fmt(a.eOut,2)} · rejen ${fmt(a.eIn,2)} kWh · şarj ${fmt(a.socStart,1)} → ${fmt(a.socEnd,1)} %</span>`+
+    `<b>İrtifa</b><span>${fmt(a.altStart,0)} → ${fmt(altNow,0)} m · ↑ ${fmt(a.up,0)} m · ↓ ${fmt(a.down,0)} m</span>`+
+    `<b>Batarya</b><span>${T("avg")}</span>`+
+    `<b>Soğutma giriş</b><span>${T("cin",0)}</span>`+
+    `<b>Güç akt. soğutma</b><span>${T("cout")}</span>`+
+    `<b>Lastik ort.</b><span>SÖ ${P("p_fl")} · SağÖ ${P("p_fr")} · SA ${P("p_rl")} · SağA ${P("p_rr")} psi</span>`;
+}
+function renderTripHist(){
+  const cols=[["tur","Tür"],["baslangic","Başlangıç"],["sure_dk","dk"],["km_arac","km"],["tuketim_kWh100","kWh/100"],["ort_hiz_kmsa","Ort. hız"],["irtifa_bas_m","İrtifa"],["tirmanis_m","↑ m"],["inis_m","↓ m"],["bat_bas_C","Batarya °C"],["sogutma_bas_C","Soğutma °C"],["basinc_ort_sol_on_psi","Lastik ort. psi"]];
+  const cell=(h,k)=>{ if (k==="irtifa_bas_m") return `${fmt(h.irtifa_bas_m,0)}→${fmt(h.irtifa_bit_m,0)}`; if (k==="bat_bas_C") return `${fmt(h.bat_bas_C,1)}→${fmt(h.bat_bit_C,1)} (${fmt(h.bat_min_C,1)}–${fmt(h.bat_maks_C,1)})`;
+    if (k==="sogutma_bas_C") return `${fmt(h.sogutma_bas_C,0)}→${fmt(h.sogutma_bit_C,0)}`; if (k==="basinc_ort_sol_on_psi") return [h.basinc_ort_sol_on_psi,h.basinc_ort_sag_on_psi,h.basinc_ort_sol_arka_psi,h.basinc_ort_sag_arka_psi].map(x=>fmt(x,1)).join(" / ");
+    if (k==="km_arac") return fmt(h.km_arac||h.km_gps,1); const v=h[k]; return typeof v==="number" ? fmt(v, Number.isInteger(v)?0:1) : (v??"–"); };
+  $("tripTable").innerHTML = `<tr>${cols.map(c=>`<th>${c[1]}</th>`).join("")}</tr>` + ([...tripHist].reverse().map(h=>`<tr>${cols.map(c=>`<td style="white-space:nowrap">${cell(h,c[0])}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="${cols.length}" class="note">Henüz yolculuk yok</td></tr>`);
+}
 const hex=b=>b.map(x=>x.toString(16).padStart(2,"0")).join(" ").toUpperCase();
 
 // ============ Oturum kaydı (IndexedDB, CSV) ============
 const LOG_COLS = [["avg","bat_ort_C"],["cin","sogutma_giris_C"],["cout","guc_aktarma_sogutma_C"],["motor","motor_C"],["soc","sarj_yuzde"],
   ["volt","voltaj_V"],["cur","akim_A"],["kw","guc_kW"],["rpm","motor_devri"],["torque","tork_Nm"],["vspd","arac_hizi_kmsa"],["gps","gps_hizi_kmsa"],
   ["lat","enlem"],["lon","boylam"],["odo","km_sayaci"],["p_fl","basinc_sol_on_psi"],["p_fr","basinc_sag_on_psi"],["p_rl","basinc_sol_arka_psi"],["p_rr","basinc_sag_arka_psi"],
-  ["t_fl","lastik_sol_on_C"],["t_fr","lastik_sag_on_C"],["t_rl","lastik_sol_arka_C"],["t_rr","lastik_sag_arka_C"]];
+  ["t_fl","lastik_sol_on_C"],["t_fr","lastik_sag_on_C"],["t_rl","lastik_sol_arka_C"],["t_rr","lastik_sag_arka_C"],["alt","irtifa_m"],["auto","oto_yolculuk"]];
 const p2=n=>String(n).padStart(2,"0");
 const localStamp = t => { const d=new Date(t); return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3,"0")}`; };
 const LOG_HEADER = "zaman," + LOG_COLS.map(c=>c[1]).join(",");
@@ -400,7 +548,7 @@ async function logStart(){
 }
 function logRow(now){
   if (!logSess) return; if (+pcfg.logMode && now-lastLogRow < +pcfg.logMode) return; lastLogRow=now;
-  const v = Object.assign({}, vals, {vspd: carSpeed().v, p_fl: aaosTire("fl") ?? vals.p_fl, p_fr: aaosTire("fr") ?? vals.p_fr, p_rl: aaosTire("rl") ?? vals.p_rl, p_rr: aaosTire("rr") ?? vals.p_rr, gps: (geo.t && now-geo.t<5000) ? geo.spd : null, lat: geo.last?.lat, lon: geo.last?.lon});
+  const v = Object.assign({}, vals, {vspd: carSpeed().v, p_fl: aaosTire("fl") ?? vals.p_fl, p_fr: aaosTire("fr") ?? vals.p_fr, p_rl: aaosTire("rl") ?? vals.p_rl, p_rr: aaosTire("rr") ?? vals.p_rr, gps: (geo.t && now-geo.t<5000) ? geo.spd : null, lat: geo.last?.lat, lon: geo.last?.lon, alt: (geo.alt!=null && now-geo.altT<15000) ? geo.alt : null, auto: trips.auto ? 1 : 0});
   const line = localStamp(now) + "," + LOG_COLS.map(([k])=>{ const x=v[k]; return x==null||!isFinite(x) ? "" : (k==="lat"||k==="lon" ? (+x).toFixed(6) : +(+x).toFixed(3)); }).join(",");
   logBuf.push(line); logSess.rows++; logSess.bytes += line.length+1; logSess.end=now;
 }
@@ -427,7 +575,11 @@ async function logExport(id){
   const chunks = await idb(tx("chunks","readonly").index("sid").getAll(id));
   const text = LOG_HEADER + "\n" + chunks.map(c=>c.text).join("");
   const name = "EX30_" + localStamp(s.start).slice(0,19).replace(/[: ]/g,"-") + ".csv";
-  if (window.AndroidBle && AndroidBle.saveFile){ AndroidBle.saveFile(name, "text/csv", text); return; }
+  saveText(name, text);
+}
+async function saveText(name, text){
+  const AB = window.AndroidBle || (HOST && window.parent.AndroidBle);
+  if (AB && AB.saveFile){ AB.saveFile(name, "text/csv", text); return; }
   try{ const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([text],{type:"text/csv"})); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 2000); log(name+" indirildi"); }
   catch{ try{ await navigator.clipboard.writeText(text); log("İndirilemedi; panoya kopyalandı"); }catch{ log("İndirilemedi"); } }
 }
@@ -477,14 +629,28 @@ $("logOn").onchange=()=>{ pcfg.logOn=$("logOn").checked; savePcfg(); if (!pcfg.l
 $("logMode").onchange=()=>{ pcfg.logMode=$("logMode").value; savePcfg(); };
 $("btnClose").onclick=()=>$("dlg").close();
 $("interval").onchange=()=>{ pcfg.interval=+$("interval").value; savePcfg(); };
-$("btnConn").onclick=()=> $("btnConn").textContent==="Kes" ? disconnect() : connect();
-$("btnTripReset").onclick=()=>{ trip=newTrip(); saveTrip(); lastR=0; render(); };
+$("btnConn").onclick=()=> $("btnConn").textContent==="Kes" ? (HOST ? HOST.disconnect() : disconnect()) : connect();
+$("tripSeg").onclick=e=>{ const b=e.target.closest("[data-trip]"); if(!b) return; tripView=b.dataset.trip; store.set("tripView",tripView); lastR=0; render(); };
+$("btnTripReset").onclick=()=>{ const b=$("btnTripReset"); if (!b.dataset.ok){ b.dataset.ok="1"; b.textContent="Emin misiniz?"; setTimeout(()=>{ delete b.dataset.ok; b.textContent="Sıfırla"; },3000); return; }
+  delete b.dataset.ok; b.textContent="Sıfırla";
+  const a=trips[tripView]; if (a && (a.km>0.2||a.kmCar>0.2)){ tripHist.push(summarizeAcc(a, Date.now())); saveHist(); }
+  trips[tripView]=newAcc(tripView); trips[tripView].altStart=trips[tripView].altRef=geo.alt; saveTrip(); lastR=0; render(); };
+$("btnTripHist").onclick=()=>{ renderTripHist(); $("dlgTrips").showModal(); };
+$("btnTripClose").onclick=()=>$("dlgTrips").close();
+$("btnTripCsv").onclick=()=>{ if (!tripHist.length) return; const keys=Object.keys(tripHist[0]);
+  saveText("EX30_yolculuklar_"+localStamp(Date.now()).slice(0,16).replace(/[: ]/g,"-")+".csv", keys.join(",")+"\n"+tripHist.map(h=>keys.map(k=>h[k]==null?"":String(h[k]).replace(/,/g," ")).join(",")).join("\n")+"\n"); };
+$("btnTripClear").onclick=()=>{ const b=$("btnTripClear"); if (!b.dataset.ok){ b.dataset.ok="1"; b.textContent="Emin misiniz?"; setTimeout(()=>{ delete b.dataset.ok; b.textContent="Tümünü sil"; },3000); return; }
+  tripHist=[]; saveHist(); renderTripHist(); delete b.dataset.ok; b.textContent="Tümünü sil"; };
+if (trips.auto && trips.auto.lastMove && Date.now()-trips.auto.lastMove > AUTO_STOP_MS) endAuto();
 setInterval(saveTrip, 10000);
 window.addEventListener("pagehide", ()=>{ saveTrip(); logFlush(); });
 document.addEventListener("visibilitychange", async()=>{ if (document.visibilityState==="visible" && chW && !wake){ try{ wake=await navigator.wakeLock?.request("screen"); }catch{} } });
 $("tireLegend").innerHTML = [TIRE_STAGES[0],TIRE_STAGES[1],TIRE_STAGES[2],TIRE_STAGES[3],TIRE_STAGES[4],TIRE_STAGES[5],TIRE_STAGES[6]].map(s=>`<span><i style="background:${s.c}"></i>${s.t}</span>`).join("");
-if (window.AndroidCar){ $("aaosBox").style.display=""; try{ AndroidCar.start(); }catch(e){}
-  setInterval(()=>{ if (!running) sample(); if ($("dlg").open) renderAaos(); }, 1000); }
+const CARAPI = window.AndroidCar || (HOST ? window.parent.AndroidCar : null);
+if (CARAPI){ $("aaosBox").style.display=""; try{ CARAPI.start(); }catch(e){} }
+$("btnAaosRetry").onclick=()=>{ try{ CARAPI && CARAPI.start(); }catch{} };
+setInterval(()=>{ if (!running) sample(false); if (CARAPI && $("dlg").open) renderAaos(); }, 1000);
+if (HOST){ try{ HOST.register(window); }catch{} }
 geoStart(); render();
 </script>
 </body>
