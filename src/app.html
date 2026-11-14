@@ -304,6 +304,11 @@
         <label class="note"><input type="checkbox" id="scAuto"> 5 sn'de bir tekrar oku</label>
         <button class="sec" id="scCopy" disabled>CSV olarak kopyala</button>
       </div>
+      <div class="row" style="margin-bottom:8px">
+        <label>Kayıtlı taramalar <select id="scHist" style="max-width:260px"></select></label>
+        <button class="sec mini" id="scDl" disabled>CSV dosyası indir</button>
+        <button class="sec mini" id="scDel" disabled>Sil</button>
+      </div>
       <div class="tbl" id="scList"><div class="empty">Henüz tarama yapılmadı</div></div>
       <p class="note">Park halindeyken okuyun, sonra sürüşte, şarjda ya da ısıtma çalışırken tekrar okuyun: değişen kodlar sarı görünür. "1 bayt −50" ve "2 bayt /100 −50" sütunları sıcaklık olabilecek değerleri gösterir. Bir değerin anlamını bulduğunuzda <b>Panele ekle</b> ile Panel'de kutu olarak izleyebilirsiniz.</p>
     </div>
@@ -737,6 +742,48 @@ function hav(a,b){ const R=6371000, toR=Math.PI/180, dLa=(b.lat-a.lat)*toR, dLo=
 //  Tarayıcı
 // =====================================================================
 let scanRes = [], scanning=false;
+// Taramalar telefonda saklanır (uygulama kapansa da kalır). Her "Tekrar oku" yeni bir okuma sütunu olarak eklenir.
+let scans = store.get("scans", []), curScan = null;   // {id,t,unit,tx,rx,range,snaps:[{t}],rows:[{did,v:[hex…]}]}
+const MAX_SCANS = 30, MAX_SNAPS = 40;
+const unhex = h => h ? h.trim().split(/\s+/).map(x=>parseInt(x,16)) : null;
+function saveScans(){
+  while (true){
+    try{ localStorage.setItem("ex30.scans", JSON.stringify(scans)); return; }
+    catch{ if (scans.length>1) scans.shift(); else if (curScan && curScan.snaps.length>2){ curScan.snaps.splice(1,1); for (const r of curScan.rows) r.v.splice(1,1); } else return; }
+  }
+}
+function scanFromRes(found, u, range){
+  const s={id:String(Date.now()), t:Date.now(), unit:u.name||u.tx.slice(4), tx:u.tx, rx:u.rx, range, snaps:[{t:Date.now()}], rows:found.map(x=>({did:x.did, v:[hexb(x.bytes)]}))};
+  scans.push(s); while (scans.length>MAX_SCANS) scans.shift(); curScan=s; saveScans(); fillScanHist(); return s;
+}
+function addSnap(){
+  if (!curScan) return; const now=Date.now(); curScan.snaps.push({t:now});
+  const m={}; for (const x of scanRes) m[x.did]=hexb(x.bytes);
+  for (const r of curScan.rows) r.v.push(m[r.did] ?? "");
+  if (curScan.snaps.length>MAX_SNAPS){ curScan.snaps.splice(1,1); for (const r of curScan.rows) r.v.splice(1,1); }
+  saveScans(); fillScanHist();
+}
+function loadScan(s){
+  curScan=s || null;
+  scanRes = s ? s.rows.map(r=>{ const n=r.v.length; return {tx:s.tx, rx:s.rx, unit:s.unit, did:r.did, bytes:unhex(r.v[n-1])||[], prev: n>1 ? unhex(r.v[n-2]) : null}; }) : [];
+  $("scRe").disabled = $("scCopy").disabled = $("scDl").disabled = $("scDel").disabled = !scanRes.length;
+  if (s) $("scInfo").textContent = `Kayıtlı tarama: ${s.unit} ${s.range} · ${s.rows.length} kod · ${s.snaps.length} okuma (son ${localTime(s.snaps[s.snaps.length-1].t)})`;
+  renderScan();
+}
+const localTime = t => { const d=new Date(t), z=n=>String(n).padStart(2,"0"); return `${z(d.getDate())}.${z(d.getMonth()+1)} ${z(d.getHours())}:${z(d.getMinutes())}`; };
+function fillScanHist(){
+  const sel=$("scHist");
+  sel.innerHTML = scans.length ? scans.slice().reverse().map(s=>`<option value="${s.id}">${localTime(s.t)} · ${s.unit} ${s.range} · ${s.rows.length} kod · ${s.snaps.length} okuma</option>`).join("") : `<option value="">Kayıtlı tarama yok</option>`;
+  if (curScan) sel.value=curScan.id;
+}
+function scanCsv(s){
+  const z=n=>String(n).padStart(2,"0"), ts=t=>{ const d=new Date(t); return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}:${z(d.getSeconds())}`; };
+  return "unite,istek,cevap,kod," + s.snaps.map(x=>ts(x.t)).join(",") + "\n" + s.rows.map(r=>`${s.unit},${s.tx},${s.rx},${r.did},${r.v.join(",")}`).join("\n") + "\n";
+}
+function saveFileText(name, text){
+  try{ if (window.AndroidBle && AndroidBle.saveFile){ AndroidBle.saveFile(name, "text/csv", text); return; } }catch{}
+  const u=URL.createObjectURL(new Blob([text],{type:"text/csv"})); const l=document.createElement("a"); l.href=u; l.download=name; document.body.appendChild(l); l.click(); l.remove(); setTimeout(()=>URL.revokeObjectURL(u), 5000);
+}
 // ---- UDS cevabı: tek ve çok çerçeveli (ISO-TP) cevapları birleştirir ----
 function parseUds(resp, did){
   const frames = resp.toUpperCase().split(/[\r\n]+/).map(l=>l.replace(/[^0-9A-F]/g,"")).filter(l=>l.length>=10);
@@ -822,9 +869,10 @@ async function runScan(){
   }
   await restoreBms();
   scanRes = found; scanning=false;
+  if (found.length) scanFromRes(found, u, $("scFrom").value.toUpperCase()+"-"+$("scTo").value.toUpperCase());
   $("scBtn").textContent="Tara"; $("scBtn").className="";
   $("scInfo").textContent=`Tarama bitti: ${found.length} kod cevap verdi`;
-  $("scRe").disabled = $("scCopy").disabled = !found.length;
+  $("scRe").disabled = $("scCopy").disabled = $("scDl").disabled = $("scDel").disabled = !found.length;
   renderScan();
   if (chW) startPolling();
 }
@@ -835,7 +883,7 @@ async function rescan(){
   let cur="";
   for (const x of scanRes){ if (cur!==x.tx){ await setUnit(x.tx, x.rx); cur=x.tx; }
     const r=parseUds(await send("22"+x.did,800), x.did); x.prev=x.bytes; if (r && r.ok) x.bytes=r.data; }
-  await restoreBms();
+  await restoreBms(); addSnap();
   $("scRe").disabled=false; rescanning=false; renderScan(); startPolling();
 }
 setInterval(()=>{ if ($("scAuto").checked && tab==="scan" && !scanning && !finding) rescan(); }, 5000);
@@ -1139,10 +1187,16 @@ $("addOk").onclick = () => { if (!addSel) return; const name=$("addName").value.
   try{ panelWin && panelWin.ex30ReloadExtras && panelWin.ex30ReloadExtras(); }catch{} };
 $("extraList").onclick = e => { const b=e.target.closest("[data-exdel]"); if (!b) return; const ex=store.get("panelExtras",[]); ex.splice(+b.dataset.exdel,1); store.set("panelExtras",ex); renderExtras(); try{ panelWin && panelWin.ex30ReloadExtras && panelWin.ex30ReloadExtras(); }catch{} };
 fillUnitSelect(); renderUnits();
+fillScanHist(); if (scans.length) loadScan(scans[scans.length-1]);
+$("scHist").onchange = () => loadScan(scans.find(s=>s.id===$("scHist").value));
+$("scDl").onclick = () => { if (curScan) saveFileText(`EX30_tarama_${curScan.tx.slice(4)}_${curScan.range}_${curScan.id}.csv`, scanCsv(curScan)); };
+$("scDel").onclick = () => { const b=$("scDel"); if (!curScan) return;
+  if (!b.dataset.ok){ b.dataset.ok="1"; b.textContent="Emin misiniz?"; setTimeout(()=>{ delete b.dataset.ok; b.textContent="Sil"; },3000); return; }
+  delete b.dataset.ok; b.textContent="Sil"; scans=scans.filter(s=>s!==curScan); saveScans(); fillScanHist(); loadScan(scans[scans.length-1]); };
 if (location.hash==="#panel") setTimeout(()=>goTab("panel"), 0);
 try{ if (autoMode()) setTimeout(()=>ex30AutoConnect(), 500); }catch{}
 $("scRe").onclick = rescan;
-$("scCopy").onclick = () => copyText("unite,istek,cevap,kod,ham,onceki\n"+scanRes.map(x=>`${x.unit},${x.tx},${x.rx},${x.did},${hexb(x.bytes)},${x.prev?hexb(x.prev):""}`).join("\n"), "Tarama sonucu");
+$("scCopy").onclick = () => copyText(curScan ? scanCsv(curScan) : "unite,istek,cevap,kod,ham,onceki\n"+scanRes.map(x=>`${x.unit},${x.tx},${x.rx},${x.did},${hexb(x.bytes)},${x.prev?hexb(x.prev):""}`).join("\n"), "Tarama sonucu");
 document.addEventListener("click", e => {
   const d=e.target.closest("[data-del]"), c=e.target.closest("[data-csv]");
   if (d){ if (d.dataset.confirm){ deleteSession(d.dataset.del); } else { d.dataset.confirm="1"; d.textContent="Emin misiniz?"; setTimeout(()=>{ if(d.isConnected){ delete d.dataset.confirm; d.textContent="Sil"; } }, 3000); } }
