@@ -455,7 +455,13 @@ const geo={last:null, spd:null, t:0, alt:null, altT:0};
 const ALT_STEP = 3;   // m: bu kadar değişmeden tırmanış/iniş sayılmaz (GPS gürültüsü)
 function geoStart(){
   if (!navigator.geolocation) return;
-  try{ navigator.geolocation.watchPosition(p=>{
+  try{ navigator.geolocation.watchPosition(p=>{ if (Date.now()-nativeGeoT>5000) onGeo(p); }, ()=>{}, {enableHighAccuracy:true, maximumAge:0}); }catch{}
+}
+// Android uygulaması konumu kendisi de gönderir: ekran kilitliyken/arka planda tarayıcı konumu durur, bu devam eder
+let nativeGeoT=0;
+window.__ex30geo = o => { nativeGeoT=Date.now(); onGeo({timestamp:o.t, coords:{latitude:o.lat, longitude:o.lon, speed:o.spd, accuracy:o.acc, altitude:o.alt, altitudeAccuracy:o.vacc}}); };
+function onGeo(p){
+  {
     const c=p.coords, pt={lat:c.latitude, lon:c.longitude, t:p.timestamp};
     let v = c.speed!=null && c.speed>=0 ? c.speed*3.6 : null;
     if (geo.last && c.accuracy<=40){
@@ -473,7 +479,7 @@ function geoStart(){
     }
     if (c.accuracy<=40) geo.last=pt;
     geo.spd=v; geo.t=Date.now(); render();
-  }, e=>log("Konum: "+e.message), {enableHighAccuracy:true, maximumAge:1000}); }catch{}
+  }
 }
 function hav(a,b){ const R=6371000,r=Math.PI/180,dLa=(b.lat-a.lat)*r,dLo=(b.lon-a.lon)*r; const h=Math.sin(dLa/2)**2+Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLo/2)**2; return 2*R*Math.asin(Math.sqrt(h)); }
 

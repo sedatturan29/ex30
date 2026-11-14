@@ -80,7 +80,7 @@ final class WebHost {
     static void setKeepAlive(boolean on) {
         keepAlive = on;
         WebHost w = inst;
-        if (w != null) w.h.post(() -> { w.h.removeCallbacks(w.tick); if (on) w.h.post(w.tick); });
+        if (w != null) w.h.post(() -> { w.h.removeCallbacks(w.tick); if (on) w.h.post(w.tick); w.geo(on); });
         if (!on) maybeRelease();
     }
 
@@ -91,6 +91,25 @@ final class WebHost {
         w.h.postDelayed(() -> {
             if (inst == w && w.act == null && !carSession && !keepAlive) w.destroy();
         }, 30_000);
+    }
+
+    // Ekran kilitliyken WebView konumu durur; bağlıyken konumu doğrudan Android'den alıp sayfaya veririz
+    private android.location.LocationListener geoL;
+    private void geo(boolean on) {
+        android.location.LocationManager lm = (android.location.LocationManager) app.getSystemService(Context.LOCATION_SERVICE);
+        if (lm == null) return;
+        if (geoL != null) { try { lm.removeUpdates(geoL); } catch (Exception ignored) { } geoL = null; }
+        if (!on || app.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return;
+        geoL = loc -> {
+            String js = "window.__ex30geo&&__ex30geo({t:" + loc.getTime() + ",lat:" + loc.getLatitude() + ",lon:" + loc.getLongitude()
+                    + ",spd:" + (loc.hasSpeed() ? String.valueOf(loc.getSpeed()) : "null")
+                    + ",acc:" + (loc.hasAccuracy() ? String.valueOf(loc.getAccuracy()) : "99")
+                    + ",alt:" + (loc.hasAltitude() ? String.valueOf(loc.getAltitude()) : "null")
+                    + ",vacc:" + (Build.VERSION.SDK_INT >= 26 && loc.hasVerticalAccuracy() ? String.valueOf(loc.getVerticalAccuracyMeters()) : "null") + "})";
+            web.evaluateJavascript(js, null);
+        };
+        try { lm.requestLocationUpdates(android.location.LocationManager.GPS_PROVIDER, 1000, 0, geoL, Looper.getMainLooper()); }
+        catch (Exception e) { geoL = null; }
     }
 
     private WebHost(Context app) {
@@ -190,6 +209,7 @@ final class WebHost {
     private void destroy() {
         if (inst == this) inst = null;
         h.removeCallbacksAndMessages(null);
+        geo(false);
         ReaderService.stop(app);
         try { ble.shutdown(); } catch (Exception ignored) { }
         if (carBridge != null) try { carBridge.shutdown(); } catch (Exception ignored) { }

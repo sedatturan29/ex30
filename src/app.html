@@ -646,6 +646,7 @@ window.EX30_HOST = {
   disconnect: () => disconnect(),
   feed(v){ for (const k in v) vals[k] = v[k]; onSample(makeSample(Date.now())); }
 };
+window.__ex30geo = o => { try{ panelWin && panelWin.__ex30geo && panelWin.__ex30geo(o); }catch{} };
 window.__car = o => { try{ panelWin && panelWin.__car && panelWin.__car(o); }catch{} };
 window.__carStatus = t => { try{ panelWin && panelWin.__carStatus && panelWin.__carStatus(t); }catch{} };
 
