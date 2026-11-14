@@ -180,6 +180,11 @@ const CLIP = () => (HOST ? window.parent.navigator.clipboard : navigator.clipboa
 // ============ Bilinen BMS kodları (EX30 / Geely SEA) ============
 const BMS = {tx:"1DD01635", rx:"1EC6AE80"};
 const u16 = d => d.length>=2 ? d[d.length-2]*256 + d[d.length-1] : NaN;
+const beN = d => { let v=0; for (const x of d) v=v*256+x; return v; };
+// Performans ekranı açıkken: sadece güç/tork/devir/hız her turda, gerisi seyrek → ~3 kat hızlı okuma
+let perfMode=false; const PERF_FAST = new Set(["cur","volt","rpm","torque","vspd"]);
+const effEvery = (id, ev) => perfMode ? (PERF_FAST.has(id) ? 1 : Math.max(8, ev)) : ev;
+window.ex30Perf = on => { perfMode=!!on; };
 const BMS_PIDS = [
   {id:"cur",  did:"4802", every:1,  f:d => 0.1*(u16(d) - 16384)},
   {id:"volt", did:"4803", every:1,  f:d => 0.01*u16(d)},
@@ -187,6 +192,9 @@ const BMS_PIDS = [
   {id:"cin",  did:"4804", every:3,  f:d => d[d.length-1] - 50},
   {id:"max",  did:"4945", every:6,  f:d => u16(d)/100 - 50},
   {id:"soc",  did:"4801", every:10, f:d => 1.0625*0.002*u16(d) - 3.125},
+  // Bataryanın şu an izin verdiği en yüksek deşarj (çekiş) ve şarj (rejen/şarj) gücü, W → kW
+  {id:"dlim", did:"489E", every:4,  f:d => beN(d)*0.001},
+  {id:"clim", did:"489C", every:4,  f:d => beN(d)*0.001},
   // Aday: kilometre sayacı (3 bayt, km); her modda seyrek okunur
   {id:"odo",  did:"DD01", every:30, slow:true, f:d => d.length>=3 ? d[d.length-3]*65536 + d[d.length-2]*256 + d[d.length-1] : NaN},
 ];
@@ -332,7 +340,7 @@ function cleanup(){ running=false; chW=null; logStop(); $("btnConn").textContent
 function disconnect(){ manual=true; try{ dev?.gatt?.disconnect(); }catch{} setPill("","Bağlı değil"); cleanup(); }
 
 // ============ Okuma döngüsü ============
-const vals={}, raw={}; let running=false, cycle=0; const speed={req:[], cyc:[]};
+let lastSampleT=0; const vals={}, raw={}; let running=false, cycle=0; const speed={req:[], cyc:[]};
 async function readDid(did){ const t0=performance.now(); const r=await send("22"+did+suffix); speed.req.push(performance.now()-t0); if (speed.req.length>50) speed.req.shift(); return r; }
 async function loop(){
   if (running || loopBusy) return; running=true; loopBusy=true;
@@ -343,7 +351,7 @@ async function loopBody(){
     cycle++; const fast = pcfg.interval < 1000;
     await useEcu(BMS.tx, BMS.rx);
     for (const p of BMS_PIDS){
-      if ((fast || p.slow) && cycle % p.every !== 0 && vals[p.id]!=null) continue;
+      if ((fast || p.slow || perfMode) && cycle % effEvery(p.id, p.every) !== 0 && vals[p.id]!=null) continue;
       const b = parseDid(await readDid(p.did), p.did);
       if (b){ raw[p.id]=b; const v=p.f(b); vals[p.id]=isFinite(v)?v:null; }
     }
@@ -352,7 +360,7 @@ async function loopBody(){
     defs.sort((a,b)=>(a[1].tx+a[1].rx).localeCompare(b[1].tx+b[1].rx));
     const cache = {};
     for (const [k,s] of defs){
-      if (cycle % Math.max(1, +s.every||5) !== 0 && vals[k]!=null) continue;
+      if (cycle % effEvery(k, Math.max(1, +s.every||5)) !== 0 && vals[k]!=null) continue;
       const did=s.did.toUpperCase(), ck=s.tx.toUpperCase()+s.rx.toUpperCase()+did;
       let b = cache[ck];
       if (b===undefined){ await useEcu(s.tx.toUpperCase(), s.rx.toUpperCase()); b = cache[ck] = parseDid(await readDid(did), did); }
@@ -361,7 +369,7 @@ async function loopBody(){
     }
     for (const e of extras){
       if (!running) break;
-      if (cycle % Math.max(1, +e.every||3) !== 0 && vals[e.id]!=null) continue;
+      if (cycle % effEvery(e.id, Math.max(1, +e.every||3)) !== 0 && vals[e.id]!=null) continue;
       const did=e.did.toUpperCase(), ck=e.tx.toUpperCase()+e.rx.toUpperCase()+did;
       let b = cache[ck];
       if (b===undefined){ await useEcu(e.tx.toUpperCase(), e.rx.toUpperCase()); b = cache[ck] = parseDid(await readDid(did), did); }
@@ -370,7 +378,7 @@ async function loopBody(){
         vals[e.id] = v*(+e.scale||1) + (+e.offset||0); raw[e.id]=b; }
     }
     sample(true);
-    if (pcfg.interval) await sleep(pcfg.interval); else await sleep(0);
+    if (pcfg.interval && !perfMode) await sleep(pcfg.interval); else await sleep(0);
   }
 }
 
@@ -434,7 +442,7 @@ function summarizeAcc(a, endT){
 }
 function sample(fromLoop){
   const now=Date.now();
-  if (fromLoop){ speed.cyc.push(now); while (speed.cyc.length && now-speed.cyc[0]>10000) speed.cyc.shift(); }
+  if (fromLoop){ lastSampleT=now; speed.cyc.push(now); while (speed.cyc.length && now-speed.cyc[0]>10000) speed.cyc.shift(); }
   const P = (vals.volt!=null && vals.cur!=null) ? vals.volt*vals.cur/1000*sign : (aaos("EV_BATTERY_INSTANTANEOUS_CHARGE_RATE")!=null ? -aaos("EV_BATTERY_INSTANTANEOUS_CHARGE_RATE")/1e6 : null);
   vals.kw = (vals.volt!=null && vals.cur!=null) ? P : vals.kw;
   const vs = carSpeed().v;
@@ -492,6 +500,14 @@ const sleep = ms => new Promise(r=>{ const t={at:performance.now()+ms, r}; __tw.
 const fmt=(v,d=1)=>v==null||!isFinite(v)?"–":v.toFixed(d).replace(".",",");
 function tile(id, v, unit, d=1, sub, cls){ const el=$("t-"+id); if(!el) return; el.querySelector(".v").innerHTML=`<span class="${cls||""}">${fmt(v,d)}</span><small>${unit}</small>`; if (sub!=null) el.querySelector(".s").textContent=sub; }
 let lastR=0;
+// Performans ekranı (ana sayfa) buradan okur
+window.ex30Snap = () => { const n=v=>(v==null||!isFinite(v))?null:+v;
+  const tq = (vals.torque===0 && vals.torqueCalc!=null && vals.torqueCalc<0) ? vals.torqueCalc : vals.torque;
+  const tc = w => { const s=pcfg.sources["t_"+w]; return s && s.did ? n(vals["t_"+w]) : null; };
+  return {t:lastSampleT, running, kw:n(vals.kw), volt:n(vals.volt), cur:n(vals.cur!=null?vals.cur*sign:null), rpm:n(vals.rpm), tq:n(tq), tqRaw:n(vals.torque),
+    spd:n(carSpeed().v ?? geo.spd), dlim:n(vals.dlim), clim:n(vals.clim), soc:n(vals.soc), avg:n(vals.avg), max:n(vals.max), cin:n(vals.cin), cout:n(vals.cout), motor:n(vals.motor),
+    out:n(aaos("ENV_OUTSIDE_TEMPERATURE")), tp:{fl:n(tirePsi("fl")),fr:n(tirePsi("fr")),rl:n(tirePsi("rl")),rr:n(tirePsi("rr"))}, tt:{fl:tc("fl"),fr:tc("fr"),rl:tc("rl"),rr:tc("rr")}, hz:speed.cyc.length>2?(speed.cyc.length-1)*1000/(speed.cyc.at(-1)-speed.cyc[0]):null, perf:perfMode};
+};
 // Android Auto ekranı için tek seferde gönderilen özet
 function autoSnap(now, vs){
   const n = v => (v==null || !isFinite(v)) ? null : +v;
