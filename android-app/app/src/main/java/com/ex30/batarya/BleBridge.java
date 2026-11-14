@@ -125,14 +125,15 @@ public class BleBridge {
     @JavascriptInterface
     public void keepAlive(final boolean on) {
         main.post(() -> {
-            WebHost.setKeepAlive(on);
+            WebHost.connected = on;
+            if (on || !WebHost.bootHold()) WebHost.setKeepAlive(on);
             if (on) {
                 Activity a = act;
                 if (a != null && Build.VERSION.SDK_INT >= 33 && a.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                     try { a.requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 31); } catch (Exception ignored) { }
                 }
                 ReaderService.start(ctx);
-            } else {
+            } else if (!WebHost.bootHold()) {
                 ReaderService.stop(ctx);
             }
         });

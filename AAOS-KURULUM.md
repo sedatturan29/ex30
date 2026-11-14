@@ -73,3 +73,13 @@ uygulanmaz, ama garanti değildir.
 - Orta ekranın Bluetooth'u OBD adaptörüne bağlanmaya izin veriyor mu?
 - Sürüş sırasında ekran açık kalıyor mu?
 - Aracın yazılımı hangi Android sürümünde? (Uygulama Android 8 ve üstünü destekler.)
+
+## v2.3x notları: Play paketi (EX30-Reader-Play.aab)
+
+- Paket artık **IOT kategorisinde şablonlu uygulama** olarak tanımlı (Play'de yayınlanmış
+  [ifmeidan/ex-30-driver-display](https://github.com/ifmeidan/ex-30-driver-display) ile aynı yapı).
+- Orta ekranda iki simge çıkar: **EX30 Reader** (tam uygulama, park halinde) ve **EX30 Sürüş**
+  (şablonlu ekran, sürüşte de açık kalır).
+- Orta ekran açıldığında uygulama son kullanılan OBD adaptörüne 10 dakika boyunca kendiliğinden
+  bağlanmayı dener (önce bir kez elle bağlanıp adaptörü seçmiş olmak gerekir).
+- EX30'da APK'yı doğrudan kurma (sideload) çalışmıyor; kurulum Play iç/kapalı test kanalından yapılır.

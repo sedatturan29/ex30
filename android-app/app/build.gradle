@@ -27,6 +27,7 @@ android {
         car {
             dimension 'form'
             versionCode 200000 + runNumber
+            minSdk 29   // app-automotive (şablonlu ekranın orta ekrandaki taşıyıcısı) bunu ister
         }
     }
     lint { checkReleaseBuilds false; abortOnError false }
@@ -53,4 +54,6 @@ android {
 dependencies {
     // Android Auto (Car App Library)
     implementation 'androidx.car.app:app:1.4.0'
+    // Orta ekran Play sürümü: şablonlu ekranı gösteren CarAppActivity
+    carImplementation 'androidx.car.app:app-automotive:1.4.0'
 }

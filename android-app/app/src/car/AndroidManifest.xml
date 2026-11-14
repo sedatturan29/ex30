@@ -1,13 +1,51 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Orta ekran (Android Automotive OS) sürümü: Android Auto servisi çıkarılır -->
+<!-- Orta ekran (Android Automotive OS) Google Play sürümü.
+     Yapı, Play'de yayınlanmış ifmeidan/ex-30-driver-display (MIT) uygulamasındaki gibi:
+     IOT kategorisinde şablonlu uygulama (sürüşte kullanılabilir) + park halinde açılan tam ekran. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-feature android:name="android.hardware.type.automotive" android:required="true" tools:replace="android:required" />
+    <uses-feature android:name="android.software.car.templates_host" android:required="true" />
+
+    <!-- Orta ekran açılınca okumayı kendiliğinden başlatmak için -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application>
-        <service android:name=".EX30CarAppService" tools:node="remove" />
+        <!-- Tam ekran (kendi tasarımımız): yalnızca park halinde -->
+        <activity android:name=".MainActivity" android:label="EX30 Reader">
+            <meta-data android:name="distractionOptimized" tools:node="remove" />
+        </activity>
+
+        <!-- Şablonlu sürüş ekranı: sürüşte de açık kalır -->
+        <activity
+            android:name="androidx.car.app.activity.CarAppActivity"
+            android:exported="true"
+            android:label="EX30 Sürüş"
+            android:launchMode="singleTask"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data android:name="distractionOptimized" android:value="true" />
+        </activity>
+
+        <service android:name=".EX30CarAppService" android:exported="true" tools:node="replace">
+            <intent-filter>
+                <action android:name="androidx.car.app.CarAppService" />
+                <category android:name="androidx.car.app.category.IOT" />
+            </intent-filter>
+        </service>
         <meta-data android:name="com.google.android.gms.car.application" tools:node="remove" />
-        <meta-data android:name="androidx.car.app.minCarApiLevel" tools:node="remove" />
+
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true"
+            android:directBootAware="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
