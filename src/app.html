@@ -1246,7 +1246,7 @@ function pfCar(s){
   <text x="120" y="283" fill="#8a94a6" font-size="9" text-anchor="middle">MOTOR</text>
   <text x="120" y="300" fill="#e8ecf2" font-size="14" font-weight="650" text-anchor="middle">${f1(mt)}°</text>
   <line x1="58" y1="287" x2="92" y2="287" stroke="#2c3440" stroke-width="3"/><line x1="148" y1="287" x2="182" y2="287" stroke="#2c3440" stroke-width="3"/>
-  <text x="120" y="328" fill="#8a94a6" font-size="10" text-anchor="middle">güç devresi ${f1(s?.cout,1)}°</text>`;
+  <text x="120" y="328" fill="#8a94a6" font-size="10" text-anchor="middle">güç devresi ${f1(s?.cout,1)}°${s?.minv!=null?" · inverter "+f1(s.minv)+"°":""}</text>`;
   if (s?.out!=null) g+=`<text x="120" y="372" fill="#8a94a6" font-size="10" text-anchor="middle">dış hava ${f1(s.out)}°</text>`;
   $("pfCar").innerHTML=g;
 }

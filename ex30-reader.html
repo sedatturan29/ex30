@@ -1246,7 +1246,7 @@ function pfCar(s){
   <text x="120" y="283" fill="#8a94a6" font-size="9" text-anchor="middle">MOTOR</text>
   <text x="120" y="300" fill="#e8ecf2" font-size="14" font-weight="650" text-anchor="middle">${f1(mt)}°</text>
   <line x1="58" y1="287" x2="92" y2="287" stroke="#2c3440" stroke-width="3"/><line x1="148" y1="287" x2="182" y2="287" stroke="#2c3440" stroke-width="3"/>
-  <text x="120" y="328" fill="#8a94a6" font-size="10" text-anchor="middle">güç devresi ${f1(s?.cout,1)}°</text>`;
+  <text x="120" y="328" fill="#8a94a6" font-size="10" text-anchor="middle">güç devresi ${f1(s?.cout,1)}°${s?.minv!=null?" · inverter "+f1(s.minv)+"°":""}</text>`;
   if (s?.out!=null) g+=`<text x="120" y="372" fill="#8a94a6" font-size="10" text-anchor="middle">dış hava ${f1(s.out)}°</text>`;
   $("pfCar").innerHTML=g;
 }
@@ -1585,6 +1585,8 @@ const CUSTOM_KEYS = [
   ["brk0","Fren basıncı 1 (bar)"],["brk1","Fren basıncı 2 (bar)"],["brk2","Fren basıncı 3 (bar)"],["brk3","Fren basıncı 4 (bar)"],
   ["w_fl","Teker hızı sol ön (km/sa)"],["w_fr","Teker hızı sağ ön (km/sa)"],["w_rl","Teker hızı sol arka (km/sa)"],["w_rr","Teker hızı sağ arka (km/sa)"],
   ["socd","Göstergedeki şarj (%)"],
+  ["mdcv","İnverter DC gerilimi (V)"],["minv","İnverter sıcaklığı (°C, aday)"],["mtq2","Tork adayı E301 (işaretli)"],["mtq3","Tork adayı E308 (işaretli)"],
+  ["mrpm2","Devir adayı E312"],["mlim","Motor güç sınırı (%, aday)"],["mx363","E363 (aday)"],
   ["p_fl","Basınç sol ön (psi)"],["p_fr","Basınç sağ ön (psi)"],["p_rl","Basınç sol arka (psi)"],["p_rr","Basınç sağ arka (psi)"],
   ["t_fl","Lastik sıc. sol ön (°C)"],["t_fr","Lastik sıc. sağ ön (°C)"],["t_rl","Lastik sıc. sol arka (°C)"],["t_rr","Lastik sıc. sağ arka (°C)"],
 ];
@@ -1601,6 +1603,9 @@ const DEFAULT_SOURCES = {
 // ifmeidan/ex-30-driver-display (MIT) çalışmasından: fren basıncı doğrulanmış; teker hızları aday; D901 göstergedeki şarj
 for (const [i,d] of ["FD00","FD01","FD02","FD03"].entries()) DEFAULT_SOURCES["brk"+i] = {tx:"1DD01701", rx:"1EE02E80", did:d, start:"0", len:"2", scale:"0.01", offset:"0", every:"2"};
 for (const [w,d] of [["fl","2B06"],["fr","2B07"],["rl","2B08"],["rr","2B09"]]) DEFAULT_SOURCES["w_"+w] = {tx:"1DD01701", rx:"1EE02E80", did:d, start:"0", len:"1", scale:"1", offset:"0", every:"3"};
+// Arka motor taraması (15.11): E300 ≈ DC bara gerilimi ×0,25 (batarya voltajıyla örtüşüyor); diğerleri adaylar, logdan doğrulanacak
+const M=(did,len,scale,offset,every)=>({tx:"1DD01637", rx:"1EC6EE80", did, start:"0", len:String(len), scale:String(scale), offset:String(offset), every:String(every)});
+Object.assign(DEFAULT_SOURCES, {mdcv:M("E300",2,0.25,0,3), minv:M("E305",1,1,-50,6), mtq2:M("E301",2,1,-8192,2), mtq3:M("E308",2,1,-8192,2), mrpm2:M("E312",2,1,-16384,4), mlim:M("E353",2,0.1,0,4), mx363:M("E363",1,1,0,4)});
 DEFAULT_SOURCES.socd = {tx:"1DD01601", rx:"1EC02E80", did:"D901", start:"0", len:"1", scale:"1", offset:"0", every:"15"};
 const CANDIDATE = new Set([]);   // ekranda "aday" olarak işaretlenir
 const INIT = ["ATZ","ATE0","ATL0","ATS0","ATH1","ATAL","ATST64","ATSP7"];
@@ -1948,7 +1953,7 @@ window.ex30Snap = () => { const n=v=>(v==null||!isFinite(v))?null:+v;
   const tq = (vals.torque===0 && vals.torqueCalc!=null && vals.torqueCalc<0) ? vals.torqueCalc : vals.torque;
   const tc = w => { const s=pcfg.sources["t_"+w]; return s && s.did ? n(vals["t_"+w]) : null; };
   return {t:lastSampleT, running, kw:n(vals.kw), volt:n(vals.volt), cur:n(vals.cur!=null?vals.cur*sign:null), rpm:n(vals.rpm), tq:n(tq), tqRaw:n(vals.torque),
-    spd:n(carSpeed().v ?? geo.spd), cmax:n(vals.cmax), cmin:n(vals.cmin), tmin:n(vals.tmin), erem:n(vals.erem), soh2:n(vals.soh2), soc:n(vals.soc), avg:n(vals.avg), max:n(vals.max), cin:n(vals.cin), cout:n(vals.cout), motor:n(vals.motor),
+    spd:n(carSpeed().v ?? geo.spd), minv:n(vals.minv), mdcv:n(vals.mdcv), cmax:n(vals.cmax), cmin:n(vals.cmin), tmin:n(vals.tmin), erem:n(vals.erem), soh2:n(vals.soh2), soc:n(vals.soc), avg:n(vals.avg), max:n(vals.max), cin:n(vals.cin), cout:n(vals.cout), motor:n(vals.motor),
     brake:n(vals.brake), v12:n(vals.v12), socd:n(vals.socd), ws:{fl:n(vals.w_fl),fr:n(vals.w_fr),rl:n(vals.w_rl),rr:n(vals.w_rr)}, multi:window.ex30Multi(),
     out:n(aaos("ENV_OUTSIDE_TEMPERATURE")), tp:{fl:n(tirePsi("fl")),fr:n(tirePsi("fr")),rl:n(tirePsi("rl")),rr:n(tirePsi("rr"))}, tt:{fl:tc("fl"),fr:tc("fr"),rl:tc("rl"),rr:tc("rr")}, hz:speed.cyc.length>2?(speed.cyc.length-1)*1000/(speed.cyc.at(-1)-speed.cyc[0]):null, perf:perfMode};
 };
@@ -2076,7 +2081,7 @@ const LOG_COLS = [["avg","bat_ort_C"],["cin","sogutma_giris_C"],["cout","guc_akt
   ["volt","voltaj_V"],["cur","akim_A"],["kw","guc_kW"],["rpm","motor_devri"],["torque","tork_Nm"],["vspd","arac_hizi_kmsa"],["gps","gps_hizi_kmsa"],
   ["lat","enlem"],["lon","boylam"],["odo","km_sayaci"],["p_fl","basinc_sol_on_psi"],["p_fr","basinc_sag_on_psi"],["p_rl","basinc_sol_arka_psi"],["p_rr","basinc_sag_arka_psi"],
   ["t_fl","lastik_sol_on_C"],["t_fr","lastik_sag_on_C"],["t_rl","lastik_sol_arka_C"],["t_rr","lastik_sag_arka_C"],["alt","irtifa_m"],["auto","oto_yolculuk"],["torqueCalc","tork_hesap_Nm"],
-  ["brake","fren_bar"],["w_fl","teker_sol_on_kmsa"],["w_fr","teker_sag_on_kmsa"],["w_rl","teker_sol_arka_kmsa"],["w_rr","teker_sag_arka_kmsa"],["socd","sarj_gosterge"],["v12","aku_12V"],["cmax","hucre_maks_V"],["cmin","hucre_min_V"],["tmin","bat_min_C"],["erem","kalan_enerji_kWh_aday"],["soh2","soh2_yuzde"]];
+  ["brake","fren_bar"],["w_fl","teker_sol_on_kmsa"],["w_fr","teker_sag_on_kmsa"],["w_rl","teker_sol_arka_kmsa"],["w_rr","teker_sag_arka_kmsa"],["socd","sarj_gosterge"],["v12","aku_12V"],["cmax","hucre_maks_V"],["cmin","hucre_min_V"],["tmin","bat_min_C"],["erem","kalan_enerji_kWh_aday"],["soh2","soh2_yuzde"],["mdcv","inv_dc_V"],["minv","inv_C_aday"],["mtq2","E301_tork_aday"],["mtq3","E308_tork_aday"],["mrpm2","E312_devir_aday"],["mlim","E353_sinir_yuzde"],["mx363","E363_aday"]];
 const p2=n=>String(n).padStart(2,"0");
 const localStamp = t => { const d=new Date(t); return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3,"0")}`; };
 const LOG_HEADER = "zaman," + LOG_COLS.map(c=>c[1]).join(",");
