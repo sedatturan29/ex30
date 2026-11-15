@@ -103,7 +103,7 @@
   <div class="t" id="t-soc"><div class="k">Şarj <span class="src">BMS</span></div><div class="v">–<small>%</small></div><div class="s"></div></div>
   <div class="t" id="t-cells"><div class="k">Hücre dengesi <span class="src">BMS</span></div><div class="v">–<small>mV</small></div><div class="s"></div></div>
   <div class="t" id="t-brake"><div class="k">Fren basıncı <span class="src">Şasi</span></div><div class="v">–<small>bar</small></div><div class="s"></div></div>
-  <div class="t" id="t-wheels"><div class="k">Teker hızları <span class="src">Şasi · aday</span></div><div class="v">–<small>km/s</small></div><div class="s"></div></div>
+  <div class="t" id="t-wheels"><div class="k">Teker hızları <span class="src">Şasi</span></div><div class="v">–<small>km/s</small></div><div class="s"></div></div>
   <div class="t" id="t-v12"><div class="k">12 V akü <span class="src">Adaptör</span></div><div class="v">–<small>V</small></div><div class="s"></div></div>
   <div class="t" id="t-avgspd"><div class="k">Ortalama hız (yolculuk) <span class="src" id="avgSrc">GPS</span></div><div class="v">–<small>km/s</small></div><div class="s"></div></div>
   <div class="t w2 r2" id="t-trip"><div class="k tripk"><span class="seg" id="tripSeg"></span>
@@ -238,7 +238,7 @@ for (const [w,d] of [["fl","2B06"],["fr","2B07"],["rl","2B08"],["rr","2B09"]]) D
 // Arka motor taraması (15.11): E300 ≈ DC bara gerilimi ×0,25 (batarya voltajıyla örtüşüyor); diğerleri adaylar, logdan doğrulanacak
 const M=(did,len,scale,offset,every)=>({tx:"1DD01637", rx:"1EC6EE80", did, start:"0", len:String(len), scale:String(scale), offset:String(offset), every:String(every)});
 Object.assign(DEFAULT_SOURCES, {mdcv:M("E300",2,0.25,0,3), minv:M("E305",1,1,-50,6), mtq2:M("E301",2,1,-8192,2), mtq3:M("E308",2,1,-8192,2), mrpm2:M("E312",2,1,-16384,4), mlim:M("E353",2,0.1,0,4), mx363:M("E363",1,1,0,4)});
-DEFAULT_SOURCES.socd = {tx:"1DD01601", rx:"1EC02E80", did:"D901", start:"0", len:"1", scale:"1", offset:"0", every:"15"};
+// D901 (göstergedeki şarj) bu araçta hep 0 döndü (15.11 log) → kaldırıldı
 const CANDIDATE = new Set([]);   // ekranda "aday" olarak işaretlenir
 const INIT = ["ATZ","ATE0","ATL0","ATS0","ATH1","ATAL","ATST64","ATSP7"];
 const SERVICES = [0xfff0, 0xffe0, 0x18f0, "e7810a71-73ae-499d-8c15-faa9aef0c3f2"];
@@ -249,6 +249,7 @@ const mainCfg = store.get("cfg", {});
 const sign = mainCfg.sign || 1;
 const pcfg = Object.assign({interval:0, sources:{}, logOn:true, logMode:"1000"}, store.get("panel", {}));
 for (const k in DEFAULT_SOURCES) if (pcfg.sources[k] === undefined) pcfg.sources[k] = Object.assign({}, DEFAULT_SOURCES[k]);
+if (pcfg.sources.socd && pcfg.sources.socd.did==="D901") delete pcfg.sources.socd;
 // v1.8–v1.11'de lastik basıncı için denenen FEE7 kodu lastik değilmiş: kayıtlı ayarlardan kaldır
 for (const w of ["fl","fr","rl","rr"]){ const x=pcfg.sources["p_"+w]; if (x && String(x.did).toUpperCase()==="FEE7"){ pcfg.sources["p_"+w]=null; } }
 store.set("panel", pcfg);
