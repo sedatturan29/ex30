@@ -121,6 +121,26 @@ public class BleBridge {
     @JavascriptInterface
     public boolean hasScreen() { return act != null; }
 
+    /** Arabaya binince otomatik başlat: "on" | "off" | "unsupported" */
+    @JavascriptInterface
+    public String autoStartState() { return AutoStart.state(ctx); }
+
+    /** Sistem eşleştirme penceresini açar; sonuç window.ex30AutoStartResult("ok" | "hata: …") ile döner. */
+    @JavascriptInterface
+    public void autoStartSetup() {
+        main.post(() -> {
+            Activity a = act;
+            if (a == null) { js("window.ex30AutoStartResult&&ex30AutoStartResult('hata: telefonda uygulamayı açın')"); return; }
+            AutoStart.setup(a, prefs().getString("lastId", null), r -> main.post(() ->
+                    js("window.ex30AutoStartResult&&ex30AutoStartResult(" + JSONObject.quote(r) + ")")));
+        });
+    }
+
+    @JavascriptInterface
+    public void autoStartDisable() { AutoStart.disable(ctx); }
+
+    private void js(String s) { main.post(() -> web.evaluateJavascript(s, null)); }
+
     /** Bağlıyken arka planda okumaya devam etmek için ön plan hizmetini aç/kapat. */
     @JavascriptInterface
     public void keepAlive(final boolean on) {

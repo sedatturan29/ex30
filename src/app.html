@@ -133,6 +133,11 @@
       <div class="row" style="margin-top:8px"><button class="sec" id="cnAll">Listede yoksa: tüm cihazları göster</button></div>
       <div id="stepChecks" style="margin-top:10px"></div>
     </div>
+    <div class="card" id="autoCard" style="display:none">
+      <h2>Arabaya binince otomatik başlat</h2>
+      <p class="note" style="margin:0 0 10px">Açıksa araç açılıp adaptör uyanınca telefon kendiliğinden bağlanır ve kayda başlar; uygulamayı açmanız gerekmez. Araç kapanınca bağlantı kendiliğinden biter. Önce yukarıdan bir kez <b>IOS-Vlink</b> ile bağlanın, sonra araç açıkken bu düğmeye basın.</p>
+      <div class="row"><button id="asBtn">Otomatik başlatmayı aç</button><span class="note" id="asState" style="margin:0"></span></div>
+    </div>
     <div class="card">
       <h2>Sorun mu var?</h2>
       <p class="note" style="margin-top:0">Aşağıdaki düğme bu ekrandaki tüm kontrolleri ve kaydı panoya kopyalar; bana yapıştırın.</p>
@@ -1342,6 +1347,21 @@ $("addOk").onclick = () => { if (!addSel) return; const name=$("addName").value.
 $("extraList").onclick = e => { const b=e.target.closest("[data-exdel]"); if (!b) return; const ex=store.get("panelExtras",[]); ex.splice(+b.dataset.exdel,1); store.set("panelExtras",ex); renderExtras(); try{ panelWin && panelWin.ex30ReloadExtras && panelWin.ex30ReloadExtras(); }catch{} };
 fillUnitSelect(); renderUnits();
 fillScanHist(); if (scans.length) loadScan(scans[scans.length-1]);
+// ---- Arabaya binince otomatik başlat (Android uygulaması) ----
+function asRefresh(){
+  const c=$("autoCard"); let st="unsupported";
+  try{ st = window.AndroidBle && AndroidBle.autoStartState ? AndroidBle.autoStartState() : "unsupported"; }catch{}
+  if (st==="unsupported"){ c.style.display = window.AndroidBle ? "" : "none"; $("asBtn").disabled=true; $("asState").textContent = window.AndroidBle ? "Bu telefonda desteklenmiyor (Android 12 ve üstü gerekir)" : ""; return; }
+  c.style.display=""; $("asBtn").disabled=false;
+  $("asBtn").textContent = st==="on" ? "Otomatik başlatmayı kapat" : "Otomatik başlatmayı aç";
+  $("asState").textContent = st==="on" ? "Açık ✓" : "Kapalı";
+}
+window.ex30AutoStartResult = r => { $("asState").textContent = r==="ok" ? "Açık ✓ — bir dahaki binişte kendiliğinden başlar" : r; if (r==="ok") log("Otomatik başlatma açıldı"); setTimeout(asRefresh, 2500); };
+$("asBtn").onclick = () => { let st="off"; try{ st=AndroidBle.autoStartState(); }catch{}
+  if (st==="on"){ AndroidBle.autoStartDisable(); asRefresh(); return; }
+  $("asState").textContent="Adaptör aranıyor… çıkan pencerede IOS-Vlink'i seçin"; AndroidBle.autoStartSetup(); };
+asRefresh();
+
 $("scHist").onchange = () => loadScan(scans.find(s=>s.id===$("scHist").value));
 $("scDl").onclick = () => { if (curScan) saveFileText(`EX30_tarama_${curScan.tx.slice(4)}_${curScan.range}_${curScan.id}.csv`, scanCsv(curScan)); };
 $("scDel").onclick = () => { const b=$("scDel"); if (!curScan) return;

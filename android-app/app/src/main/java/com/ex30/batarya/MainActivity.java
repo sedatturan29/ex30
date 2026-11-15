@@ -57,6 +57,12 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onActivityResult(int requestCode, int resultCode, android.content.Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == AutoStart.REQ_ASSOC) AutoStart.onActivityResult(this, resultCode, data);
+    }
+
+    @Override
     protected void onDestroy() {
         if (host != null) host.detach(this);
         host = null;
