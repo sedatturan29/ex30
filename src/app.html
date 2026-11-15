@@ -297,7 +297,7 @@
     <div class="card" style="margin-top:0">
       <div class="row" style="justify-content:space-between"><h2 style="margin:0">Güç</h2><span class="note" id="pfStat" style="margin:0">Bağlı değil</span></div>
       <svg id="pfGauge" viewBox="-40 0 480 225" aria-label="Güç göstergesi"></svg>
-      <p class="note" style="text-align:center;margin-top:0" id="pfLim">Yeşil bant: bataryanın şu an izin verdiği çekiş gücü · Mavi: izin verilen rejen/şarj gücü</p>
+      <p class="note" style="text-align:center;margin-top:0" id="pfLim">Yeşil: çekiş · Mavi: rejen/şarj · Turuncu çizgi: en yüksek</p>
     </div>
     <div class="pgrid">
       <div class="card"><h2>Araç</h2><svg id="pfCar" viewBox="0 0 240 380" aria-label="Araç şeması"></svg></div>
@@ -1188,7 +1188,7 @@ function pfUpdatePeaks(s){
   const mx=(k,v)=>{ if (v!=null && isFinite(v) && (pf[k]==null || v>pf[k])) { pf[k]=v; pf[k+"_t"]=s.t; } };
   const mn=(k,v)=>{ if (v!=null && isFinite(v) && (pf[k]==null || v<pf[k])) { pf[k]=v; pf[k+"_t"]=s.t; } };
   mx("kw", s.kw); mn("regen", s.kw); mx("mech", pfMech(s)); mx("tq", s.tqRaw); mx("cur", s.cur); mn("vmin", s.kw>20?s.volt:null);
-  mx("spd", s.spd); mx("rpm", s.rpm); mx("dlim", s.dlim); mx("brake", s.brake);
+  mx("spd", s.spd); mx("rpm", s.rpm); mx("brake", s.brake);
   // 0–100 km/s
   if (s.spd!=null){
     if (s.spd<=0.5) pfZeroT=s.t;
@@ -1203,13 +1203,11 @@ function pfUpdatePeaks(s){
 }
 function pfGauge(s){
   const cx=200, cy=200, R=158, A0=Math.PI*1.08, A1=-Math.PI*0.08;
-  const lo = -Math.max(60, Math.ceil((s?.clim||80)/20)*20), hi = Math.max(200, Math.ceil(((s?.dlim||0)>200?s.dlim:200)/20)*20);
+  const lo = -80, hi = 200;
   const ang = v => A0 + (Math.min(hi,Math.max(lo,v))-lo)/(hi-lo)*(A1-A0);
   const pt = (a,r) => [cx+r*Math.cos(a), cy-r*Math.sin(a)];
   const arc = (v0,v1,r) => { const a0=ang(v0), a1=ang(v1), [x0,y0]=pt(a0,r), [x1,y1]=pt(a1,r); const large=Math.abs(a1-a0)>Math.PI?1:0; return `M${x0.toFixed(1)} ${y0.toFixed(1)} A${r} ${r} 0 ${large} ${a1<a0?1:0} ${x1.toFixed(1)} ${y1.toFixed(1)}`; };
   let g=`<path d="${arc(lo,hi,R)}" stroke="#242a34" stroke-width="22" fill="none"/>`;
-  if (s?.dlim!=null) g+=`<path d="${arc(0,s.dlim,R)}" stroke="rgba(60,207,142,.22)" stroke-width="22" fill="none"/>`;
-  if (s?.clim!=null) g+=`<path d="${arc(-s.clim,0,R)}" stroke="rgba(78,161,255,.22)" stroke-width="22" fill="none"/>`;
   const kw=s?.kw;
   if (kw!=null && Math.abs(kw)>0.3) g+=`<path d="${arc(Math.min(0,kw),Math.max(0,kw),R)}" stroke="${kw>0?"var(--ok)":"var(--acc)"}" stroke-width="22" fill="none"/>`;
   for (let v=Math.ceil(lo/20)*20; v<=hi; v+=20){ const a=ang(v), [x0,y0]=pt(a,R+13), [x1,y1]=pt(a,R+(v%100===0?22:17)), [tx,ty]=pt(a,R+34);
@@ -1260,8 +1258,8 @@ function pfTiles(s){
     t("Tork", f1(s?.tq), "Nm", s?.tqRaw===0 && s?.tq<0 ? "rejen (hesap)" : "katalog maks 343", s?.tq!=null?Math.abs(s.tq)/343*100:null)+
     t("Motor mili", f1(mech), "kW", mech!=null?f1(mech*PS)+" PS · katalog 200 kW":"katalog 200 kW", mech!=null?mech/200*100:null)+
     t("Gerçek hız", f1(s?.spd), "km/s", "maks "+f1(pf.spd))+
-    t("Batarya izin (çekiş)", f1(s?.dlim), "kW", s?.dlim!=null&&s?.kw!=null&&s.kw>0?"kullanılan %"+f1(s.kw/s.dlim*100):"şu an verebileceği en fazla", s?.dlim!=null?s.dlim/200*100:null)+
-    t("Batarya izin (rejen/şarj)", f1(s?.clim), "kW", "geri alabileceği en fazla", s?.clim!=null?s.clim/150*100:null)+
+    t("Hücre dengesi", s?.cmax!=null&&s?.cmin!=null?f1((s.cmax-s.cmin)*1000):"–", "mV", s?.cmax!=null?"maks "+f1(s.cmax,3)+" · min "+f1(s.cmin,3)+" V":"")+
+    t("Batarya sıcaklık aralığı", s?.tmin!=null&&s?.max!=null?f1(s.tmin,1)+"–"+f1(s.max,1):"–", "°C", s?.erem!=null?"kalan ≈ "+f1(s.erem,1)+" kWh (aday)":"")+
     t("Fren basıncı", f1(s?.brake,1), "bar", "maks "+f1(pf.brake,1), s?.brake!=null?s.brake/62*100:null)+
     t("12 V akü", f1(s?.v12,1), "V", s?.socd!=null?"göstergede şarj %"+f1(s.socd):"")+
     t("Akım", f1(s?.cur), "A", "voltaj "+f1(s?.volt,1)+" V")+
@@ -1273,7 +1271,7 @@ function pfPeaks(){
     r("Batarya gücü", f1(pf.kw,1)+" kW")+r("Motor mili", pf.mech!=null?f1(pf.mech,1)+" kW · "+f1(pf.mech*PS)+" PS":"–")+
     r("Tork", f1(pf.tq)+" Nm")+r("Rejen", pf.regen!=null&&pf.regen<0?f1(-pf.regen,1)+" kW":"–")+
     r("Akım", f1(pf.cur)+" A")+r("En düşük voltaj (yükte)", f1(pf.vmin,1)+" V")+
-    r("Hız", f1(pf.spd)+" km/s")+r("Fren basıncı", f1(pf.brake,1)+" bar")+r("Batarya izni (en yüksek)", f1(pf.dlim)+" kW")+
+    r("Hız", f1(pf.spd)+" km/s")+r("Fren basıncı", f1(pf.brake,1)+" bar")+
     r("0–100 en iyi", pf.best100!=null?"≈ "+f1(pf.best100,1)+" sn":"–")+r("0–100 son", pf.last100!=null?"≈ "+f1(pf.last100,1)+" sn":"–")+
     r("Başlangıç", new Date(pf.since).toLocaleDateString("tr-TR"));
 }

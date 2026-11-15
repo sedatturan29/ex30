@@ -297,7 +297,7 @@
     <div class="card" style="margin-top:0">
       <div class="row" style="justify-content:space-between"><h2 style="margin:0">Güç</h2><span class="note" id="pfStat" style="margin:0">Bağlı değil</span></div>
       <svg id="pfGauge" viewBox="-40 0 480 225" aria-label="Güç göstergesi"></svg>
-      <p class="note" style="text-align:center;margin-top:0" id="pfLim">Yeşil bant: bataryanın şu an izin verdiği çekiş gücü · Mavi: izin verilen rejen/şarj gücü</p>
+      <p class="note" style="text-align:center;margin-top:0" id="pfLim">Yeşil: çekiş · Mavi: rejen/şarj · Turuncu çizgi: en yüksek</p>
     </div>
     <div class="pgrid">
       <div class="card"><h2>Araç</h2><svg id="pfCar" viewBox="0 0 240 380" aria-label="Araç şeması"></svg></div>
@@ -1188,7 +1188,7 @@ function pfUpdatePeaks(s){
   const mx=(k,v)=>{ if (v!=null && isFinite(v) && (pf[k]==null || v>pf[k])) { pf[k]=v; pf[k+"_t"]=s.t; } };
   const mn=(k,v)=>{ if (v!=null && isFinite(v) && (pf[k]==null || v<pf[k])) { pf[k]=v; pf[k+"_t"]=s.t; } };
   mx("kw", s.kw); mn("regen", s.kw); mx("mech", pfMech(s)); mx("tq", s.tqRaw); mx("cur", s.cur); mn("vmin", s.kw>20?s.volt:null);
-  mx("spd", s.spd); mx("rpm", s.rpm); mx("dlim", s.dlim); mx("brake", s.brake);
+  mx("spd", s.spd); mx("rpm", s.rpm); mx("brake", s.brake);
   // 0–100 km/s
   if (s.spd!=null){
     if (s.spd<=0.5) pfZeroT=s.t;
@@ -1203,13 +1203,11 @@ function pfUpdatePeaks(s){
 }
 function pfGauge(s){
   const cx=200, cy=200, R=158, A0=Math.PI*1.08, A1=-Math.PI*0.08;
-  const lo = -Math.max(60, Math.ceil((s?.clim||80)/20)*20), hi = Math.max(200, Math.ceil(((s?.dlim||0)>200?s.dlim:200)/20)*20);
+  const lo = -80, hi = 200;
   const ang = v => A0 + (Math.min(hi,Math.max(lo,v))-lo)/(hi-lo)*(A1-A0);
   const pt = (a,r) => [cx+r*Math.cos(a), cy-r*Math.sin(a)];
   const arc = (v0,v1,r) => { const a0=ang(v0), a1=ang(v1), [x0,y0]=pt(a0,r), [x1,y1]=pt(a1,r); const large=Math.abs(a1-a0)>Math.PI?1:0; return `M${x0.toFixed(1)} ${y0.toFixed(1)} A${r} ${r} 0 ${large} ${a1<a0?1:0} ${x1.toFixed(1)} ${y1.toFixed(1)}`; };
   let g=`<path d="${arc(lo,hi,R)}" stroke="#242a34" stroke-width="22" fill="none"/>`;
-  if (s?.dlim!=null) g+=`<path d="${arc(0,s.dlim,R)}" stroke="rgba(60,207,142,.22)" stroke-width="22" fill="none"/>`;
-  if (s?.clim!=null) g+=`<path d="${arc(-s.clim,0,R)}" stroke="rgba(78,161,255,.22)" stroke-width="22" fill="none"/>`;
   const kw=s?.kw;
   if (kw!=null && Math.abs(kw)>0.3) g+=`<path d="${arc(Math.min(0,kw),Math.max(0,kw),R)}" stroke="${kw>0?"var(--ok)":"var(--acc)"}" stroke-width="22" fill="none"/>`;
   for (let v=Math.ceil(lo/20)*20; v<=hi; v+=20){ const a=ang(v), [x0,y0]=pt(a,R+13), [x1,y1]=pt(a,R+(v%100===0?22:17)), [tx,ty]=pt(a,R+34);
@@ -1260,8 +1258,8 @@ function pfTiles(s){
     t("Tork", f1(s?.tq), "Nm", s?.tqRaw===0 && s?.tq<0 ? "rejen (hesap)" : "katalog maks 343", s?.tq!=null?Math.abs(s.tq)/343*100:null)+
     t("Motor mili", f1(mech), "kW", mech!=null?f1(mech*PS)+" PS · katalog 200 kW":"katalog 200 kW", mech!=null?mech/200*100:null)+
     t("Gerçek hız", f1(s?.spd), "km/s", "maks "+f1(pf.spd))+
-    t("Batarya izin (çekiş)", f1(s?.dlim), "kW", s?.dlim!=null&&s?.kw!=null&&s.kw>0?"kullanılan %"+f1(s.kw/s.dlim*100):"şu an verebileceği en fazla", s?.dlim!=null?s.dlim/200*100:null)+
-    t("Batarya izin (rejen/şarj)", f1(s?.clim), "kW", "geri alabileceği en fazla", s?.clim!=null?s.clim/150*100:null)+
+    t("Hücre dengesi", s?.cmax!=null&&s?.cmin!=null?f1((s.cmax-s.cmin)*1000):"–", "mV", s?.cmax!=null?"maks "+f1(s.cmax,3)+" · min "+f1(s.cmin,3)+" V":"")+
+    t("Batarya sıcaklık aralığı", s?.tmin!=null&&s?.max!=null?f1(s.tmin,1)+"–"+f1(s.max,1):"–", "°C", s?.erem!=null?"kalan ≈ "+f1(s.erem,1)+" kWh (aday)":"")+
     t("Fren basıncı", f1(s?.brake,1), "bar", "maks "+f1(pf.brake,1), s?.brake!=null?s.brake/62*100:null)+
     t("12 V akü", f1(s?.v12,1), "V", s?.socd!=null?"göstergede şarj %"+f1(s.socd):"")+
     t("Akım", f1(s?.cur), "A", "voltaj "+f1(s?.volt,1)+" V")+
@@ -1273,7 +1271,7 @@ function pfPeaks(){
     r("Batarya gücü", f1(pf.kw,1)+" kW")+r("Motor mili", pf.mech!=null?f1(pf.mech,1)+" kW · "+f1(pf.mech*PS)+" PS":"–")+
     r("Tork", f1(pf.tq)+" Nm")+r("Rejen", pf.regen!=null&&pf.regen<0?f1(-pf.regen,1)+" kW":"–")+
     r("Akım", f1(pf.cur)+" A")+r("En düşük voltaj (yükte)", f1(pf.vmin,1)+" V")+
-    r("Hız", f1(pf.spd)+" km/s")+r("Fren basıncı", f1(pf.brake,1)+" bar")+r("Batarya izni (en yüksek)", f1(pf.dlim)+" kW")+
+    r("Hız", f1(pf.spd)+" km/s")+r("Fren basıncı", f1(pf.brake,1)+" bar")+
     r("0–100 en iyi", pf.best100!=null?"≈ "+f1(pf.best100,1)+" sn":"–")+r("0–100 son", pf.last100!=null?"≈ "+f1(pf.last100,1)+" sn":"–")+
     r("Başlangıç", new Date(pf.since).toLocaleDateString("tr-TR"));
 }
@@ -1471,6 +1469,7 @@ renderAll();
   <div class="t" id="t-volt"><div class="k">Voltaj <span class="src">BMS</span></div><div class="v">–<small>V</small></div><div class="s"></div></div>
   <div class="t" id="t-amp"><div class="k">Akım <span class="src">BMS</span></div><div class="v">–<small>A</small></div><div class="s"></div></div>
   <div class="t" id="t-soc"><div class="k">Şarj <span class="src">BMS</span></div><div class="v">–<small>%</small></div><div class="s"></div></div>
+  <div class="t" id="t-cells"><div class="k">Hücre dengesi <span class="src">BMS</span></div><div class="v">–<small>mV</small></div><div class="s"></div></div>
   <div class="t" id="t-brake"><div class="k">Fren basıncı <span class="src">Şasi</span></div><div class="v">–<small>bar</small></div><div class="s"></div></div>
   <div class="t" id="t-wheels"><div class="k">Teker hızları <span class="src">Şasi · aday</span></div><div class="v">–<small>km/s</small></div><div class="s"></div></div>
   <div class="t" id="t-v12"><div class="k">12 V akü <span class="src">Adaptör</span></div><div class="v">–<small>V</small></div><div class="s"></div></div>
@@ -1566,8 +1565,16 @@ const BMS_PIDS = [
   {id:"max",  did:"4945", every:6,  f:d => u16(d)/100 - 50},
   {id:"soc",  did:"4801", every:10, f:d => 1.0625*0.002*u16(d) - 3.125},
   // Bataryanın şu an izin verdiği en yüksek deşarj (çekiş) ve şarj (rejen/şarj) gücü, W → kW
-  {id:"dlim", did:"489E", every:4,  f:d => beN(d)*0.001},
-  {id:"clim", did:"489C", every:4,  f:d => beN(d)*0.001},
+  // 489E/489C: limit DEĞİL — anlık deşarj/şarj gücü (mW). Akım×voltajla örtüşüyor (15.11 tarama).
+  {id:"pdis", did:"489E", every:6,  f:d => beN(d)/1e6},
+  {id:"pchg", did:"489C", every:6,  f:d => beN(d)/1e6},
+  // Hücre gerilimi en yüksek/en düşük (ilk bayt hücre no, sonra mV) ve en düşük sensör sıcaklığı
+  {id:"cmax", did:"4907", every:6,  f:d => d.length>=3 ? (d[1]*256+d[2])/1000 : NaN},
+  {id:"cmin", did:"4908", every:6,  f:d => d.length>=3 ? (d[1]*256+d[2])/1000 : NaN},
+  {id:"tmin", did:"49A1", every:6,  f:d => d.length>=3 ? (d[1]*256+d[2])/100-50 : NaN},
+  {id:"soh2", did:"489A", every:60, slow:true, f:d => u16(d)/100},
+  // Aday: kalan enerji (49F7) ve harcanan (49F6); toplamları sabit (~3300) → 0,02 kWh/birim varsayımı
+  {id:"erem", did:"49F7", every:20, f:d => u16(d)*0.02},
   // Aday: kilometre sayacı (3 bayt, km); her modda seyrek okunur
   {id:"odo",  did:"DD01", every:30, slow:true, f:d => d.length>=3 ? d[d.length-3]*65536 + d[d.length-2]*256 + d[d.length-1] : NaN},
 ];
@@ -1941,7 +1948,7 @@ window.ex30Snap = () => { const n=v=>(v==null||!isFinite(v))?null:+v;
   const tq = (vals.torque===0 && vals.torqueCalc!=null && vals.torqueCalc<0) ? vals.torqueCalc : vals.torque;
   const tc = w => { const s=pcfg.sources["t_"+w]; return s && s.did ? n(vals["t_"+w]) : null; };
   return {t:lastSampleT, running, kw:n(vals.kw), volt:n(vals.volt), cur:n(vals.cur!=null?vals.cur*sign:null), rpm:n(vals.rpm), tq:n(tq), tqRaw:n(vals.torque),
-    spd:n(carSpeed().v ?? geo.spd), dlim:n(vals.dlim), clim:n(vals.clim), soc:n(vals.soc), avg:n(vals.avg), max:n(vals.max), cin:n(vals.cin), cout:n(vals.cout), motor:n(vals.motor),
+    spd:n(carSpeed().v ?? geo.spd), cmax:n(vals.cmax), cmin:n(vals.cmin), tmin:n(vals.tmin), erem:n(vals.erem), soh2:n(vals.soh2), soc:n(vals.soc), avg:n(vals.avg), max:n(vals.max), cin:n(vals.cin), cout:n(vals.cout), motor:n(vals.motor),
     brake:n(vals.brake), v12:n(vals.v12), socd:n(vals.socd), ws:{fl:n(vals.w_fl),fr:n(vals.w_fr),rl:n(vals.w_rl),rr:n(vals.w_rr)}, multi:window.ex30Multi(),
     out:n(aaos("ENV_OUTSIDE_TEMPERATURE")), tp:{fl:n(tirePsi("fl")),fr:n(tirePsi("fr")),rl:n(tirePsi("rl")),rr:n(tirePsi("rr"))}, tt:{fl:tc("fl"),fr:tc("fr"),rl:tc("rl"),rr:tc("rr")}, hz:speed.cyc.length>2?(speed.cyc.length-1)*1000/(speed.cyc.at(-1)-speed.cyc[0]):null, perf:perfMode};
 };
@@ -1962,7 +1969,8 @@ function render(){
   const now=Date.now(); if (now-lastR<250) return; lastR=now;
   tile("avg", vals.avg, "°C", 1, raw.avg?"ham "+hex(raw.avg):"");
   tile("cin", vals.cin, "°C", 0);
-  tile("soc", vals.soc, "%", 1, vals.socd!=null ? "göstergede %"+fmt(vals.socd,0) : "");
+  tile("soc", vals.soc, "%", 1, [vals.socd!=null ? "göstergede %"+fmt(vals.socd,0) : "", vals.erem!=null ? "kalan ≈ "+fmt(vals.erem,1)+" kWh (aday)" : ""].filter(Boolean).join(" · "));
+  tile("cells", vals.cmax!=null&&vals.cmin!=null ? (vals.cmax-vals.cmin)*1000 : null, "mV fark", 0, vals.cmax!=null ? "maks "+fmt(vals.cmax,3)+" V · min "+fmt(vals.cmin,3)+" V" : "");
   tile("brake", vals.brake, "bar", 1, vals.brake==null ? "" : [vals.brk0,vals.brk1,vals.brk2,vals.brk3].map(x=>fmt(x,0)).join(" · "));
   { const w=[vals.w_fl,vals.w_fr,vals.w_rl,vals.w_rr], ok=w.filter(x=>x!=null);
     tile("wheels", ok.length?Math.max(...ok)-Math.min(...ok):null, "km/s fark", 0, ok.length ? "ön "+fmt(w[0],0)+" / "+fmt(w[1],0)+" · arka "+fmt(w[2],0)+" / "+fmt(w[3],0) : ""); }
@@ -2068,7 +2076,7 @@ const LOG_COLS = [["avg","bat_ort_C"],["cin","sogutma_giris_C"],["cout","guc_akt
   ["volt","voltaj_V"],["cur","akim_A"],["kw","guc_kW"],["rpm","motor_devri"],["torque","tork_Nm"],["vspd","arac_hizi_kmsa"],["gps","gps_hizi_kmsa"],
   ["lat","enlem"],["lon","boylam"],["odo","km_sayaci"],["p_fl","basinc_sol_on_psi"],["p_fr","basinc_sag_on_psi"],["p_rl","basinc_sol_arka_psi"],["p_rr","basinc_sag_arka_psi"],
   ["t_fl","lastik_sol_on_C"],["t_fr","lastik_sag_on_C"],["t_rl","lastik_sol_arka_C"],["t_rr","lastik_sag_arka_C"],["alt","irtifa_m"],["auto","oto_yolculuk"],["torqueCalc","tork_hesap_Nm"],
-  ["brake","fren_bar"],["w_fl","teker_sol_on_kmsa"],["w_fr","teker_sag_on_kmsa"],["w_rl","teker_sol_arka_kmsa"],["w_rr","teker_sag_arka_kmsa"],["socd","sarj_gosterge"],["v12","aku_12V"],["dlim","bat_izin_cekis_kW"],["clim","bat_izin_rejen_kW"]];
+  ["brake","fren_bar"],["w_fl","teker_sol_on_kmsa"],["w_fr","teker_sag_on_kmsa"],["w_rl","teker_sol_arka_kmsa"],["w_rr","teker_sag_arka_kmsa"],["socd","sarj_gosterge"],["v12","aku_12V"],["cmax","hucre_maks_V"],["cmin","hucre_min_V"],["tmin","bat_min_C"],["erem","kalan_enerji_kWh_aday"],["soh2","soh2_yuzde"]];
 const p2=n=>String(n).padStart(2,"0");
 const localStamp = t => { const d=new Date(t); return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3,"0")}`; };
 const LOG_HEADER = "zaman," + LOG_COLS.map(c=>c[1]).join(",");
