@@ -13,6 +13,7 @@
   .bar{display:flex;align-items:center;gap:10px;padding:12px 14px 8px}
   .bar h1{font-size:17px;margin:0;flex:1;font-weight:600}
   #btnSet{padding:8px 12px}
+  #btnSet.act{background:var(--acc);color:#fff;border-color:var(--acc)}
   #btnSet{font-size:16px} #btnSet .lbl{font-size:14px} @media (max-width:420px){ #btnSet .lbl{display:none} }
   nav{display:flex;gap:6px;overflow-x:auto;padding:0 14px 10px;scrollbar-width:none}
   nav::-webkit-scrollbar{display:none}
@@ -1300,12 +1301,18 @@ function goTab(t){ tab=t;
   for (const x of document.querySelectorAll("nav button")) x.classList.toggle("act", x.dataset.tab===t);
   for (const s of document.querySelectorAll("section")) s.classList.toggle("act", s.id==="tab-"+t);
   window.scrollTo(0,0); renderAll(); }
+// ⚙ aç/kapa: Panel'de panel ayarları penceresi; diğer sekmelerde Canlı'daki ayarlar kartı (ikinci basış geri döner)
+let setFrom=null, setScrollY=0;
+function setBtnState(on){ $("btnSet").classList.toggle("act", !!on); }
 $("btnSet").onclick = () => {
-  if (tab==="panel"){ try{ $("panelFrame").contentWindow.document.getElementById("btnSet").click(); return; }catch{} }
+  if (tab==="panel"){ try{ const d=$("panelFrame").contentWindow.document, dlg=d.getElementById("dlg");
+    if (dlg && dlg.open){ dlg.close(); setBtnState(false); } else { d.getElementById("btnSet").click(); setBtnState(true); dlg && dlg.addEventListener("close", ()=>setBtnState(false), {once:true}); } return; }catch{} }
+  if (setFrom){ const back=setFrom; setFrom=null; setBtnState(false); goTab(back.tab); setTimeout(()=>window.scrollTo({top:back.y}), 30); return; }
+  setFrom={tab, y:window.scrollY}; setBtnState(true);
   if (tab!=="live") goTab("live");
   setTimeout(()=>$("setCard").scrollIntoView({behavior:"smooth",block:"start"}), 50);
 };
-$("tabs").onclick = e => { const b=e.target.closest("button[data-tab]"); if(b) goTab(b.dataset.tab); };
+$("tabs").onclick = e => { const b=e.target.closest("button[data-tab]"); if(b){ setFrom=null; setBtnState(false); goTab(b.dataset.tab); } };
 $("cnFind").onclick = () => connect(false);
 $("cnAll").onclick = () => connect(true);
 $("cnCopy").onclick = () => copyText(["EX30 Reader hata raporu "+new Date().toISOString(), "Adres: "+location.protocol+"//"+location.host, "UA: "+navigator.userAgent, "",
