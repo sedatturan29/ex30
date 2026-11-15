@@ -139,7 +139,6 @@ public class BleBridge {
     @JavascriptInterface
     public void autoStartDisable() { AutoStart.disable(ctx); }
 
-    private void js(String s) { main.post(() -> web.evaluateJavascript(s, null)); }
 
     /** Bağlıyken arka planda okumaya devam etmek için ön plan hizmetini aç/kapat. */
     @JavascriptInterface
