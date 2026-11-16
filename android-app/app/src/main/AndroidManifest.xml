@@ -41,7 +41,8 @@
 
     <application
         android:label="EX30 Reader"
-        android:icon="@android:drawable/ic_lock_idle_charging"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@android:style/Theme.Material.NoActionBar"
         android:allowBackup="false">
         <uses-library android:name="android.car" android:required="false" />
