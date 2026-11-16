@@ -26,6 +26,7 @@ android {
         phone { dimension 'form' }
         car {
             dimension 'form'
+            applicationId 'ex30.reader'   // Play Console'daki uygulamanın paket adı (orta ekran)
             versionCode 200000 + runNumber
             minSdk 29   // app-automotive (şablonlu ekranın orta ekrandaki taşıyıcısı) bunu ister
         }
