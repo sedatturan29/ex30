@@ -462,6 +462,8 @@ async function loopBody(){
     }
     // 3) 12 V akü: adaptörün kendi ölçümü
     if (running && (cycle % (perfMode?60:20) === 0 || vals.v12==null)){ const m=/(\d+\.\d+)\s*V?/i.exec(await send("ATRV")); const v=m?parseFloat(m[1]):NaN; if (v>=6 && v<=16.5) vals.v12=v; }
+    // Teker hızlarında ara sıra sıçrama oluyor (15.11 log: okumaların ~%6'sı, 140 km/s'ye kadar): araç hızından çok sapanı at
+    if (vals.vspd!=null) for (const w of ["fl","fr","rl","rr"]){ const k="w_"+w, x=vals[k]; if (x!=null && Math.abs(x-vals.vspd) > Math.max(8, vals.vspd*0.15)) vals[k]=null; }
     const bk=[vals.brk0,vals.brk1,vals.brk2,vals.brk3].filter(x=>x!=null && isFinite(x)); vals.brake = bk.length ? bk.reduce((a,b)=>a+b,0)/bk.length : null;
     sample(true);
     if (pcfg.interval && !perfMode) await sleep(pcfg.interval); else await sleep(0);
