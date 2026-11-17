@@ -1498,7 +1498,7 @@ renderAll();
   <div class="t" id="t-soc"><div class="k">Şarj <span class="src">BMS</span></div><div class="v">–<small>%</small></div><div class="s"></div></div>
   <div class="t" id="t-cells"><div class="k">Hücre dengesi <span class="src">BMS</span></div><div class="v">–<small>mV</small></div><div class="s"></div></div>
   <div class="t" id="t-brake"><div class="k">Fren basıncı <span class="src">Şasi</span></div><div class="v">–<small>bar</small></div><div class="s"></div></div>
-  <div class="t" id="t-wheels"><div class="k">Teker hızları <span class="src">Şasi</span></div><div class="v">–<small>km/s</small></div><div class="s"></div></div>
+  <div class="t" id="t-wheels"><div class="k">Patinaj (teker hızları) <span class="src">Şasi</span></div><div class="v">–<small>km/s</small></div><div class="s"></div></div>
   <div class="t" id="t-v12"><div class="k">12 V akü <span class="src">Adaptör</span></div><div class="v">–<small>V</small></div><div class="s"></div></div>
   <div class="t" id="t-avgspd"><div class="k">Ortalama hız (yolculuk) <span class="src" id="avgSrc">GPS</span></div><div class="v">–<small>km/s</small></div><div class="s"></div></div>
   <div class="t w2 r2" id="t-trip"><div class="k tripk"><span class="seg" id="tripSeg"></span>
@@ -1581,7 +1581,7 @@ const BMS = {tx:"1DD01635", rx:"1EC6AE80"};
 const u16 = d => d.length>=2 ? d[d.length-2]*256 + d[d.length-1] : NaN;
 const beN = d => { let v=0; for (const x of d) v=v*256+x; return v; };
 // Performans ekranı açıkken: sadece güç/tork/devir/hız her turda, gerisi seyrek → ~3 kat hızlı okuma
-let perfMode=false; const PERF_FAST = new Set(["cur","volt","rpm","torque","vspd","brk0","brk1"]);
+let perfMode=false; const PERF_FAST = new Set(["cur","volt","rpm","torque","vspd","brk0","brk1","w_fl","w_fr","w_rl","w_rr"]);
 const effEvery = (id, ev) => perfMode ? (PERF_FAST.has(id) ? 1 : Math.max(8, ev)) : ev;
 window.ex30Perf = on => { perfMode=!!on; };
 const BMS_PIDS = [
@@ -1632,7 +1632,7 @@ const DEFAULT_SOURCES = {
 };
 // ifmeidan/ex-30-driver-display (MIT) çalışmasından: fren basıncı doğrulanmış; teker hızları aday; D901 göstergedeki şarj
 for (const [i,d] of ["FD00","FD01","FD02","FD03"].entries()) DEFAULT_SOURCES["brk"+i] = {tx:"1DD01701", rx:"1EE02E80", did:d, start:"0", len:"2", scale:"0.01", offset:"0", every:"2"};
-for (const [w,d] of [["fl","2B06"],["fr","2B07"],["rl","2B08"],["rr","2B09"]]) DEFAULT_SOURCES["w_"+w] = {tx:"1DD01701", rx:"1EE02E80", did:d, start:"0", len:"1", scale:"1", offset:"0", every:"3"};
+for (const [w,d] of [["fl","2B06"],["fr","2B07"],["rl","2B08"],["rr","2B09"]]) DEFAULT_SOURCES["w_"+w] = {tx:"1DD01701", rx:"1EE02E80", did:d, start:"0", len:"1", scale:"1", offset:"0", every:"1"};
 // Arka motor taraması (15.11): E300 ≈ DC bara gerilimi ×0,25 (batarya voltajıyla örtüşüyor); diğerleri adaylar, logdan doğrulanacak
 const M=(did,len,scale,offset,every)=>({tx:"1DD01637", rx:"1EC6EE80", did, start:"0", len:String(len), scale:String(scale), offset:String(offset), every:String(every)});
 Object.assign(DEFAULT_SOURCES, {mdcv:M("E300",2,0.25,0,3), minv:M("E305",1,1,-50,6), mtq2:M("E301",2,1,-8192,2), mtq3:M("E308",2,1,-8192,2), mrpm2:M("E312",2,1,-16384,4), mlim:M("E353",2,0.1,0,4), mx363:M("E363",1,1,0,4), mx314:M("E314",2,1,0,6), mx315:M("E315",2,1,0,6), mx341:M("E341",2,1,-13107,6)});
@@ -1648,6 +1648,7 @@ const store = { get(k,d){ try{ const v=localStorage.getItem("ex30."+k); return v
 const mainCfg = store.get("cfg", {});
 const sign = mainCfg.sign || 1;
 const pcfg = Object.assign({interval:0, sources:{}, logOn:true, logMode:"1000"}, store.get("panel", {}));
+for (const w of ["fl","fr","rl","rr"]){ const s=pcfg.sources["w_"+w]; if (s && s.did && s.did.startsWith("2B0") && s.every==="3") s.every="1"; }
 for (const k in DEFAULT_SOURCES) if (pcfg.sources[k] === undefined) pcfg.sources[k] = Object.assign({}, DEFAULT_SOURCES[k]);
 if (pcfg.sources.socd && pcfg.sources.socd.did==="D901") delete pcfg.sources.socd;
 // v1.8–v1.11'de lastik basıncı için denenen FEE7 kodu lastik değilmiş: kayıtlı ayarlardan kaldır
@@ -1765,6 +1766,7 @@ function cleanup(){ running=false; chW=null; logStop(); $("btnConn").textContent
 function disconnect(){ manual=true; try{ dev?.gatt?.disconnect(); }catch{} setPill("","Bağlı değil"); cleanup(); }
 
 // ============ Okuma döngüsü ============
+const valT={};   // kaynak değerlerinin son okunma zamanı (eski değerleri loga yazmamak için)
 let lastSampleT=0; const vals={}, raw={}; let running=false, cycle=0; const speed={req:[], cyc:[]};
 async function readDid(did){ const t0=performance.now(); const r=await send("22"+did+suffix); speed.req.push(performance.now()-t0); if (speed.req.length>50) speed.req.shift(); return r; }
 async function loop(){
@@ -1843,7 +1845,7 @@ async function loopBody(){
     defs.sort((a,b)=>(a[1].tx+a[1].rx).localeCompare(b[1].tx+b[1].rx));
     for (const [k,s] of defs){
       if (cycle % effEvery(k, Math.max(1, +s.every||5)) !== 0 && vals[k]!=null) continue;
-      add(s.tx.toUpperCase(), s.rx.toUpperCase(), s.did.toUpperCase(), b => { vals[k]=srcVal(s,b,false); raw[k]=b; });
+      add(s.tx.toUpperCase(), s.rx.toUpperCase(), s.did.toUpperCase(), b => { vals[k]=srcVal(s,b,false); raw[k]=b; valT[k]=Date.now(); });
     }
     for (const e of extras){
       if (cycle % effEvery(e.id, Math.max(1, +e.every||3)) !== 0 && vals[e.id]!=null) continue;
@@ -1857,8 +1859,6 @@ async function loopBody(){
     }
     // 3) 12 V akü: adaptörün kendi ölçümü
     if (running && (cycle % (perfMode?60:20) === 0 || vals.v12==null)){ const m=/(\d+\.\d+)\s*V?/i.exec(await send("ATRV")); const v=m?parseFloat(m[1]):NaN; if (v>=6 && v<=16.5) vals.v12=v; }
-    // Teker hızlarında ara sıra sıçrama oluyor (15.11 log: okumaların ~%6'sı, 140 km/s'ye kadar): araç hızından çok sapanı at
-    if (vals.vspd!=null) for (const w of ["fl","fr","rl","rr"]){ const k="w_"+w, x=vals[k]; if (x!=null && Math.abs(x-vals.vspd) > Math.max(8, vals.vspd*0.15)) vals[k]=null; }
     const bk=[vals.brk0,vals.brk1,vals.brk2,vals.brk3].filter(x=>x!=null && isFinite(x)); vals.brake = bk.length ? bk.reduce((a,b)=>a+b,0)/bk.length : null;
     sample(true);
     if (pcfg.interval && !perfMode) await sleep(pcfg.interval); else await sleep(0);
@@ -2013,7 +2013,8 @@ function render(){
   tile("cells", vals.cmax!=null&&vals.cmin!=null ? (vals.cmax-vals.cmin)*1000 : null, "mV fark", 0, vals.cmax!=null ? "maks "+fmt(vals.cmax,3)+" V · min "+fmt(vals.cmin,3)+" V" : "");
   tile("brake", vals.brake, "bar", 1, vals.brake==null ? "" : [vals.brk0,vals.brk1,vals.brk2,vals.brk3].map(x=>fmt(x,0)).join(" · "));
   { const w=[vals.w_fl,vals.w_fr,vals.w_rl,vals.w_rr], ok=w.filter(x=>x!=null);
-    tile("wheels", ok.length?Math.max(...ok)-Math.min(...ok):null, "km/s fark", 0, ok.length ? "ön "+fmt(w[0],0)+" / "+fmt(w[1],0)+" · arka "+fmt(w[2],0)+" / "+fmt(w[3],0) : ""); }
+    const fresh = ["w_fl","w_fr","w_rl","w_rr"].every(k=>valT[k] && Date.now()-valT[k]<2500);
+    tile("wheels", fresh && ok.length===4 ? (w[2]+w[3]-w[0]-w[1])/2 : null, "km/s arka−ön", 1, ok.length ? "ön "+fmt(w[0],0)+" / "+fmt(w[1],0)+" · arka "+fmt(w[2],0)+" / "+fmt(w[3],0) : ""); }
   tile("v12", vals.v12, "V", 1, vals.v12==null?"":vals.v12>=13.2?"şarj ediliyor (DC-DC)":vals.v12>=12.2?"normal":"düşük");
   tile("volt", vals.volt, "V", 1); tile("amp", vals.cur!=null?vals.cur*sign:null, "A", 1);
   tile("kw", vals.kw, "kW", 1, vals.kw==null?"":vals.kw<-0.3?"Şarj / rejen":vals.kw>0.3?"Çekiş":"Bekleme", vals.kw>0.3?"pos":vals.kw<-0.3?"neg":"");
@@ -2116,7 +2117,7 @@ const LOG_COLS = [["avg","bat_ort_C"],["cin","sogutma_giris_C"],["cout","guc_akt
   ["volt","voltaj_V"],["cur","akim_A"],["kw","guc_kW"],["rpm","motor_devri"],["torque","tork_Nm"],["vspd","arac_hizi_kmsa"],["gps","gps_hizi_kmsa"],
   ["lat","enlem"],["lon","boylam"],["odo","km_sayaci"],["p_fl","basinc_sol_on_psi"],["p_fr","basinc_sag_on_psi"],["p_rl","basinc_sol_arka_psi"],["p_rr","basinc_sag_arka_psi"],
   ["t_fl","lastik_sol_on_C"],["t_fr","lastik_sag_on_C"],["t_rl","lastik_sol_arka_C"],["t_rr","lastik_sag_arka_C"],["alt","irtifa_m"],["auto","oto_yolculuk"],["torqueCalc","tork_hesap_Nm"],
-  ["brake","fren_bar"],["w_fl","teker_sol_on_kmsa"],["w_fr","teker_sag_on_kmsa"],["w_rl","teker_sol_arka_kmsa"],["w_rr","teker_sag_arka_kmsa"],["socd","sarj_gosterge"],["v12","aku_12V"],["cmax","hucre_maks_V"],["cmin","hucre_min_V"],["tmin","bat_min_C"],["erem","kalan_enerji_kWh_aday"],["soh2","soh2_yuzde"],["mdcv","inv_dc_V"],["minv","inv_C_aday"],["mtq2","E301_tork_aday"],["mtq3","E308_tork_aday"],["mrpm2","E312_devir_aday"],["mlim","E353_sinir_yuzde"],["mx363","E363_aday"],["mx314","E314_aday"],["mx315","E315_aday"],["mx341","E341_aday"],
+  ["brake","fren_bar"],["w_fl","teker_sol_on_kmsa"],["w_fr","teker_sag_on_kmsa"],["w_rl","teker_sol_arka_kmsa"],["w_rr","teker_sag_arka_kmsa"],["slip","arka_eksi_on_kmsa"],["socd","sarj_gosterge"],["v12","aku_12V"],["cmax","hucre_maks_V"],["cmin","hucre_min_V"],["tmin","bat_min_C"],["erem","kalan_enerji_kWh_aday"],["soh2","soh2_yuzde"],["mdcv","inv_dc_V"],["minv","inv_C_aday"],["mtq2","E301_tork_aday"],["mtq3","E308_tork_aday"],["mrpm2","E312_devir_aday"],["mlim","E353_sinir_yuzde"],["mx363","E363_aday"],["mx314","E314_aday"],["mx315","E315_aday"],["mx341","E341_aday"],
   ["h28","vcu_4A28_C"],["h29","vcu_4A29_C"],["h30","vcu_4A30_C"],["h31","vcu_4A31_C"],["h32","vcu_4A32_C"],["h33","vcu_4A33_C"],["eused","harcanan_enerji_kWh_aday"],["pdis","bms_desarj_kW"],["pchg","bms_sarj_kW"]];
 const p2=n=>String(n).padStart(2,"0");
 const localStamp = t => { const d=new Date(t); return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3,"0")}`; };
@@ -2136,6 +2137,8 @@ async function logStart(){
 function logRow(now){
   if (!logSess) return; if (+pcfg.logMode && now-lastLogRow < +pcfg.logMode) return; lastLogRow=now;
   const v = Object.assign({}, vals, {vspd: carSpeed().v, p_fl: aaosTire("fl") ?? vals.p_fl, p_fr: aaosTire("fr") ?? vals.p_fr, p_rl: aaosTire("rl") ?? vals.p_rl, p_rr: aaosTire("rr") ?? vals.p_rr, gps: (geo.t && now-geo.t<5000) ? geo.spd : null, lat: geo.last?.lat, lon: geo.last?.lon, alt: (geo.alt!=null && now-geo.altT<15000) ? geo.alt : null, auto: trips.auto ? 1 : 0});
+  for (const w of ["w_fl","w_fr","w_rl","w_rr"]) if (!valT[w] || now-valT[w] > 2500) v[w]=null;
+  v.slip = [v.w_fl,v.w_fr,v.w_rl,v.w_rr].every(x=>x!=null) ? (v.w_rl+v.w_rr-v.w_fl-v.w_fr)/2 : null;
   const cols = LOG_COLS.map(c=>c[0]).concat((logSess.extra||[]).map(e=>e.id));
   const line = localStamp(now) + "," + cols.map(k=>{ const x=v[k]; return x==null||!isFinite(x) ? "" : (k==="lat"||k==="lon" ? (+x).toFixed(6) : +(+x).toFixed(3)); }).join(",");
   logBuf.push(line); logSess.rows++; logSess.bytes += line.length+1; logSess.end=now;
