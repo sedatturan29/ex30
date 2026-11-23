@@ -309,6 +309,11 @@ public class BleBridge {
     /** Kayıt dosyasını İndirilenler/EX30 klasörüne yazar ve paylaşma menüsünü açar. */
     @JavascriptInterface
     public void saveFile(final String name, final String mime, final String text) {
+        if (ctx.getPackageManager().hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE)) {
+            // Orta ekran: paylaşım menüsü yok; dosyayı aynı Wi-Fi'deki telefona QR ile sun
+            final String r = LogShare.serve(name, text.getBytes(StandardCharsets.UTF_8));
+            js("window.ex30Share&&ex30Share(" + r + ")");
+        }
         main.post(() -> {
             try {
                 byte[] bytes = text.getBytes(StandardCharsets.UTF_8);

@@ -1354,6 +1354,22 @@ $("addOk").onclick = () => { if (!addSel) return; const name=$("addName").value.
 $("extraList").onclick = e => { const b=e.target.closest("[data-exdel]"); if (!b) return; const ex=store.get("panelExtras",[]); ex.splice(+b.dataset.exdel,1); store.set("panelExtras",ex); renderExtras(); try{ panelWin && panelWin.ex30ReloadExtras && panelWin.ex30ReloadExtras(); }catch{} };
 fillUnitSelect(); renderUnits();
 fillScanHist(); if (scans.length) loadScan(scans[scans.length-1]);
+// ---- Orta ekrandan telefona kayıt aktarma (QR) ----
+window.ex30Share = o => {
+  let d=document.getElementById("shareDlg");
+  if (!d){ d=document.createElement("div"); d.id="shareDlg";
+    d.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px";
+    d.onclick=e=>{ if (e.target===d) d.remove(); }; document.body.appendChild(d); }
+  const esc=s=>String(s).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
+  d.innerHTML = `<div style="background:#151a21;border:1px solid #2c3440;border-radius:14px;padding:20px;max-width:640px;width:100%;color:#e8ecf2;display:flex;gap:20px;flex-wrap:wrap;align-items:center">
+    ${o.error ? `<div><h2 style="margin:0 0 8px">Telefona aktarılamadı</h2><p>${esc(o.error)}</p><p class="note">Dosya aracın İndirilenler/EX30 klasörüne yine de kaydedildi.</p></div>`
+    : `<img src="${o.qr}" alt="QR" style="width:220px;height:220px;border-radius:8px;background:#fff">
+       <div style="flex:1;min-width:220px"><h2 style="margin:0 0 8px">Telefona aktar</h2>
+       <ol style="margin:0;padding-left:18px;line-height:1.6"><li>Telefon ile araç <b>aynı Wi-Fi</b>'de olsun (en kolayı: telefonun hotspot'u)</li><li>Telefon kamerasıyla QR kodu okutun</li><li>Açılan sayfa <b>${esc(o.name)}</b> dosyasını indirir</li></ol>
+       <p class="note" style="word-break:break-all">${esc(o.url)}</p><p class="note">Bağlantı 10 dakika açık kalır.</p></div>`}
+    <div style="width:100%;text-align:right"><button onclick="document.getElementById('shareDlg').remove()">Kapat</button></div></div>`;
+};
+
 // ---- Arabaya binince otomatik başlat (Android uygulaması) ----
 function asRefresh(){
   const c=$("autoCard"); let st="unsupported";

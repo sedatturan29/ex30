@@ -55,6 +55,8 @@ android {
 dependencies {
     // Android Auto (Car App Library)
     implementation 'androidx.car.app:app:1.4.0'
+    // Orta ekrandan telefona kayıt aktarma için QR kod
+    implementation 'com.google.zxing:core:3.5.3'
     // Orta ekran Play sürümü: şablonlu ekranı gösteren CarAppActivity
     carImplementation 'androidx.car.app:app-automotive:1.4.0'
 }
