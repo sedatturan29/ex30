@@ -71,16 +71,27 @@ public class CarBridge {
         NAMES.put(291504901, "ENGINE_RPM");
     }
 
-    private final Activity act;
+    private final android.content.Context ctx;   // uygulama bağlamı: ekran açık olmasa da (sürüş ekranı/arka plan) çalışır
+    private volatile Activity act;               // izin istemek için; yoksa sadece verilmiş izinlerle okunur
     private final WebView web;
     private final Handler main = new Handler(Looper.getMainLooper());
     private Car car;
     private CarPropertyManager cpm;
     private boolean started;
 
-    CarBridge(Activity act, WebView web) {
-        this.act = act;
+    CarBridge(android.content.Context ctx, WebView web) {
+        this.ctx = ctx.getApplicationContext();
         this.web = web;
+    }
+
+    void setActivity(Activity a) {
+        act = a;
+        // Ekran ilk kez açıldı ve eksik izin varsa şimdi iste
+        if (a != null && started) main.post(() -> {
+            List<String> missing = new ArrayList<>();
+            for (String p : RUNTIME_PERMS) if (a.checkSelfPermission(p) != PackageManager.PERMISSION_GRANTED) missing.add(p);
+            if (!missing.isEmpty()) a.requestPermissions(missing.toArray(new String[0]), REQ_CAR);
+        });
     }
 
     private void js(final String code) { main.post(() -> web.evaluateJavascript(code, null)); }
@@ -97,10 +108,11 @@ public class CarBridge {
             if (started) { disconnect(); }
             List<String> missing = new ArrayList<>();
             for (String p : RUNTIME_PERMS)
-                if (act.checkSelfPermission(p) != PackageManager.PERMISSION_GRANTED) missing.add(p);
-            if (!missing.isEmpty() && !started) {
+                if (ctx.checkSelfPermission(p) != PackageManager.PERMISSION_GRANTED) missing.add(p);
+            Activity a = act;
+            if (!missing.isEmpty() && !started && a != null) {
                 started = true;
-                act.requestPermissions(missing.toArray(new String[0]), REQ_CAR);
+                a.requestPermissions(missing.toArray(new String[0]), REQ_CAR);
             } else {
                 started = true;
                 connect();
@@ -112,7 +124,8 @@ public class CarBridge {
 
     private void connect() {
         try {
-            car = Car.createCar(act);
+            if (car != null) return;
+            car = Car.createCar(ctx);
             cpm = (CarPropertyManager) car.getCarManager(Car.PROPERTY_SERVICE);
             if (cpm == null) { status("Araç servisi yok"); return; }
             List<CarPropertyConfig> configs = cpm.getPropertyList();

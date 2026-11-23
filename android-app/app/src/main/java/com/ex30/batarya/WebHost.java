@@ -181,6 +181,10 @@ final class WebHost {
                 }
             }
         });
+        // Orta ekranda araç verileri köprüsü baştan kurulur: sürüş ekranı ya da arka plan da aracın verilerini alır
+        if (app.getPackageManager().hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE)) {
+            try { carBridge = new CarBridge(app, web); web.addJavascriptInterface(carBridge, "AndroidCar"); } catch (Throwable ignored) { }
+        }
         web.loadUrl("https://ex30.app/ex30-reader.html");
     }
 
@@ -191,13 +195,7 @@ final class WebHost {
         ble.setActivity(a);
         if (web.getParent() instanceof ViewGroup) ((ViewGroup) web.getParent()).removeView(web);
         parent.addView(web, new ViewGroup.LayoutParams(-1, -1));
-        if (carBridge == null && a.getPackageManager().hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE)) {
-            try {
-                carBridge = new CarBridge(a, web);
-                web.addJavascriptInterface(carBridge, "AndroidCar");
-                web.reload();   // AndroidCar arayüzü yeni sayfada görünür
-            } catch (Throwable ignored) { }
-        }
+        if (carBridge != null) carBridge.setActivity(a);
     }
 
     /** Telefon ekranı kapandı: bağlantı ya da Android Auto sürüyorsa WebView yaşamaya devam eder. */
@@ -206,6 +204,7 @@ final class WebHost {
         if (web.getParent() instanceof ViewGroup) ((ViewGroup) web.getParent()).removeView(web);
         act = null;
         ble.setActivity(null);
+        if (carBridge != null) carBridge.setActivity(null);
         wrap.setBaseContext(app);
         if (!keepAlive && !carSession) destroy();
     }
