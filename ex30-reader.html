@@ -1871,6 +1871,8 @@ const aaos = k => { const v = carv[k]; return typeof v === "number" && isFinite(
 const WHEEL_AREA = {fl:1, fr:2, rl:4, rr:8};
 window.__car = o => { carv[o.area ? o.name+"@"+o.area : o.name] = o.value; if (!running) render(); };
 window.__carStatus = t => { const el=document.getElementById("aaosStatus"); if (el) el.textContent = t; };
+// Volvo EX30: EV_BATTERY_INSTANTANEOUS_CHARGE_RATE park halinde (şarj kablosu yokken) +201000 mW → deşarjı artı veriyor (Android tanımının tersi)
+function aaosPower(){ const v=aaos("EV_BATTERY_INSTANTANEOUS_CHARGE_RATE"); return v==null ? null : v/1e6; }
 function aaosSpeed(){ const v = aaos("PERF_VEHICLE_SPEED") ?? aaos("PERF_VEHICLE_SPEED_DISPLAY"); return v==null ? null : Math.abs(v)*3.6; }
 function aaosTire(w){ const v = aaos("TIRE_PRESSURE@"+WHEEL_AREA[w]); return v==null ? null : v*0.1450377; }   // kPa → psi
 function carSpeed(){ const a = aaosSpeed(); if (a!=null) return {v:a, src:"Araç"}; if (defined("vspd") && vals.vspd!=null) return {v:vals.vspd, src:"Araç"}; return {v:null, src:"GPS"}; }
@@ -1926,7 +1928,7 @@ function summarizeAcc(a, endT){
 function sample(fromLoop){
   const now=Date.now();
   if (fromLoop){ lastSampleT=now; speed.cyc.push(now); while (speed.cyc.length && now-speed.cyc[0]>10000) speed.cyc.shift(); }
-  const P = (vals.volt!=null && vals.cur!=null) ? vals.volt*vals.cur/1000*sign : (aaos("EV_BATTERY_INSTANTANEOUS_CHARGE_RATE")!=null ? -aaos("EV_BATTERY_INSTANTANEOUS_CHARGE_RATE")/1e6 : null);
+  const P = (vals.volt!=null && vals.cur!=null) ? vals.volt*vals.cur/1000*sign : (aaos("EV_BATTERY_INSTANTANEOUS_CHARGE_RATE")!=null ? aaosPower() : null);
   vals.kw = (vals.volt!=null && vals.cur!=null) ? P : vals.kw;
   const vs = carSpeed().v;
   if (lastS){
@@ -2009,7 +2011,7 @@ function render(){
   const now=Date.now(); if (now-lastR<250) return; lastR=now;
   tile("avg", vals.avg, "°C", 1, raw.avg?"ham "+hex(raw.avg):"");
   tile("cin", vals.cin, "°C", 0);
-  tile("soc", vals.soc, "%", 1, [vals.socd!=null ? "göstergede %"+fmt(vals.socd,0) : "", vals.erem!=null ? "kalan ≈ "+fmt(vals.erem,1)+" kWh (aday)" : ""].filter(Boolean).join(" · "));
+  tile("soc", vals.soc, "%", 1, [vals.socd!=null ? "göstergede %"+fmt(vals.socd,0) : "", aaos("EV_BATTERY_LEVEL")!=null ? "kalan "+fmt(aaos("EV_BATTERY_LEVEL")/1000,1)+(aaos("EV_CURRENT_BATTERY_CAPACITY")!=null?" / "+fmt(aaos("EV_CURRENT_BATTERY_CAPACITY")/1000,1):"")+" kWh" : vals.erem!=null ? "kalan ≈ "+fmt(vals.erem,1)+" kWh" : ""].filter(Boolean).join(" · "));
   tile("cells", vals.cmax!=null&&vals.cmin!=null ? (vals.cmax-vals.cmin)*1000 : null, "mV fark", 0, vals.cmax!=null ? "maks "+fmt(vals.cmax,3)+" V · min "+fmt(vals.cmin,3)+" V" : "");
   tile("brake", vals.brake, "bar", 1, vals.brake==null ? "" : [vals.brk0,vals.brk1,vals.brk2,vals.brk3].map(x=>fmt(x,0)).join(" · "));
   { const w=[vals.w_fl,vals.w_fr,vals.w_rl,vals.w_rr], ok=w.filter(x=>x!=null);
@@ -2033,7 +2035,7 @@ function render(){
   const fresh = geo.t && now-geo.t<5000, gps = fresh ? geo.spd : null;
   const cs = carSpeed(), car = cs.v;
   if (vals.avg==null && aaos("EV_BATTERY_AVERAGE_TEMPERATURE")!=null) tile("avg", aaos("EV_BATTERY_AVERAGE_TEMPERATURE"), "°C", 1, "Kaynak: araç (Android Automotive)");
-  if (vals.kw==null && aaos("EV_BATTERY_INSTANTANEOUS_CHARGE_RATE")!=null){ const k=-aaos("EV_BATTERY_INSTANTANEOUS_CHARGE_RATE")/1e6; tile("kw", k, "kW", 1, "Kaynak: araç (Android Automotive)", k>0.3?"pos":k<-0.3?"neg":""); }
+  if (vals.kw==null && aaos("EV_BATTERY_INSTANTANEOUS_CHARGE_RATE")!=null){ const k=aaosPower(); tile("kw", k, "kW", 1, "Kaynak: araç (Android Automotive)", k>0.3?"pos":k<-0.3?"neg":""); }
   { const out=aaos("ENV_OUTSIDE_TEMPERATURE"), rng=aaos("RANGE_REMAINING"); const el=$("t-soc").querySelector(".s");
     el.textContent = [out!=null?`Dış ${fmt(out,1)} °C`:null, rng!=null?`Menzil ${fmt(rng/1000,0)} km`:null].filter(Boolean).join(" · "); }
   const pct = (a,b) => (a!=null && b!=null && b>5) ? ` · fark ${(a-b>=0?"+":"")}${fmt((a-b)/b*100,1)}%` : "";
@@ -2117,7 +2119,8 @@ const LOG_COLS = [["avg","bat_ort_C"],["cin","sogutma_giris_C"],["cout","guc_akt
   ["volt","voltaj_V"],["cur","akim_A"],["kw","guc_kW"],["rpm","motor_devri"],["torque","tork_Nm"],["vspd","arac_hizi_kmsa"],["gps","gps_hizi_kmsa"],
   ["lat","enlem"],["lon","boylam"],["odo","km_sayaci"],["p_fl","basinc_sol_on_psi"],["p_fr","basinc_sag_on_psi"],["p_rl","basinc_sol_arka_psi"],["p_rr","basinc_sag_arka_psi"],
   ["t_fl","lastik_sol_on_C"],["t_fr","lastik_sag_on_C"],["t_rl","lastik_sol_arka_C"],["t_rr","lastik_sag_arka_C"],["alt","irtifa_m"],["auto","oto_yolculuk"],["torqueCalc","tork_hesap_Nm"],
-  ["brake","fren_bar"],["w_fl","teker_sol_on_kmsa"],["w_fr","teker_sag_on_kmsa"],["w_rl","teker_sol_arka_kmsa"],["w_rr","teker_sag_arka_kmsa"],["slip","arka_eksi_on_kmsa"],["socd","sarj_gosterge"],["v12","aku_12V"],["cmax","hucre_maks_V"],["cmin","hucre_min_V"],["tmin","bat_min_C"],["erem","kalan_enerji_kWh_aday"],["soh2","soh2_yuzde"],["mdcv","inv_dc_V"],["minv","inv_C_aday"],["mtq2","E301_tork_aday"],["mtq3","E308_tork_aday"],["mrpm2","E312_devir_aday"],["mlim","E353_sinir_yuzde"],["mx363","E363_aday"],["mx314","E314_aday"],["mx315","E315_aday"],["mx341","E341_aday"],
+  ["brake","fren_bar"],["w_fl","teker_sol_on_kmsa"],["w_fr","teker_sag_on_kmsa"],["w_rl","teker_sol_arka_kmsa"],["w_rr","teker_sag_arka_kmsa"],["slip","arka_eksi_on_kmsa"],
+  ["a_kw","aaos_guc_kW"],["a_kwh","aaos_kalan_kWh"],["a_cap","aaos_kapasite_kWh"],["a_rng","aaos_menzil_km"],["a_spd","aaos_hiz_kmsa"],["a_dsp","aaos_gosterge_kmsa"],["a_out","aaos_dis_C"],["a_rgn","aaos_rejen_mod"],["a_chg","aaos_sarj_durum"],["socd","sarj_gosterge"],["v12","aku_12V"],["cmax","hucre_maks_V"],["cmin","hucre_min_V"],["tmin","bat_min_C"],["erem","kalan_enerji_kWh_aday"],["soh2","soh2_yuzde"],["mdcv","inv_dc_V"],["minv","inv_C_aday"],["mtq2","E301_tork_aday"],["mtq3","E308_tork_aday"],["mrpm2","E312_devir_aday"],["mlim","E353_sinir_yuzde"],["mx363","E363_aday"],["mx314","E314_aday"],["mx315","E315_aday"],["mx341","E341_aday"],
   ["h28","vcu_4A28_C"],["h29","vcu_4A29_C"],["h30","vcu_4A30_C"],["h31","vcu_4A31_C"],["h32","vcu_4A32_C"],["h33","vcu_4A33_C"],["eused","harcanan_enerji_kWh_aday"],["pdis","bms_desarj_kW"],["pchg","bms_sarj_kW"]];
 const p2=n=>String(n).padStart(2,"0");
 const localStamp = t => { const d=new Date(t); return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3,"0")}`; };
@@ -2138,6 +2141,9 @@ function logRow(now){
   if (!logSess) return; if (+pcfg.logMode && now-lastLogRow < +pcfg.logMode) return; lastLogRow=now;
   const v = Object.assign({}, vals, {vspd: carSpeed().v, p_fl: aaosTire("fl") ?? vals.p_fl, p_fr: aaosTire("fr") ?? vals.p_fr, p_rl: aaosTire("rl") ?? vals.p_rl, p_rr: aaosTire("rr") ?? vals.p_rr, gps: (geo.t && now-geo.t<5000) ? geo.spd : null, lat: geo.last?.lat, lon: geo.last?.lon, alt: (geo.alt!=null && now-geo.altT<15000) ? geo.alt : null, auto: trips.auto ? 1 : 0});
   for (const w of ["w_fl","w_fr","w_rl","w_rr"]) if (!valT[w] || now-valT[w] > 2500) v[w]=null;
+  Object.assign(v, {a_kw: aaosPower(), a_kwh: aaos("EV_BATTERY_LEVEL")!=null ? aaos("EV_BATTERY_LEVEL")/1000 : null, a_cap: aaos("EV_CURRENT_BATTERY_CAPACITY")!=null ? aaos("EV_CURRENT_BATTERY_CAPACITY")/1000 : null,
+    a_rng: aaos("RANGE_REMAINING")!=null ? aaos("RANGE_REMAINING")/1000 : null, a_dsp: aaos("PERF_VEHICLE_SPEED_DISPLAY")!=null ? aaos("PERF_VEHICLE_SPEED_DISPLAY")*3.6 : null,
+    a_spd: aaos("PERF_VEHICLE_SPEED")!=null ? aaos("PERF_VEHICLE_SPEED")*3.6 : null, a_out: aaos("ENV_OUTSIDE_TEMPERATURE"), a_rgn: aaos("EV_REGENERATIVE_BRAKING_STATE"), a_chg: aaos("EV_CHARGE_STATE")});
   v.slip = [v.w_fl,v.w_fr,v.w_rl,v.w_rr].every(x=>x!=null) ? (v.w_rl+v.w_rr-v.w_fl-v.w_fr)/2 : null;
   const cols = LOG_COLS.map(c=>c[0]).concat((logSess.extra||[]).map(e=>e.id));
   const line = localStamp(now) + "," + cols.map(k=>{ const x=v[k]; return x==null||!isFinite(x) ? "" : (k==="lat"||k==="lon" ? (+x).toFixed(6) : +(+x).toFixed(3)); }).join(",");

@@ -75,6 +75,8 @@ public class CarBridge {
         NAMES.put(0x1141010b, "INFO_EXTERIOR_DIMENSIONS");
         NAMES.put(0x1141010c, "INFO_MULTI_EV_PORT_LOCATIONS");
         NAMES.put(0x1540010a, "INFO_DRIVER_SEAT");
+        NAMES.put(0x11510306, "WHEEL_TICK");
+        NAMES.put(0x11200405, "FUEL_LEVEL_LOW");
         NAMES.put(291504901, "ENGINE_RPM");
     }
 
