@@ -41,7 +41,7 @@ public class DashScreen extends Screen {
     private VirtualDisplay vd;
     private Presentation pres;
     private WebView mirror;
-    private String page = "panel";
+    private String page = "drive";
 
     private final Runnable tick = new Runnable() {
         @Override public void run() {
@@ -98,7 +98,7 @@ public class DashScreen extends Screen {
             });
             pres.setContentView(mirror);
             pres.show();
-            mirror.loadUrl("https://ex30.app/ex30-reader.html#mirror" + ("perf".equals(page) ? "-perf" : ""));
+            mirror.loadUrl("https://ex30.app/ex30-reader.html#mirror-" + page);
         } catch (Throwable e) {
             detach();
             drawError(c, "Ekran açılamadı: " + e.getMessage());
@@ -130,12 +130,13 @@ public class DashScreen extends Screen {
     @NonNull
     @Override
     public Template onGetTemplate() {
+        Action drive = new Action.Builder().setTitle("Sürüş").setOnClickListener(() -> show("drive")).build();
         Action panel = new Action.Builder().setTitle("Panel").setOnClickListener(() -> show("panel")).build();
         Action perf = new Action.Builder().setTitle("Performans").setOnClickListener(() -> show("perf")).build();
         Action list = new Action.Builder().setTitle("Liste")
                 .setOnClickListener(() -> getScreenManager().push(new BatteryScreen(getCarContext()))).build();
         return new NavigationTemplate.Builder()
-                .setActionStrip(new ActionStrip.Builder().addAction(panel).addAction(perf).addAction(list).build())
+                .setActionStrip(new ActionStrip.Builder().addAction(drive).addAction(panel).addAction(perf).addAction(list).build())
                 .build();
     }
 }

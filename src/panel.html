@@ -599,7 +599,13 @@ window.ex30Snap = () => { const n=v=>(v==null||!isFinite(v))?null:+v;
   return {t:lastSampleT, running, kw:n(vals.kw), volt:n(vals.volt), cur:n(vals.cur!=null?vals.cur*sign:null), rpm:n(vals.rpm), tq:n(tq), tqRaw:n(vals.torque),
     spd:n(carSpeed().v ?? geo.spd), minv:n(vals.minv), mdcv:n(vals.mdcv), cmax:n(vals.cmax), cmin:n(vals.cmin), tmin:n(vals.tmin), erem:n(vals.erem), soh2:n(vals.soh2), soc:n(vals.soc), avg:n(vals.avg), max:n(vals.max), cin:n(vals.cin), cout:n(vals.cout), motor:n(vals.motor),
     brake:n(vals.brake), v12:n(vals.v12), socd:n(vals.socd), ws:{fl:n(vals.w_fl),fr:n(vals.w_fr),rl:n(vals.w_rl),rr:n(vals.w_rr)}, multi:window.ex30Multi(),
-    out:n(aaos("ENV_OUTSIDE_TEMPERATURE")), tp:{fl:n(tirePsi("fl")),fr:n(tirePsi("fr")),rl:n(tirePsi("rl")),rr:n(tirePsi("rr"))}, tt:{fl:tc("fl"),fr:tc("fr"),rl:tc("rl"),rr:tc("rr")}, hz:speed.cyc.length>2?(speed.cyc.length-1)*1000/(speed.cyc.at(-1)-speed.cyc[0]):null, perf:perfMode};
+    out:n(aaos("ENV_OUTSIDE_TEMPERATURE")), tp:{fl:n(tirePsi("fl")),fr:n(tirePsi("fr")),rl:n(tirePsi("rl")),rr:n(tirePsi("rr"))}, tt:{fl:tc("fl"),fr:tc("fr"),rl:tc("rl"),rr:tc("rr")}, hz:speed.cyc.length>2?(speed.cyc.length-1)*1000/(speed.cyc.at(-1)-speed.cyc[0]):null, perf:perfMode,
+    kwAny: n(vals.kw ?? aaosPower()), trip:(()=>{ try{ return autoSnap(Date.now(), carSpeed().v ?? geo.spd).trip; }catch{ return null; } })(),
+    rng: aaos("RANGE_REMAINING")!=null ? n(aaos("RANGE_REMAINING")/1000) : null,
+    kwhLeft: aaos("EV_BATTERY_LEVEL")!=null ? n(aaos("EV_BATTERY_LEVEL")/1000) : n(vals.erem),
+    kwhCap: aaos("EV_CURRENT_BATTERY_CAPACITY")!=null ? n(aaos("EV_CURRENT_BATTERY_CAPACITY")/1000) : null,
+    slip: (()=>{ const k=["w_fl","w_fr","w_rl","w_rr"]; if (!k.every(x=>vals[x]!=null && valT[x] && Date.now()-valT[x]<2500)) return null; return (vals.w_rl+vals.w_rr-vals.w_fl-vals.w_fr)/2; })(),
+    dsp: aaos("PERF_VEHICLE_SPEED_DISPLAY")!=null ? n(aaos("PERF_VEHICLE_SPEED_DISPLAY")*3.6) : null};
 };
 // Android Auto ekranı için tek seferde gönderilen özet
 function autoSnap(now, vs){

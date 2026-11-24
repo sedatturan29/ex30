@@ -28,6 +28,52 @@
   button.mini{padding:5px 9px;font-size:12px;font-weight:500}
   main{padding:14px;max-width:1100px;margin:0 auto}
   section{display:none} section.act{display:block}
+  /* ======== Sürüş ekranı (Android Auto / orta ekran / telefon yatay) ========
+     Renkler EX30'un kendi boya adlarından: Moss Yellow çekiş, Cloud Blue rejen, Vapour Grey etiketler. */
+  /*@FONTS@*/
+  #tab-drive{--dv-bg:#12171B;--dv-line:#232B32;--dv-fg:#ECEFEC;--dv-mut:#8E999F;--dv-draw:#D6C45C;--dv-regen:#8DB5D6;--dv-warn:#EFA43A;--dv-hot:#EC5A4F;
+    font-family:'EX30 Gauge',system-ui,sans-serif;font-variant-numeric:tabular-nums lining-nums;color:var(--dv-fg)}
+  .dv{background:var(--dv-bg);display:grid;grid-template-columns:minmax(0,38fr) minmax(0,62fr);gap:1px;background-clip:padding-box;
+    height:calc(100vh - var(--dv-top,150px));min-height:420px;border-radius:14px;overflow:hidden;outline:1px solid var(--dv-line)}
+  body.mirror .dv{height:100vh;min-height:0;border-radius:0;outline:0}
+  .dv > *{background:var(--dv-bg)}
+  .dv-hero{display:flex;flex-direction:column;justify-content:space-evenly;padding:3.2vmin 3.6vmin;gap:1.2vmin;box-shadow:1px 0 0 var(--dv-line)}
+  .dv-kw{display:flex;align-items:baseline;gap:1.2vmin;line-height:.82}
+  .dv-kw b{font-weight:700;font-size:clamp(64px,24vmin,240px);letter-spacing:-.02em;transition:color .25s}
+  .dv-kw i{font-style:normal;font-weight:500;font-size:clamp(18px,5vmin,44px);color:var(--dv-mut)}
+  .dv-hero.pos .dv-kw b{color:var(--dv-draw)} .dv-hero.neg .dv-kw b{color:var(--dv-regen)}
+  /* imza öğe: güç şeridi — sıfırdan sağa çekiş, sola rejen; ince çizgi oturumun tepe değeri */
+  .dv-rib{position:relative;height:clamp(14px,3.4vmin,30px);background:#1B2227;border-radius:999px;overflow:hidden}
+  .dv-rib .f{position:absolute;top:0;bottom:0;transition:left .2s,width .2s}
+  .dv-rib .f.p{background:var(--dv-draw)} .dv-rib .f.n{background:var(--dv-regen)}
+  .dv-rib .z{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--dv-fg);opacity:.55}
+  .dv-rib .pk{position:absolute;top:0;bottom:0;width:3px;background:var(--dv-fg);opacity:.9}
+  .dv-scale{display:flex;justify-content:space-between;font-size:clamp(11px,2.4vmin,18px);color:var(--dv-mut);font-weight:500}
+  .dv-row{display:flex;gap:4vmin;align-items:baseline;margin-top:1vmin}
+  .dv-row div{display:flex;flex-direction:column}
+  .dv-row b{font-weight:700;font-size:clamp(36px,14vmin,140px);line-height:.9}
+  .dv-row span{font-size:clamp(12px,2.6vmin,20px);color:var(--dv-mut);font-weight:500}
+  .dv-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(4,minmax(0,1fr));gap:1px;background:var(--dv-line)}
+  .dv-c{background:var(--dv-bg);padding:1.4vmin 2vmin;display:flex;flex-direction:column;justify-content:center;gap:.8vmin;min-width:0;container-type:inline-size}
+  .dv-c .v{font-weight:700;font-size:min(9vmin,30cqw,96px);line-height:.95;white-space:nowrap;overflow:hidden;text-overflow:clip}
+  .dv-c .v small{font-weight:500;font-size:.42em;color:var(--dv-mut);margin-left:.15em}
+  .dv-c .l{font-size:clamp(11px,2.5vmin,19px);color:var(--dv-mut);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dv-c.w2{grid-column:span 2}
+  .dv-c .v.warn{color:var(--dv-warn)} .dv-c .v.hot{color:var(--dv-hot)} .dv-c .v.cold{color:var(--dv-regen)}
+  .dv-tires{display:grid;grid-template-columns:repeat(2,auto);column-gap:min(4vmin,8cqw);row-gap:.4vmin;justify-content:start;font-weight:700;font-size:min(6.2vmin,22cqw,64px);line-height:1}
+  #dv-tire.alt .dv-tires{display:none} #dv-tire:not(.alt) .v{display:none}
+  .dv-tires span.warn{color:var(--dv-warn)} .dv-tires span.hot{color:var(--dv-hot)}
+  .dv-stale{position:absolute;inset:auto 0 0 0;text-align:center;padding:1vmin;font-size:clamp(12px,2.6vmin,20px);color:var(--dv-warn)}
+  @media (max-aspect-ratio: 1/1){
+    .dv{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}
+    .dv-hero{box-shadow:0 1px 0 var(--dv-line);padding:4vmin}
+    .dv-grid{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(6,minmax(0,1fr))}
+    .dv-c .v{font-size:min(10vmin,30cqw,110px)}
+    #dv-tire{grid-column:span 3} #dv-tire .dv-tires{grid-template-columns:repeat(4,auto)}
+  }
+  @media (prefers-reduced-motion: reduce){ .dv-rib .f,.dv-kw b{transition:none} }
+
+  body.mirror main{max-width:none !important;padding:0 !important;margin:0 !important}
   body.mirror .bar, body.mirror #tabs, body.mirror #log, body.mirror #pfReset{display:none !important}
   body.mirror main, body.mirror .wrap{padding-top:0 !important}
   /* ---- Performans ---- */
@@ -111,6 +157,7 @@
     <button data-tab="conn" class="act">Bağlantı</button>
     <button data-tab="live">Canlı</button>
     <button data-tab="panel">Panel</button>
+    <button data-tab="drive">Sürüş</button>
     <button data-tab="perf">Performans</button>
     <button data-tab="charge">Şarj<span class="rec"></span></button>
     <button data-tab="cap">Kapasite</button>
@@ -298,6 +345,22 @@
       <div class="legend"><span><i style="background:var(--hot)"></i>Ort. sıcaklık</span><span><i style="background:var(--acc)"></i>Soğutma sıvısı</span><span><i style="background:var(--ok)"></i>Güç (kW, sağ)</span></div>
     </div>
     <div class="card"><h2>Test sonuçları</h2><div class="tbl" id="heatList"></div></div>
+  </section>
+
+  <!-- ============ SÜRÜŞ ============ -->
+  <section id="tab-drive">
+    <div class="dv" id="dv">
+      <div class="dv-hero" id="dvHero">
+        <div class="dv-kw"><b id="dvKw">–</b><i>kW</i></div>
+        <div class="dv-rib" id="dvRib"><div class="f n"></div><div class="f p"></div><div class="z"></div><div class="pk"></div></div>
+        <div class="dv-scale"><span>rejen −80</span><span>0</span><span>200 çekiş</span></div>
+        <div class="dv-row">
+          <div><b id="dvSpd">–</b><span>km/s</span></div>
+          <div><b id="dvSoc">–</b><span id="dvSocL">% şarj</span></div>
+        </div>
+      </div>
+      <div class="dv-grid" id="dvGrid"></div>
+    </div>
   </section>
 
   <!-- ============ PERFORMANS ============ -->
@@ -1295,7 +1358,74 @@ setInterval(pfTick, 250);
 $("pfReset").onclick=()=>{ const b=$("pfReset"); if (!b.dataset.ok){ b.dataset.ok="1"; b.textContent="Emin misiniz?"; setTimeout(()=>{ delete b.dataset.ok; b.textContent="Sıfırla"; },3000); return; }
   delete b.dataset.ok; b.textContent="Sıfırla"; pf={since:Date.now()}; store.set("perfPeaks",pf); pfTick(); };
 
+
+// =====================================================================
+//  Sürüş ekranı: tek bakışta okunacak büyük sayılar; Android Auto ve orta ekranda varsayılan görünüm
+// =====================================================================
+const DV_CELLS = [
+  // [id, etiket, değer(s) → [metin, birim, durum], genişlik]
+  ["bat",  "Batarya ort.",        s=>[f1(s.avg,1), "°C", s.avg==null?"":s.avg<10?"cold":s.avg>45?"hot":s.avg>38?"warn":""]],
+  ["cell", "En sıcak hücre",      s=>[f1(s.max,1), "°C", s.max!=null&&s.max>45?"hot":"", s.tmin!=null?"En sıcak hücre · en soğuk "+f1(s.tmin,1)+"°":null]],
+  ["cin",  "Soğutma girişi",      s=>[f1(s.cin,0), "°C", ""]],
+  ["cout", "Güç devresi",         s=>[f1(s.cout,0), "°C", s.cout!=null&&s.cout>65?"warn":""]],
+  ["mot",  "Motor",               s=>[f1(s.motor,0), "°C", s.motor==null?"":s.motor>110?"hot":s.motor>90?"warn":""]],
+  ["rpm",  "Devir (d/dk)",        s=>[s.rpm==null?"–":Math.round(s.rpm).toLocaleString("tr-TR"), "", ""]],
+  ["tq",   "Tork",                s=>[f1(s.tq,0), "Nm", ""]],
+  ["amp",  "Akım",                s=>[f1(s.cur,0), "A", ""]],
+  ["kwh",  "Kalan enerji",        s=>[f1(s.kwhLeft,1), "kWh", "", s.kwhCap?"Kalan enerji · "+f1(s.kwhCap,1)+" kWh kapasite":null]],
+  ["rng",  "Menzil",              s=>[f1(s.rng,0), "km", s.rng!=null&&s.rng<40?"warn":""]],
+  ["cons", "Yolculuk tüketimi",   s=>[f1(s.trip?.cons,1), "kWh/100", ""]],
+  ["trip", "Yolculuk",            s=>[f1(s.trip?.km,1), "km", "", s.trip?"Yolculuk "+(s.trip.name||"")+" · "+(s.trip.min??"–")+" dk":null]],
+  ["dcell","Hücre gerilim farkı", s=>[s.cmax!=null&&s.cmin!=null?f1((s.cmax-s.cmin)*1000,0):"–", "mV", s.cmax!=null&&s.cmin!=null&&(s.cmax-s.cmin)>0.05?"warn":""]],
+  ["brk",  "Fren",                s=>[f1(s.brake,0), "bar", ""]],
+  ["v12",  "12 V akü",            s=>[f1(s.v12,1), "V", s.v12!=null&&s.v12<12.2?"warn":""]],
+  ["tire", "Lastikler (psi)",     null],
+];
+function dvBuild(){
+  $("dvGrid").innerHTML = DV_CELLS.map(([id,l])=> id==="tire"
+    ? `<div class="dv-c" id="dv-${id}"><div class="dv-tires"><span>–</span><span>–</span><span>–</span><span>–</span></div><div class="l">${l}</div></div>`
+    : `<div class="dv-c" id="dv-${id}"><div class="v">–</div><div class="l">${l}</div></div>`).join("");
+}
+dvBuild();
+const tireCls = p => p==null ? "" : (p<33||p>45) ? "hot" : (p<36||p>42) ? "warn" : "";
+let dvLastT=0;
+function dvTick(){
+  if (tab!=="drive") return;
+  let s=null; try{ s = panelWin && panelWin.ex30Snap ? panelWin.ex30Snap() : null; }catch{}
+  const live = s && s.t && Date.now()-s.t < 5000;
+  if (!live) s = s || {};
+  const kw = live ? s.kwAny : null;
+  $("dvKw").textContent = kw==null ? "–" : (kw>0.5?"+":"")+f1(kw,0);
+  $("dvHero").classList.toggle("pos", kw!=null && kw>0.5); $("dvHero").classList.toggle("neg", kw!=null && kw<-0.5);
+  const lo=-80, hi=200, X=v=>(Math.max(lo,Math.min(hi,v))-lo)/(hi-lo)*100, z=X(0);
+  const [fn,fp,zz,pk] = $("dvRib").children;
+  zz.style.left=z+"%";
+  if (kw!=null && kw<0){ fn.style.left=X(kw)+"%"; fn.style.width=(z-X(kw))+"%"; } else fn.style.width="0";
+  if (kw!=null && kw>0){ fp.style.left=z+"%"; fp.style.width=(X(kw)-z)+"%"; } else fp.style.width="0";
+  if (pf.kw!=null){ pk.style.display=""; pk.style.left=X(pf.kw)+"%"; } else pk.style.display="none";
+  $("dvSpd").textContent = live ? f1(s.spd,0) : "–";
+  $("dvSoc").textContent = live ? f1(s.soc,0) : "–";
+  for (const [id,,fn2] of DV_CELLS){
+    const el=$("dv-"+id); if (!el) continue;
+    if (id==="tire"){ const sp=el.querySelectorAll(".dv-tires span"), t=s.tp||{};
+      // Lastik basıncı okunamıyorsa (TPMS kodu henüz yok) hücre dış hava sıcaklığını gösterir
+      const noTp = !live || ["fl","fr","rl","rr"].every(w=>t[w]==null);
+      el.classList.toggle("alt", noTp);
+      if (noTp){ let v=el.querySelector(".v"); if (!v){ v=document.createElement("div"); v.className="v"; el.prepend(v); }
+        v.innerHTML = `${live?f1(s.out,0):"–"}<small>°C</small>`; el.lastElementChild.textContent="Dış hava"; continue; }
+      el.lastElementChild.textContent="Lastikler (psi)";
+      ["fl","fr","rl","rr"].forEach((w,i)=>{ const v=live?t[w]:null; sp[i].textContent = v==null?"–":f1(v,0); sp[i].className = tireCls(v); }); continue; }
+    const [txt,unit,cls,lab] = live ? fn2(s) : ["–","","",null];
+    const v=el.firstElementChild; v.className="v "+(cls||""); v.innerHTML = `${txt}<small>${unit}</small>`;
+    const l=el.lastElementChild, def=DV_CELLS.find(c=>c[0]===id)[1]; if (l.textContent!==(lab||def)) l.textContent = lab||def;
+  }
+}
+setInterval(dvTick, 300);
+function dvSize(){ const top = document.body.classList.contains("mirror") ? 0 : ($("dv").getBoundingClientRect().top + window.scrollY + 12); document.documentElement.style.setProperty("--dv-top", top+"px"); }
+window.addEventListener("resize", ()=>{ if (tab==="drive") dvSize(); });
+
 function goTab(t){ tab=t;
+  if (t==="drive"){ ensurePanel(); setTimeout(()=>{ dvSize(); dvTick(); }, 0); }
   if (t==="perf") ensurePanel();
   try{ panelWin && panelWin.ex30Perf && panelWin.ex30Perf(t==="perf"); }catch{}
   document.body.classList.toggle("panelmode", t==="panel");
@@ -1394,7 +1524,7 @@ $("scDel").onclick = () => { const b=$("scDel"); if (!curScan) return;
   delete b.dataset.ok; b.textContent="Sil"; scans=scans.filter(s=>s!==curScan); saveScans(); fillScanHist(); loadScan(scans[scans.length-1]); };
 if (location.hash==="#panel") setTimeout(()=>goTab("panel"), 0);
 // Ayna modu (Android Auto / orta ekran sürüş ekranı): sadece Panel ya da Performans, üst çubuk ve sekmeler gizli
-if (/mirror/.test(location.hash)){ document.body.classList.add("mirror"); const go=()=>goTab(/perf/.test(location.hash)?"perf":"panel"); if (document.readyState==="complete") go(); else window.addEventListener("load", go); }
+if (/mirror/.test(location.hash)){ document.body.classList.add("mirror"); const go=()=>goTab(/perf/.test(location.hash)?"perf":/panel/.test(location.hash)?"panel":"drive"); if (document.readyState==="complete") go(); else window.addEventListener("load", go); }
 window.ex30MirrorState = () => { try{ ensurePanel(); return panelWin && panelWin.ex30MirrorState ? panelWin.ex30MirrorState() : null; }catch{ return null; } };
 window.ex30MirrorApply = s => { try{ const f=$("panelFrame").contentWindow; f && f.ex30MirrorApply && f.ex30MirrorApply(s); }catch{} };
 try{ if (autoMode()) setTimeout(()=>ex30AutoConnect(), 500); }catch{}
