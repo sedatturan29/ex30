@@ -73,7 +73,7 @@
                 <action android:name="android.companion.CompanionDeviceService" />
             </intent-filter>
         </service>
-        <service android:name=".EX30MediaService" android:exported="true" android:label="EX30 Reader">
+        <service android:name=".EX30MediaService" android:exported="true" android:label="EX30 Mini">
             <intent-filter>
                 <action android:name="android.media.browse.MediaBrowserService" />
             </intent-filter>
