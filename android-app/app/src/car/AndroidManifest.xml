@@ -11,7 +11,12 @@
     <!-- Orta ekran açılınca okumayı kendiliğinden başlatmak için -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- Orta ekran Play sürümü navigasyon değil (IOT): telefon için eklenen izinleri/medya servisini çıkar -->
+    <uses-permission android:name="androidx.car.app.NAVIGATION_TEMPLATES" tools:node="remove" />
+    <uses-permission android:name="androidx.car.app.ACCESS_SURFACE" tools:node="remove" />
+
     <application>
+        <service android:name=".EX30MediaService" tools:node="remove" />
         <!-- Tam ekran (kendi tasarımımız): yalnızca park halinde -->
         <activity android:name=".MainActivity" android:label="EX30 Reader">
             <meta-data android:name="distractionOptimized" tools:node="remove" />
