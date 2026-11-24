@@ -31,8 +31,6 @@
   /* ======== Sürüş ekranı (Android Auto / orta ekran / telefon yatay) ========
      Renkler EX30'un kendi boya adlarından: Moss Yellow çekiş, Cloud Blue rejen, Vapour Grey etiketler. */
   /*@FONTS@*/
-  #tab-drive{--dv-bg:#12171B;--dv-line:#232B32;--dv-fg:#ECEFEC;--dv-mut:#8E999F;--dv-draw:#D6C45C;--dv-regen:#8DB5D6;--dv-warn:#EFA43A;--dv-hot:#EC5A4F;
-    font-family:'EX30 Gauge',system-ui,sans-serif;font-variant-numeric:tabular-nums lining-nums;color:var(--dv-fg)}
   .dv{background:var(--dv-bg);display:grid;grid-template-columns:minmax(0,38fr) minmax(0,62fr);gap:1px;background-clip:padding-box;
     height:calc(100vh - var(--dv-top,150px));min-height:420px;border-radius:14px;overflow:hidden;outline:1px solid var(--dv-line)}
   body.mirror .dv{height:100vh;min-height:0;border-radius:0;outline:0}
@@ -77,21 +75,47 @@
   body.mirror .bar, body.mirror #tabs, body.mirror #log, body.mirror #pfReset{display:none !important}
   body.mirror main, body.mirror .wrap{padding-top:0 !important}
   /* ---- Performans ---- */
-  #tab-perf .pgrid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin-top:12px}
-  @media (min-width:760px){ #tab-perf .pgrid{grid-template-columns:minmax(260px,0.9fr) minmax(0,1.1fr)} }
-  #tab-perf .pgrid .card{margin-top:0}
-  #pfGauge{width:100%;max-width:560px;display:block;margin:0 auto}
-  .ptiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-  .pt{background:#0f1218;border:1px solid var(--line);border-radius:10px;padding:8px 10px}
-  .pt b{display:block;font-size:11px;color:var(--mut);font-weight:500;letter-spacing:.02em}
-  .pt .v{font-size:24px;font-weight:650;font-variant-numeric:tabular-nums;line-height:1.15}
-  .pt .v small{font-size:12px;color:var(--mut);font-weight:500;margin-left:3px}
-  .pt .s{font-size:11px;color:var(--mut);min-height:14px}
-  .pbar{height:5px;background:#242a34;border-radius:3px;margin-top:5px;overflow:hidden}
-  .pbar i{display:block;height:100%;background:var(--acc);border-radius:3px;width:0;transition:width .2s}
-  #pfCar{width:100%;max-width:300px;display:block;margin:0 auto}
-  .peaks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 14px;font-size:13px}
-  @media (min-width:760px){ .peaks{grid-template-columns:repeat(4,minmax(0,1fr))} }
+  /* ======== Performans (pist modu): Sürüş ekranıyla aynı renk ve yazı dili ======== */
+  #tab-drive, #tab-perf{--dv-bg:#12171B;--dv-line:#232B32;--dv-fg:#ECEFEC;--dv-mut:#8E999F;--dv-draw:#D6C45C;--dv-regen:#8DB5D6;--dv-warn:#EFA43A;--dv-hot:#EC5A4F;--dv-ok:#6F9484;
+    font-family:'EX30 Gauge',system-ui,sans-serif;font-variant-numeric:tabular-nums lining-nums;color:var(--dv-fg)}
+  .pv{display:grid;grid-template-columns:minmax(0,25fr) minmax(0,43fr) minmax(0,32fr);gap:1px;background:var(--dv-line);
+    height:calc(100vh - var(--dv-top,150px));min-height:440px;border-radius:14px;overflow:hidden;outline:1px solid var(--dv-line)}
+  body.mirror .pv{height:100vh;min-height:0;border-radius:0;outline:0}
+  .pv > div{background:var(--dv-bg);min-width:0;min-height:0}
+  .pv svg text{font-family:'EX30 Gauge',system-ui,sans-serif;font-variant-numeric:tabular-nums}
+  .pv-car{display:flex;align-items:center;justify-content:center;padding:1.5vmin}
+  .pv-car svg{width:100%;height:100%;max-height:100%}
+  .pv-mid{display:grid;grid-template-rows:auto minmax(0,1fr) auto;padding:1.6vmin 2.4vmin 2vmin}
+  .pv-top{display:flex;justify-content:flex-end;font-size:clamp(11px,2.3vmin,17px);color:var(--dv-mut);font-weight:500}
+  #pfGauge{width:100%;height:100%;min-height:0}
+  .pv-meters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.6vmin 3.2vmin}
+  .pm{container-type:inline-size}
+  .pm .v{font-weight:700;font-size:min(8vmin,26cqw,84px);line-height:.95;white-space:nowrap}
+  .pm .v small{font-weight:500;font-size:.42em;color:var(--dv-mut);margin-left:.15em}
+  .pm .l{display:flex;justify-content:space-between;gap:8px;font-size:clamp(11px,2.3vmin,18px);color:var(--dv-mut);font-weight:500;margin-top:.5vmin}
+  .pm .pmb{position:relative;height:clamp(5px,1.1vmin,9px);background:#1B2227;border-radius:9px;margin-top:.8vmin;overflow:hidden}
+  .pm .pmb i{position:absolute;left:0;top:0;bottom:0;background:var(--dv-fg);border-radius:9px;transition:width .2s}
+  .pm .pmb b{position:absolute;top:0;bottom:0;width:2px;background:var(--dv-draw)}
+  .pv-side{display:grid;grid-template-rows:minmax(0,1fr) auto auto;padding:1.6vmin 2.4vmin 2vmin;gap:1.4vmin}
+  #pfG{width:100%;height:100%;min-height:0}
+  .pv-acc{display:flex;align-items:baseline;justify-content:space-between;gap:2vmin;border-top:1px solid var(--dv-line);padding-top:1.4vmin}
+  .pv-acc .v{font-weight:700;font-size:min(9vmin,90px);line-height:.9}
+  .pv-acc .v small{font-weight:500;font-size:.4em;color:var(--dv-mut);margin-left:.15em}
+  .pv-acc .l{font-size:clamp(11px,2.3vmin,18px);color:var(--dv-mut);font-weight:500;text-align:right;line-height:1.35}
+  .pv-acc.run .v{color:var(--dv-draw)}
+  .pv-peaks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.6vmin 2.4vmin;font-size:clamp(11px,2.4vmin,19px);border-top:1px solid var(--dv-line);padding-top:1.2vmin}
+  .pv-peaks div{display:flex;justify-content:space-between;gap:6px;white-space:nowrap;overflow:hidden}
+  .pv-peaks span{color:var(--dv-mut)} .pv-peaks em{font-style:normal;font-weight:700}
+  .pv-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:10px}
+  .pv-foot .note{margin:0;flex:1}
+  body.mirror .pv-foot{display:none}
+  @media (max-aspect-ratio: 1/1){
+    .pv{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:minmax(0,56fr) minmax(0,44fr)}
+    .pv-mid{grid-column:1/3;grid-row:1}
+    .pv-car{grid-row:2} .pv-side{grid-row:2}
+    .pm .v{font-size:min(9vmin,26cqw,96px)}
+  }
+  @media (prefers-reduced-motion: reduce){ .pm .pmb i{transition:none} }
   .peaks div{display:flex;justify-content:space-between;border-bottom:1px solid var(--line);padding:4px 0}
   .peaks span{color:var(--mut)} .peaks em{font-style:normal;font-weight:600;font-variant-numeric:tabular-nums}
 
@@ -365,19 +389,22 @@
 
   <!-- ============ PERFORMANS ============ -->
   <section id="tab-perf">
-    <div class="card" style="margin-top:0">
-      <div class="row" style="justify-content:space-between"><h2 style="margin:0">Güç</h2><span class="note" id="pfStat" style="margin:0">Bağlı değil</span></div>
-      <svg id="pfGauge" viewBox="-40 0 480 225" aria-label="Güç göstergesi"></svg>
-      <p class="note" style="text-align:center;margin-top:0" id="pfLim">Yeşil: çekiş · Mavi: rejen/şarj · Turuncu çizgi: en yüksek</p>
+    <div class="pv" id="pv">
+      <div class="pv-car"><svg id="pfCar" viewBox="0 0 280 440" aria-label="Araç şeması: batarya, motor ve tekerler"></svg></div>
+      <div class="pv-mid">
+        <div class="pv-top" id="pfStat">Bağlı değil</div>
+        <svg id="pfGauge" viewBox="-36 0 472 274" preserveAspectRatio="xMidYMid meet" aria-label="Güç göstergesi"></svg>
+        <div class="pv-meters" id="pfMeters"></div>
+      </div>
+      <div class="pv-side">
+        <svg id="pfG" viewBox="-120 -120 240 240" preserveAspectRatio="xMidYMid meet" aria-label="İvme dairesi"></svg>
+        <div class="pv-acc" id="pf100"></div>
+        <div class="pv-peaks" id="pfPeaks"></div>
+      </div>
     </div>
-    <div class="pgrid">
-      <div class="card"><h2>Araç</h2><svg id="pfCar" viewBox="0 0 240 380" aria-label="Araç şeması"></svg></div>
-      <div class="card"><h2>Motor ve batarya</h2><div class="ptiles" id="pfTiles"></div></div>
-    </div>
-    <div class="card">
-      <div class="row" style="justify-content:space-between"><h2 style="margin:0">Rekorlar</h2><button class="sec mini" id="pfReset">Sıfırla</button></div>
-      <div class="peaks" id="pfPeaks" style="margin-top:8px"></div>
-      <p class="note">Bu sekme açıkken okuma güç, tork, devir ve hıza odaklanır (saniyede ~3 okuma); sıcaklıklar daha seyrek okunur. 0–100 süresi okuma aralığı yüzünden ±0,3 sn yaklaşıktır. Motor mili gücü = tork × devir; batarya gücü ile arasındaki fark motor/inverter kayıpları ve yan tüketicilerdir.</p>
+    <div class="pv-foot">
+      <p class="note">Bu sekme açıkken okuma güç, tork, devir ve hıza odaklanır. 0–100 süresi okuma aralığı yüzünden ±0,3 sn yaklaşıktır. İleri/geri ivme hızdan, yanal ivme GPS yönünden hesaplanır.</p>
+      <button class="sec mini" id="pfReset">Rekorları sıfırla</button>
     </div>
   </section>
 
@@ -1272,91 +1299,124 @@ function pfUpdatePeaks(s){
   }
   store.set("perfPeaks", pf);
 }
+// ---- ivme: ileri/geri hız türevinden, yanal = hız × sapma hızı (GPS yönü)
+const pfHist=[]; let pfAx=null, pfTrail=[];
+function pfAccel(s){
+  if (s.spd==null || !s.t) return;
+  if (!pfHist.length || pfHist.at(-1).t!==s.t){ pfHist.push({t:s.t, v:s.spd/3.6}); while (pfHist.length && s.t-pfHist[0].t>900) pfHist.shift(); }
+  if (pfHist.length>=3){ const n=pfHist.length, mt=pfHist.reduce((q,p)=>q+p.t,0)/n, mv=pfHist.reduce((q,p)=>q+p.v,0)/n;
+    let num=0, den=0; for (const p of pfHist){ num+=(p.t-mt)*(p.v-mv); den+=(p.t-mt)**2; }
+    const ax = den>0 ? num/den*1000/9.81 : null; if (ax!=null && Math.abs(ax)<1.5) pfAx = pfAx==null ? ax : pfAx*0.5+ax*0.5; }
+}
+function pfGs(s){
+  const lon = pfAx, lat = s.yaw!=null && s.spd!=null ? (s.spd/3.6)*s.yaw/9.81 : null;
+  return {lon, lat: lat!=null && Math.abs(lat)<1.5 ? lat : null};
+}
+const heat = (t, cold, ok, warm) => t==null ? "#2A333A" : t<cold ? "var(--dv-regen)" : t<=ok ? "var(--dv-ok)" : t<=warm ? "var(--dv-warn)" : "var(--dv-hot)";
 function pfGauge(s){
-  const cx=200, cy=200, R=158, A0=Math.PI*1.08, A1=-Math.PI*0.08;
-  const lo = -80, hi = 200;
-  const ang = v => A0 + (Math.min(hi,Math.max(lo,v))-lo)/(hi-lo)*(A1-A0);
-  const pt = (a,r) => [cx+r*Math.cos(a), cy-r*Math.sin(a)];
-  const arc = (v0,v1,r) => { const a0=ang(v0), a1=ang(v1), [x0,y0]=pt(a0,r), [x1,y1]=pt(a1,r); const large=Math.abs(a1-a0)>Math.PI?1:0; return `M${x0.toFixed(1)} ${y0.toFixed(1)} A${r} ${r} 0 ${large} ${a1<a0?1:0} ${x1.toFixed(1)} ${y1.toFixed(1)}`; };
-  let g=`<path d="${arc(lo,hi,R)}" stroke="#242a34" stroke-width="22" fill="none"/>`;
-  const kw=s?.kw;
-  if (kw!=null && Math.abs(kw)>0.3) g+=`<path d="${arc(Math.min(0,kw),Math.max(0,kw),R)}" stroke="${kw>0?"var(--ok)":"var(--acc)"}" stroke-width="22" fill="none"/>`;
-  for (let v=Math.ceil(lo/20)*20; v<=hi; v+=20){ const a=ang(v), [x0,y0]=pt(a,R+13), [x1,y1]=pt(a,R+(v%100===0?22:17)), [tx,ty]=pt(a,R+34);
-    g+=`<line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}" stroke="#5b6475" stroke-width="${v===0?2.5:1.2}"/>`;
-    if (v%40===0 || v===lo) g+=`<text x="${tx}" y="${ty+4}" fill="#8a94a6" font-size="11" text-anchor="middle">${v}</text>`; }
-  if (pf.kw!=null){ const a=ang(pf.kw), [x0,y0]=pt(a,R-14), [x1,y1]=pt(a,R+14); g+=`<line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}" stroke="var(--hot)" stroke-width="3"/>`; }
-  if (pf.regen!=null && pf.regen<0){ const a=ang(pf.regen), [x0,y0]=pt(a,R-14), [x1,y1]=pt(a,R+14); g+=`<line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}" stroke="#9fd0ff" stroke-width="3"/>`; }
-  if (kw!=null){ const a=ang(kw), [x,y]=pt(a,R-30); g+=`<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="#e8ecf2" stroke-width="3" stroke-linecap="round"/><circle cx="${cx}" cy="${cy}" r="7" fill="#e8ecf2"/>`; }
-  const mech=s?pfMech(s):null;
-  g+=`<text x="${cx}" y="${cy-62}" fill="#e8ecf2" font-size="46" font-weight="700" text-anchor="middle">${f1(kw)}</text>`;
-  g+=`<text x="${cx}" y="${cy-40}" fill="#8a94a6" font-size="13" text-anchor="middle">kW batarya</text>`;
-  g+=`<text x="${cx}" y="${cy-18}" fill="#e8ecf2" font-size="15" text-anchor="middle">${mech!=null?`mil ${f1(mech)} kW · ${f1(mech*PS)} PS`:" "}</text>`;
+  const cx=200, cy=196, R=150, A0=Math.PI*1.1, A1=-Math.PI*0.1, lo=-80, hi=200;
+  const ang=v=>A0+(Math.min(hi,Math.max(lo,v))-lo)/(hi-lo)*(A1-A0), pt=(a,r)=>[cx+r*Math.cos(a), cy-r*Math.sin(a)];
+  const arc=(v0,v1,r)=>{ const a0=ang(v0),a1=ang(v1),[x0,y0]=pt(a0,r),[x1,y1]=pt(a1,r); return `M${x0.toFixed(1)} ${y0.toFixed(1)} A${r} ${r} 0 ${Math.abs(a1-a0)>Math.PI?1:0} ${a1<a0?1:0} ${x1.toFixed(1)} ${y1.toFixed(1)}`; };
+  const kw=s?.kwAny ?? s?.kw;
+  let g=`<path d="${arc(lo,hi,R)}" stroke="#1B2227" stroke-width="26" fill="none"/>`;
+  if (kw!=null && Math.abs(kw)>0.3) g+=`<path d="${arc(Math.min(0,kw),Math.max(0,kw),R)}" stroke="${kw>0?"var(--dv-draw)":"var(--dv-regen)"}" stroke-width="26" fill="none"/>`;
+  for (let v=lo; v<=hi; v+=20){ const a=ang(v), major=v%40===0, [x0,y0]=pt(a,R+16), [x1,y1]=pt(a,R+(major?26:21));
+    g+=`<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="${v===0?"#ECEFEC":"#4A555D"}" stroke-width="${v===0?3:1.5}"/>`;
+    if (major){ const [tx,ty]=pt(a,R+40); g+=`<text x="${tx.toFixed(1)}" y="${(ty+5).toFixed(1)}" fill="#8E999F" font-size="14" font-weight="500" text-anchor="middle">${v}</text>`; } }
+  const mark=(v,c)=>{ const a=ang(v),[x0,y0]=pt(a,R-17),[x1,y1]=pt(a,R+17); return `<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="${c}" stroke-width="4" stroke-linecap="round"/>`; };
+  if (pf.kw!=null) g+=mark(pf.kw,"#ECEFEC");
+  if (pf.regen!=null && pf.regen<0) g+=mark(pf.regen,"#ECEFEC");
+  const mech=s?pfMech(s):null, col=kw==null?"#ECEFEC":kw>0.5?"var(--dv-draw)":kw<-0.5?"var(--dv-regen)":"#ECEFEC";
+  g+=`<text x="${cx}" y="${cy-28}" fill="${col}" font-size="104" font-weight="700" text-anchor="middle">${kw==null?"–":(kw>0.5?"+":"")+f1(kw)}</text>`;
+  g+=`<text x="${cx}" y="${cy+6}" fill="#8E999F" font-size="20" font-weight="500" text-anchor="middle">kW batarya</text>`;
+  if (mech!=null) g+=`<text x="${cx}" y="${cy+34}" fill="#ECEFEC" font-size="22" font-weight="700" text-anchor="middle">${f1(mech*PS)} PS<tspan fill="#8E999F" font-weight="500" font-size="17"> motor mili ${f1(mech)} kW</tspan></text>`;
+  g+=`<text x="${pt(ang(lo),R)[0].toFixed(1)}" y="${cy+76}" fill="#8E999F" font-size="15" font-weight="500" text-anchor="middle">rejen</text><text x="${pt(ang(hi),R)[0].toFixed(1)}" y="${cy+76}" fill="#8E999F" font-size="15" font-weight="500" text-anchor="middle">çekiş</text>`;
   $("pfGauge").innerHTML=g;
 }
-function tempCol(t, lo, ok, hi){ if (t==null) return "#3a4250"; return t<lo?"#4ea1ff":t<=ok?"#3ccf8e":t<=hi?"#f5c04a":"#ff5d5d"; }
-function tireCol(p){ if (p==null) return "#3a4250"; return p<30?"#ff5d5d":p<33?"#ff9f43":p<36?"#f5c04a":p<=42?"#3ccf8e":p<=45?"#f5c04a":p<=48?"#ff9f43":"#ff5d5d"; }
+function pfMeters(s){
+  const m=(lab,v,u,frac,peakFrac,sub)=>`<div class="pm"><div class="v">${v}<small>${u}</small></div><div class="pmb"><i style="width:${frac==null?0:Math.max(0,Math.min(100,frac*100))}%"></i>${peakFrac!=null?`<b style="left:${Math.max(0,Math.min(99.5,peakFrac*100))}%"></b>`:""}</div><div class="l"><span>${lab}</span><span>${sub||""}</span></div></div>`;
+  $("pfMeters").innerHTML =
+    m("Devir", s?.rpm==null?"–":Math.round(s.rpm).toLocaleString("tr-TR"), "", s?.rpm!=null?Math.abs(s.rpm)/16000:null, pf.rpm!=null?pf.rpm/16000:null, "maks "+(pf.rpm!=null?Math.round(pf.rpm).toLocaleString("tr-TR"):"–"))+
+    m("Tork", f1(s?.tq), "Nm", s?.tq!=null?Math.abs(s.tq)/343:null, pf.tq!=null?pf.tq/343:null, s?.tqRaw===0&&s?.tq<0?"rejen (hesap)":"maks "+f1(pf.tq))+
+    m("Hız", f1(s?.spd), "km/s", s?.spd!=null?s.spd/180:null, pf.spd!=null?pf.spd/180:null, "maks "+f1(pf.spd))+
+    m("Akım", f1(s?.cur), "A", s?.cur!=null?Math.abs(s.cur)/600:null, pf.cur!=null?pf.cur/600:null, s?.volt!=null?f1(s.volt)+" V":"");
+}
 function pfCar(s){
-  const tp=s?.tp||{}, tt=s?.tt||{}, ws=s?.ws||{};
-  const tire=(x,y,w,lx,anchor)=>`<rect x="${x}" y="${y}" width="22" height="50" rx="7" fill="${tireCol(tp[w])}" opacity=".9"/>
-    <text x="${lx}" y="${y+22}" fill="#e8ecf2" font-size="15" font-weight="650" text-anchor="${anchor}">${tp[w]!=null?f1(tp[w]):"–"}<tspan font-size="10" fill="#8a94a6"> psi</tspan></text>
-    <text x="${lx}" y="${y+39}" fill="#8a94a6" font-size="11" text-anchor="${anchor}">${[tt[w]!=null?f1(tt[w])+" °C":"", ws[w]!=null?f1(ws[w])+" km/s":""].filter(Boolean).join(" · ")}</text>`;
-  const bt=s?.avg, mt=s?.motor;
-  let g=`<rect x="58" y="22" width="124" height="336" rx="46" fill="#151a21" stroke="#2c3440" stroke-width="2"/>
-  <path d="M74 86 Q120 66 166 86" stroke="#2c3440" stroke-width="2" fill="none"/><path d="M74 300 Q120 318 166 300" stroke="#2c3440" stroke-width="2" fill="none"/>
-  <text x="120" y="46" fill="#5b6475" font-size="10" text-anchor="middle">ÖN</text>`;
-  g+=tire(36,70,"fl",30,"end")+tire(182,70,"fr",210,"start")+tire(36,262,"rl",30,"end")+tire(182,262,"rr",210,"start");
-  // batarya
-  g+=`<rect x="78" y="128" width="84" height="116" rx="8" fill="${tempCol(bt,15,35,45)}" opacity=".25" stroke="${tempCol(bt,15,35,45)}"/>
-  <text x="120" y="152" fill="#8a94a6" font-size="10" text-anchor="middle">BATARYA</text>
-  <text x="120" y="178" fill="#e8ecf2" font-size="22" font-weight="700" text-anchor="middle">${f1(bt,1)}°</text>
-  <text x="120" y="196" fill="#8a94a6" font-size="10" text-anchor="middle">maks hücre ${f1(s?.max,1)}°</text>
-  <text x="120" y="212" fill="#8a94a6" font-size="10" text-anchor="middle">sıvı giriş ${f1(s?.cin)}°</text>
-  <text x="120" y="232" fill="#e8ecf2" font-size="12" text-anchor="middle">%${f1(s?.soc,1)}</text>`;
-  // arka motor (tek motor, arkadan itiş)
-  g+=`<rect x="92" y="268" width="56" height="38" rx="6" fill="${tempCol(mt,0,70,100)}" opacity=".25" stroke="${tempCol(mt,0,70,100)}"/>
-  <text x="120" y="283" fill="#8a94a6" font-size="9" text-anchor="middle">MOTOR</text>
-  <text x="120" y="300" fill="#e8ecf2" font-size="14" font-weight="650" text-anchor="middle">${f1(mt)}°</text>
-  <line x1="58" y1="287" x2="92" y2="287" stroke="#2c3440" stroke-width="3"/><line x1="148" y1="287" x2="182" y2="287" stroke="#2c3440" stroke-width="3"/>
-  <text x="120" y="328" fill="#8a94a6" font-size="10" text-anchor="middle">güç devresi ${f1(s?.cout,1)}°${s?.minv!=null?" · inverter "+f1(s.minv)+"°":""}</text>`;
-  if (s?.out!=null) g+=`<text x="120" y="372" fill="#8a94a6" font-size="10" text-anchor="middle">dış hava ${f1(s.out)}°</text>`;
+  const tp=s?.tp||{}, ws=s?.ws||{}, tt=s?.tt||{};
+  const hasTp=["fl","fr","rl","rr"].some(w=>tp[w]!=null);
+  const tcol=p=>p==null?"#3A444C":(p<33||p>45)?"var(--dv-hot)":(p<36||p>42)?"var(--dv-warn)":"#5A666E";
+  const wheel=(x,y,w,lx,anc)=>{ const big = hasTp ? (tp[w]!=null?f1(tp[w]):"–") : (ws[w]!=null?f1(ws[w]):"–"), unit = hasTp?"psi":"km/s";
+    const sub = [hasTp && ws[w]!=null ? f1(ws[w])+" km/s" : "", tt[w]!=null ? f1(tt[w])+"°" : ""].filter(Boolean).join("  ");
+    return `<rect x="${x}" y="${y}" width="26" height="62" rx="9" fill="${tcol(hasTp?tp[w]:null)}"/>
+      <text x="${lx}" y="${y+30}" fill="#ECEFEC" font-size="27" font-weight="700" text-anchor="${anc}">${big}</text>
+      <text x="${lx}" y="${y+50}" fill="#8E999F" font-size="14" font-weight="500" text-anchor="${anc}">${unit}${sub?"  "+sub:""}</text>`; };
+  const bt=s?.avg, mt=s?.motor, bc=heat(bt,10,35,45), mc=heat(mt,-50,80,100), slip=s?.slip;
+  let g=`<rect x="80" y="20" width="120" height="400" rx="52" fill="#171D22" stroke="#2A333A" stroke-width="2"/>
+    <path d="M94 104 Q140 82 186 104" stroke="#2A333A" stroke-width="2" fill="none"/><path d="M94 340 Q140 360 186 340" stroke="#2A333A" stroke-width="2" fill="none"/>
+    <text x="140" y="54" fill="#5D6870" font-size="13" font-weight="500" text-anchor="middle">ön</text>`;
+  g+=wheel(54,74,"fl",48,"end")+wheel(200,74,"fr",232,"start")+wheel(54,300,"rl",48,"end")+wheel(200,300,"rr",232,"start");
+  // batarya paketi (aks arası)
+  g+=`<rect x="96" y="124" width="88" height="148" rx="10" fill="${bc}" fill-opacity=".22" stroke="${bc}" stroke-width="2"/>
+    <text x="140" y="148" fill="#8E999F" font-size="13" font-weight="500" text-anchor="middle">batarya</text>
+    <text x="140" y="190" fill="#ECEFEC" font-size="40" font-weight="700" text-anchor="middle">${f1(bt,0)}°</text>
+    <text x="140" y="214" fill="#8E999F" font-size="14" font-weight="500" text-anchor="middle">${s?.tmin!=null&&s?.max!=null?"hücre "+f1(s.tmin,0)+"–"+f1(s.max,0)+"°":""}</text>
+    <text x="140" y="234" fill="#8E999F" font-size="14" font-weight="500" text-anchor="middle">${s?.cin!=null?"sıvı "+f1(s.cin,0)+"°":""}</text>
+    <text x="140" y="260" fill="#ECEFEC" font-size="18" font-weight="700" text-anchor="middle">${s?.soc!=null?"%"+f1(s.soc,0):""}</text>`;
+  // arka motor + aks
+  g+=`<line x1="80" y1="331" x2="108" y2="331" stroke="#2A333A" stroke-width="4"/><line x1="172" y1="331" x2="200" y2="331" stroke="#2A333A" stroke-width="4"/>
+    <rect x="108" y="306" width="64" height="50" rx="8" fill="${mc}" fill-opacity=".22" stroke="${mc}" stroke-width="2"/>
+    <text x="140" y="324" fill="#8E999F" font-size="12" font-weight="500" text-anchor="middle">motor</text>
+    <text x="140" y="348" fill="#ECEFEC" font-size="24" font-weight="700" text-anchor="middle">${f1(mt)}°</text>
+    <text x="140" y="378" fill="#8E999F" font-size="13" font-weight="500" text-anchor="middle">${s?.cout!=null?"güç devresi "+f1(s.cout,0)+"°":""}</text>`;
+  if (slip!=null) g+=`<text x="140" y="402" fill="${Math.abs(slip)>=3?"var(--dv-warn)":"#8E999F"}" font-size="14" font-weight="${Math.abs(slip)>=3?700:500}" text-anchor="middle">patinaj ${slip>0?"+":""}${f1(slip)} km/s</text>`;
+  if (s?.out!=null) g+=`<text x="140" y="436" fill="#5D6870" font-size="13" font-weight="500" text-anchor="middle">dış hava ${f1(s.out)}°</text>`;
   $("pfCar").innerHTML=g;
 }
-function pfTiles(s){
-  const t=(lab,v,u,sub,bar)=>`<div class="pt"><b>${lab}</b><div class="v">${v}<small>${u}</small></div><div class="s">${sub||""}</div>${bar!=null?`<div class="pbar"><i style="width:${Math.max(0,Math.min(100,bar))}%"></i></div>`:""}</div>`;
-  const mech=s?pfMech(s):null;
-  $("pfTiles").innerHTML =
-    t("Devir", f1(s?.rpm), "d/dk", "maks "+f1(pf.rpm), s?.rpm!=null?Math.abs(s.rpm)/16500*100:null)+
-    t("Tork", f1(s?.tq), "Nm", s?.tqRaw===0 && s?.tq<0 ? "rejen (hesap)" : "katalog maks 343", s?.tq!=null?Math.abs(s.tq)/343*100:null)+
-    t("Motor mili", f1(mech), "kW", mech!=null?f1(mech*PS)+" PS · katalog 200 kW":"katalog 200 kW", mech!=null?mech/200*100:null)+
-    t("Gerçek hız", f1(s?.spd), "km/s", "maks "+f1(pf.spd))+
-    t("Hücre dengesi", s?.cmax!=null&&s?.cmin!=null?f1((s.cmax-s.cmin)*1000):"–", "mV", s?.cmax!=null?"maks "+f1(s.cmax,3)+" · min "+f1(s.cmin,3)+" V":"")+
-    t("Batarya sıcaklık aralığı", s?.tmin!=null&&s?.max!=null?f1(s.tmin,1)+"–"+f1(s.max,1):"–", "°C", s?.erem!=null?"kalan ≈ "+f1(s.erem,1)+" kWh (aday)":"")+
-    t("Fren basıncı", f1(s?.brake,1), "bar", "maks "+f1(pf.brake,1), s?.brake!=null?s.brake/62*100:null)+
-    t("12 V akü", f1(s?.v12,1), "V", s?.socd!=null?"göstergede şarj %"+f1(s.socd):"")+
-    t("Akım", f1(s?.cur), "A", "voltaj "+f1(s?.volt,1)+" V")+
-    t("Okuma hızı", f1(s?.hz,1), "/sn", (s?.perf?"performans modu":"")+(s?.multi&&Object.values(s.multi).includes("açık")?" · çoklu okuma":""));
+function pfGCircle(s, live){
+  const G = live ? pfGs(s) : {lon:null, lat:null}, S=100/1.0;  // 1 g = 100 birim
+  if (G.lon!=null) { pfTrail.push([G.lat??0, G.lon]); if (pfTrail.length>36) pfTrail.shift(); }
+  let g="";
+  for (const r of [0.25,0.5,0.75,1]) g+=`<circle r="${r*S}" fill="none" stroke="${r===1?"#2A333A":"#1F272D"}" stroke-width="${r===1?2:1.5}"/>`;
+  g+=`<line x1="-100" y1="0" x2="100" y2="0" stroke="#1F272D" stroke-width="1.5"/><line x1="0" y1="-100" x2="0" y2="100" stroke="#1F272D" stroke-width="1.5"/>`;
+  g+=`<text x="0" y="-104" fill="#8E999F" font-size="12" font-weight="500" text-anchor="middle">hızlanma</text><text x="0" y="114" fill="#8E999F" font-size="12" font-weight="500" text-anchor="middle">fren</text>`;
+  g+=`<text x="52" y="-4" fill="#4A555D" font-size="11" text-anchor="middle">0,5 g</text>`;
+  if (pfTrail.length>1) g+=pfTrail.map((p,i)=>`<circle cx="${(p[0]*S).toFixed(1)}" cy="${(-p[1]*S).toFixed(1)}" r="${2+i/12}" fill="#ECEFEC" fill-opacity="${(i/pfTrail.length*0.35).toFixed(2)}"/>`).join("");
+  if (G.lon!=null){ const x=(G.lat??0)*S, y=-G.lon*S, c=G.lon>0.05?"var(--dv-draw)":G.lon<-0.05?"var(--dv-regen)":"#ECEFEC";
+    g+=`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="9" fill="${c}"/>`;
+    const tot=Math.hypot(G.lat??0, G.lon);
+    g+=`<text x="-116" y="-96" fill="#ECEFEC" font-size="26" font-weight="700">${f1(tot,2)}<tspan fill="#8E999F" font-size="13" font-weight="500"> g</tspan></text>`; }
+  $("pfG").innerHTML=g;
+}
+function pf100(s, live){
+  const run = live && pfZeroT && s?.spd>1 && s.spd<100 && (Date.now()-pfZeroT)<30000;
+  const el=$("pf100"); el.classList.toggle("run", !!run);
+  const big = run ? f1((Date.now()-pfZeroT)/1000,1) : pf.best100!=null ? f1(pf.best100,1) : "–";
+  el.innerHTML = `<div class="v">${big}<small>sn</small></div><div class="l">${run?"0–100 ölçülüyor":"0–100 en iyi"}<br>${pf.last100!=null?"son "+f1(pf.last100,1)+" sn":"katalog 5,3 sn"}</div>`;
 }
 function pfPeaks(){
   const r=(lab,v)=>`<div><span>${lab}</span><em>${v}</em></div>`;
   $("pfPeaks").innerHTML =
-    r("Batarya gücü", f1(pf.kw,1)+" kW")+r("Motor mili", pf.mech!=null?f1(pf.mech,1)+" kW · "+f1(pf.mech*PS)+" PS":"–")+
-    r("Tork", f1(pf.tq)+" Nm")+r("Rejen", pf.regen!=null&&pf.regen<0?f1(-pf.regen,1)+" kW":"–")+
-    r("Akım", f1(pf.cur)+" A")+r("En düşük voltaj (yükte)", f1(pf.vmin,1)+" V")+
-    r("Hız", f1(pf.spd)+" km/s")+r("Fren basıncı", f1(pf.brake,1)+" bar")+
-    r("0–100 en iyi", pf.best100!=null?"≈ "+f1(pf.best100,1)+" sn":"–")+r("0–100 son", pf.last100!=null?"≈ "+f1(pf.last100,1)+" sn":"–")+
-    r("Başlangıç", new Date(pf.since).toLocaleDateString("tr-TR"));
+    r("Güç", f1(pf.kw)+" kW")+r("Rejen", pf.regen!=null&&pf.regen<0?f1(-pf.regen)+" kW":"–")+
+    r("Motor mili", pf.mech!=null?f1(pf.mech*PS)+" PS":"–")+r("Akım", f1(pf.cur)+" A")+
+    r("İvme", pf.gacc!=null?f1(pf.gacc,2)+" g":"–")+r("Fren", pf.gbrk!=null?f1(pf.gbrk,2)+" g":"–")+
+    r("Yanal", pf.glat!=null?f1(pf.glat,2)+" g":"–")+r("En düşük V", pf.vmin!=null?f1(pf.vmin)+" V":"–");
 }
 function pfTick(){
   let s=null; try{ s = panelWin && panelWin.ex30Snap ? panelWin.ex30Snap() : null; }catch{}
-  if (s) pfUpdatePeaks(s);
-  if (tab!=="perf") return;
   const live = s && s.t && Date.now()-s.t<5000;
-  $("pfStat").textContent = !chW ? "Bağlı değil" : live ? (s.perf?"Performans modu · ":"")+f1(s.hz,1)+" okuma/sn" : "Veri bekleniyor…";
-  pfGauge(live?s:null); pfCar(live?s:null); pfTiles(live?s:null); pfPeaks();
+  if (s) pfUpdatePeaks(s);
+  if (live){ pfAccel(s); const G=pfGs(s); let ch=false;
+    if (G.lon!=null && G.lon>0 && (pf.gacc==null||G.lon>pf.gacc)){ pf.gacc=G.lon; ch=true; }
+    if (G.lon!=null && G.lon<0 && (pf.gbrk==null||-G.lon>pf.gbrk)){ pf.gbrk=-G.lon; ch=true; }
+    if (G.lat!=null && (pf.glat==null||Math.abs(G.lat)>pf.glat)){ pf.glat=Math.abs(G.lat); ch=true; }
+    if (ch) store.set("perfPeaks", pf); }
+  if (tab!=="perf") return;
+  $("pfStat").textContent = live ? [s.hz!=null?f1(s.hz,1)+" okuma/sn":"", s.spd>5 && pfGs(s).lat==null ? "yanal ivme için GPS yönü bekleniyor":""].filter(Boolean).join(", ") : (typeof chW!=="undefined" && chW) ? "Veri bekleniyor" : document.body.classList.contains("mirror") ? "Veri bekleniyor" : "Bağlı değil";
+  pfGauge(live?s:null); pfMeters(live?s:null); pfCar(live?s:null); pfGCircle(s, live); pf100(s, live); pfPeaks();
 }
 setInterval(pfTick, 250);
-$("pfReset").onclick=()=>{ const b=$("pfReset"); if (!b.dataset.ok){ b.dataset.ok="1"; b.textContent="Emin misiniz?"; setTimeout(()=>{ delete b.dataset.ok; b.textContent="Sıfırla"; },3000); return; }
-  delete b.dataset.ok; b.textContent="Sıfırla"; pf={since:Date.now()}; store.set("perfPeaks",pf); pfTick(); };
+$("pfReset").onclick=()=>{ const b=$("pfReset"); if (!b.dataset.ok){ b.dataset.ok="1"; b.textContent="Emin misiniz?"; setTimeout(()=>{ delete b.dataset.ok; b.textContent="Rekorları sıfırla"; },3000); return; }
+  delete b.dataset.ok; b.textContent="Rekorları sıfırla"; pfTrail=[]; pf={since:Date.now()}; store.set("perfPeaks",pf); pfTick(); };
 
 
 // =====================================================================
@@ -1421,11 +1481,12 @@ function dvTick(){
   }
 }
 setInterval(dvTick, 300);
-function dvSize(){ const top = document.body.classList.contains("mirror") ? 0 : ($("dv").getBoundingClientRect().top + window.scrollY + 12); document.documentElement.style.setProperty("--dv-top", top+"px"); }
-window.addEventListener("resize", ()=>{ if (tab==="drive") dvSize(); });
+function dvSize(id="dv"){ const top = document.body.classList.contains("mirror") ? 0 : ($(id).getBoundingClientRect().top + window.scrollY + (id==="pv"?60:12)); document.documentElement.style.setProperty("--dv-top", top+"px"); }
+window.addEventListener("resize", ()=>{ if (tab==="drive") dvSize(); if (tab==="perf") dvSize("pv"); });
 
 function goTab(t){ tab=t;
   if (t==="drive"){ ensurePanel(); setTimeout(()=>{ dvSize(); dvTick(); }, 0); }
+  if (t==="perf"){ setTimeout(()=>{ dvSize("pv"); pfTick(); }, 0); }
   if (t==="perf") ensurePanel();
   try{ panelWin && panelWin.ex30Perf && panelWin.ex30Perf(t==="perf"); }catch{}
   document.body.classList.toggle("panelmode", t==="panel");

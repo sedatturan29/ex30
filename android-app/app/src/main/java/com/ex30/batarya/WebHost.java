@@ -120,12 +120,13 @@ final class WebHost {
         geoL = loc -> {
             String js = "window.__ex30geo&&__ex30geo({t:" + loc.getTime() + ",lat:" + loc.getLatitude() + ",lon:" + loc.getLongitude()
                     + ",spd:" + (loc.hasSpeed() ? String.valueOf(loc.getSpeed()) : "null")
+                    + ",hdg:" + (loc.hasBearing() ? String.valueOf(loc.getBearing()) : "null")
                     + ",acc:" + (loc.hasAccuracy() ? String.valueOf(loc.getAccuracy()) : "99")
                     + ",alt:" + (loc.hasAltitude() ? String.valueOf(loc.getAltitude()) : "null")
                     + ",vacc:" + (Build.VERSION.SDK_INT >= 26 && loc.hasVerticalAccuracy() ? String.valueOf(loc.getVerticalAccuracyMeters()) : "null") + "})";
             web.evaluateJavascript(js, null);
         };
-        try { lm.requestLocationUpdates(android.location.LocationManager.GPS_PROVIDER, 1000, 0, geoL, Looper.getMainLooper()); }
+        try { lm.requestLocationUpdates(android.location.LocationManager.GPS_PROVIDER, 500, 0, geoL, Looper.getMainLooper()); }
         catch (Exception e) { geoL = null; }
     }
 

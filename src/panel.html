@@ -551,7 +551,7 @@ function sample(fromLoop){
   if (fromLoop) logRow(now);   // okuma duraklatıldığında (Tarayıcı/terminal) eski değerleri tekrar tekrar yazma
   render();
 }
-const geo={last:null, spd:null, t:0, alt:null, altT:0};
+const geo={last:null, spd:null, t:0, alt:null, altT:0, hdg:null, hdgT:0, yaw:null, yawT:0};
 const ALT_STEP = 3;   // m: bu kadar değişmeden tırmanış/iniş sayılmaz (GPS gürültüsü)
 function geoStart(){
   if (!navigator.geolocation) return;
@@ -559,10 +559,15 @@ function geoStart(){
 }
 // Android uygulaması konumu kendisi de gönderir: ekran kilitliyken/arka planda tarayıcı konumu durur, bu devam eder
 let nativeGeoT=0;
-window.__ex30geo = o => { nativeGeoT=Date.now(); onGeo({timestamp:o.t, coords:{latitude:o.lat, longitude:o.lon, speed:o.spd, accuracy:o.acc, altitude:o.alt, altitudeAccuracy:o.vacc}}); };
+window.__ex30geo = o => { nativeGeoT=Date.now(); onGeo({timestamp:o.t, coords:{latitude:o.lat, longitude:o.lon, speed:o.spd, accuracy:o.acc, altitude:o.alt, altitudeAccuracy:o.vacc, heading:o.hdg}}); };
 function onGeo(p){
   {
     const c=p.coords, pt={lat:c.latitude, lon:c.longitude, t:p.timestamp};
+    // Yön değişim hızı (rad/sn): Performans ekranındaki yanal ivme = hız × sapma hızı
+    if (c.heading!=null && isFinite(c.heading) && c.speed!=null && c.speed>3){
+      if (geo.hdg!=null){ const dt=(p.timestamp-geo.hdgT)/1000; if (dt>0.2 && dt<3){ let d=c.heading-geo.hdg; d=((d+540)%360)-180; geo.yaw=d*Math.PI/180/dt; geo.yawT=Date.now(); } }
+      geo.hdg=c.heading; geo.hdgT=p.timestamp;
+    } else if (c.speed!=null && c.speed<=3){ geo.hdg=null; geo.yaw=null; }
     let v = c.speed!=null && c.speed>=0 ? c.speed*3.6 : null;
     if (geo.last && c.accuracy<=40){
       const d=hav(geo.last,pt), dt=(pt.t-geo.last.t)/1000;
@@ -605,6 +610,7 @@ window.ex30Snap = () => { const n=v=>(v==null||!isFinite(v))?null:+v;
     kwhLeft: aaos("EV_BATTERY_LEVEL")!=null ? n(aaos("EV_BATTERY_LEVEL")/1000) : n(vals.erem),
     kwhCap: aaos("EV_CURRENT_BATTERY_CAPACITY")!=null ? n(aaos("EV_CURRENT_BATTERY_CAPACITY")/1000) : null,
     slip: (()=>{ const k=["w_fl","w_fr","w_rl","w_rr"]; if (!k.every(x=>vals[x]!=null && valT[x] && Date.now()-valT[x]<2500)) return null; return (vals.w_rl+vals.w_rr-vals.w_fl-vals.w_fr)/2; })(),
+    yaw: geo.yaw!=null && Date.now()-geo.yawT<2500 ? geo.yaw : null,
     dsp: aaos("PERF_VEHICLE_SPEED_DISPLAY")!=null ? n(aaos("PERF_VEHICLE_SPEED_DISPLAY")*3.6) : null};
 };
 // Android Auto ekranı için tek seferde gönderilen özet
