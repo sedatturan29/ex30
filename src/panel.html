@@ -595,6 +595,16 @@ const __tw=new Set();
 window.__ex30tick=()=>{ const n=performance.now(); for (const t of [...__tw]) if (n>=t.at){ __tw.delete(t); t.r(); } };
 const sleep = ms => new Promise(r=>{ const t={at:performance.now()+ms, r}; __tw.add(t); setTimeout(()=>{ if (__tw.delete(t)) r(); }, ms); });
 const fmt=(v,d=1)=>v==null||!isFinite(v)?"–":v.toFixed(d).replace(".",",");
+// Anlık tüketim: son 10 saniyedeki enerji / yol (kWh/100 km); 5 km/s altında ve 40 m'den kısa yolda gösterilmez
+const icBuf=[];
+function instCons(){
+  const now=Date.now(), kw = vals.kw ?? aaosPower(), sp = carSpeed().v ?? geo.spd;
+  if (kw!=null && sp!=null && (!icBuf.length || now-icBuf.at(-1).t>=200)) icBuf.push({t:now, kw, sp});
+  while (icBuf.length && now-icBuf[0].t>10000) icBuf.shift();
+  if (icBuf.length<3 || sp==null || sp<5) return null;
+  let e=0, d=0; for (let i=1;i<icBuf.length;i++){ const dt=(icBuf[i].t-icBuf[i-1].t)/3600000; e+=icBuf[i].kw*dt; d+=icBuf[i].sp*dt; }
+  return d>0.04 ? e/d*100 : null;
+}
 function tile(id, v, unit, d=1, sub, cls){ const el=$("t-"+id); if(!el) return; el.querySelector(".v").innerHTML=`<span class="${cls||""}">${fmt(v,d)}</span><small>${unit}</small>`; if (sub!=null) el.querySelector(".s").textContent=sub; }
 let lastR=0;
 // Performans ekranı (ana sayfa) buradan okur
@@ -610,6 +620,7 @@ window.ex30Snap = () => { const n=v=>(v==null||!isFinite(v))?null:+v;
     kwhLeft: aaos("EV_BATTERY_LEVEL")!=null ? n(aaos("EV_BATTERY_LEVEL")/1000) : n(vals.erem),
     kwhCap: aaos("EV_CURRENT_BATTERY_CAPACITY")!=null ? n(aaos("EV_CURRENT_BATTERY_CAPACITY")/1000) : null,
     slip: (()=>{ const k=["w_fl","w_fr","w_rl","w_rr"]; if (!k.every(x=>vals[x]!=null && valT[x] && Date.now()-valT[x]<2500)) return null; return (vals.w_rl+vals.w_rr-vals.w_fl-vals.w_fr)/2; })(),
+    inst: n(vals.inst),
     yaw: geo.yaw!=null && Date.now()-geo.yawT<2500 ? geo.yaw : null,
     dsp: aaos("PERF_VEHICLE_SPEED_DISPLAY")!=null ? n(aaos("PERF_VEHICLE_SPEED_DISPLAY")*3.6) : null};
 };
@@ -655,6 +666,7 @@ function render(){
   const cs = carSpeed(), car = cs.v;
   if (vals.avg==null && aaos("EV_BATTERY_AVERAGE_TEMPERATURE")!=null) tile("avg", aaos("EV_BATTERY_AVERAGE_TEMPERATURE"), "°C", 1, "Kaynak: araç (Android Automotive)");
   if (vals.kw==null && aaos("EV_BATTERY_INSTANTANEOUS_CHARGE_RATE")!=null){ const k=aaosPower(); tile("kw", k, "kW", 1, "Kaynak: araç (Android Automotive)", k>0.3?"pos":k<-0.3?"neg":""); }
+  { const ic=instCons(); vals.inst=ic; const s=$("t-kw").querySelector(".s"); if (ic!=null) s.textContent = (s.textContent.split(" · anlık")[0]) + " · anlık " + fmt(ic,1) + " kWh/100 km"; }
   { const out=aaos("ENV_OUTSIDE_TEMPERATURE"), rng=aaos("RANGE_REMAINING"); const el=$("t-soc").querySelector(".s");
     el.textContent = [out!=null?`Dış ${fmt(out,1)} °C`:null, rng!=null?`Menzil ${fmt(rng/1000,0)} km`:null].filter(Boolean).join(" · "); }
   const pct = (a,b) => (a!=null && b!=null && b>5) ? ` · fark ${(a-b>=0?"+":"")}${fmt((a-b)/b*100,1)}%` : "";

@@ -381,6 +381,7 @@
         <div class="dv-row">
           <div><b id="dvSpd">–</b><span>km/s</span></div>
           <div><b id="dvSoc">–</b><span id="dvSocL">% şarj</span></div>
+          <div><b id="dvInst">–</b><span>kWh/100 anlık</span></div>
         </div>
       </div>
       <div class="dv-grid" id="dvGrid"></div>
@@ -1465,6 +1466,7 @@ function dvTick(){
   if (pf.kw!=null){ pk.style.display=""; pk.style.left=X(pf.kw)+"%"; } else pk.style.display="none";
   $("dvSpd").textContent = live ? f1(s.spd,0) : "–";
   $("dvSoc").textContent = live ? f1(s.soc,0) : "–";
+  $("dvInst").textContent = live && s.inst!=null ? f1(Math.max(-99,Math.min(99,s.inst)),0) : "–";
   for (const [id,,fn2] of DV_CELLS){
     const el=$("dv-"+id); if (!el) continue;
     if (id==="tire"){ const sp=el.querySelectorAll(".dv-tires span"), t=s.tp||{};
