@@ -24,11 +24,6 @@ android {
     flavorDimensions 'form'
     productFlavors {
         phone { dimension 'form' }
-        // mirror: ekran yansıtma başlatıcıları için Android Auto parçaları çıkarılmış telefon sürümü (ayrı paket adı, yan yana kurulur)
-        mirror {
-            dimension 'form'
-            applicationId 'com.ex30.batarya.ayna'
-        }
         car {
             dimension 'form'
             applicationId 'ex30.reader'   // Play Console'daki uygulamanın paket adı (orta ekran)
