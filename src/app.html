@@ -51,12 +51,23 @@
   .dv-row div{display:flex;flex-direction:column}
   .dv-row b{font-weight:700;font-size:clamp(36px,14vmin,140px);line-height:.9}
   .dv-row span{font-size:clamp(12px,2.6vmin,20px);color:var(--dv-mut);font-weight:500}
-  .dv-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(4,minmax(0,1fr));gap:1px;background:var(--dv-line)}
+  .dv-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:minmax(0,1fr) minmax(0,1.2fr) repeat(3,minmax(0,1fr));gap:1px;background:var(--dv-line)}
+  /* Yolculuk bandı: en büyük sayı tüketim; süren yolculukta solda sarı çizgi, son yolculukta gri */
+  .dv-band{grid-column:1/-1;background:#161D22;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1.3fr) repeat(3,minmax(0,1fr));align-items:center;gap:0 2.4vmin;padding:1.2vmin 2.4vmin;box-shadow:inset .7vmin 0 0 #3A444C;container-type:inline-size}
+  .dv-band.live{box-shadow:inset .7vmin 0 0 var(--dv-draw)}
+  .dv-band .bl{display:flex;flex-direction:column;gap:.4vmin;min-width:0}
+  .dv-band .bl b{font-weight:700;font-size:min(3.6vmin,4.2cqw,30px);line-height:1.05}
+  .dv-band .bl span,.dv-band .bv span{font-size:clamp(11px,2.3vmin,18px);color:var(--dv-mut);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dv-band .bv{display:flex;flex-direction:column;min-width:0}
+  .dv-band .bv b{font-weight:700;font-size:min(8.5vmin,8.6cqw,88px);line-height:.95;white-space:nowrap}
+  .dv-band .bv.main b{font-size:min(11vmin,11cqw,116px)}
+  .dv-band.live .bv.main b{color:var(--dv-draw)}
   .dv-c{background:var(--dv-bg);padding:1.4vmin 2vmin;display:flex;flex-direction:column;justify-content:center;gap:.8vmin;min-width:0;container-type:inline-size}
   .dv-c .v{font-weight:700;font-size:min(9vmin,30cqw,96px);line-height:.95;white-space:nowrap;overflow:hidden;text-overflow:clip}
   .dv-c .v small{font-weight:500;font-size:.42em;color:var(--dv-mut);margin-left:.15em}
   .dv-c .l{font-size:clamp(11px,2.5vmin,19px);color:var(--dv-mut);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .dv-c.w2{grid-column:span 2}
+  .dv-c .v,.dv-c .l{flex-shrink:0}
   .dv-c .v.warn{color:var(--dv-warn)} .dv-c .v.hot{color:var(--dv-hot)} .dv-c .v.cold{color:var(--dv-regen)}
   .dv-tires{display:grid;grid-template-columns:repeat(2,auto);column-gap:min(4vmin,8cqw);row-gap:.4vmin;justify-content:start;font-weight:700;font-size:min(6.2vmin,22cqw,64px);line-height:1}
   #dv-tire.alt .dv-tires{display:none} #dv-tire:not(.alt) .v{display:none}
@@ -64,9 +75,13 @@
   .dv-stale{position:absolute;inset:auto 0 0 0;text-align:center;padding:1vmin;font-size:clamp(12px,2.6vmin,20px);color:var(--dv-warn)}
   @media (max-aspect-ratio: 1/1){
     .dv{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}
-    .dv-hero{box-shadow:0 1px 0 var(--dv-line);padding:4vmin}
-    .dv-grid{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(6,minmax(0,1fr))}
-    .dv-c .v{font-size:min(10vmin,30cqw,110px)}
+    .dv-hero{box-shadow:0 1px 0 var(--dv-line);padding:2.6vmin 4vmin;gap:1vmin}
+    .dv-kw b{font-size:clamp(56px,17vmin,200px)} .dv-row{margin-top:0} .dv-row b{font-size:clamp(32px,10vmin,110px)}
+    .dv-grid{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:minmax(0,1fr) minmax(0,1.7fr);grid-auto-rows:minmax(0,1fr);grid-auto-flow:row dense}
+    .dv-band{grid-row:2;grid-template-columns:repeat(4,minmax(0,1fr));align-content:center;row-gap:1.4vmin;padding:2vmin 3vmin}
+    .dv-band .bv b{font-size:min(8vmin,11cqw,96px)} .dv-band .bv.main b{font-size:min(10vmin,14cqw,120px)}
+    .dv-band .bl{grid-column:1/-1;flex-direction:row;align-items:baseline;gap:2vmin}
+    .dv-c .v{font-size:min(6.4vmin,26cqw,90px)}
     #dv-tire{grid-column:span 3} #dv-tire .dv-tires{grid-template-columns:repeat(4,auto)}
   }
   @media (prefers-reduced-motion: reduce){ .dv-rib .f,.dv-kw b{transition:none} }
@@ -75,8 +90,50 @@
   body.mirror .bar, body.mirror #tabs, body.mirror #log, body.mirror #pfReset{display:none !important}
   body.mirror main, body.mirror .wrap{padding-top:0 !important}
   /* ---- Performans ---- */
+
+  /* ======== Yolculuklar (günlük) ======== */
+  .jr{max-width:760px;margin:0 auto}
+  .jr-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .jr-seg{display:inline-flex;background:#1B2227;border-radius:999px;padding:3px;gap:2px}
+  .jr-seg button{background:transparent;color:var(--dv-mut);font-weight:500;padding:7px 14px;border-radius:999px;font-size:15px}
+  .jr-seg button.act{background:var(--dv-fg);color:#12171B}
+  .jr-sum{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin:16px 0 6px;border-top:1px solid var(--dv-line);border-bottom:1px solid var(--dv-line)}
+  .jr-sum div{padding:12px 0 10px;min-width:0}
+  .jr-sum div + div{padding-left:14px;border-left:1px solid var(--dv-line)}
+  .jr-sum b{display:block;font-weight:700;font-size:clamp(26px,7vw,40px);line-height:1}
+  .jr-sum b small{font-weight:500;font-size:.45em;color:var(--dv-mut);margin-left:.15em}
+  .jr-sum span{font-size:14px;color:var(--dv-mut)}
+  .jr-live:empty{display:none}
+  .jr-live{display:grid;gap:8px;margin:12px 0 4px}
+  .jr-now{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:4px 12px;padding:12px 14px;border-radius:12px;background:#171E23;box-shadow:inset 3px 0 0 var(--dv-draw)}
+  .jr-now.paused{box-shadow:inset 3px 0 0 var(--dv-mut)}
+  .jr-now .n{font-weight:700;font-size:18px}
+  .jr-now .m{grid-column:1;font-size:14px;color:var(--dv-mut)}
+  .jr-now .c{grid-row:1/3;grid-column:2;text-align:right;font-weight:700;font-size:34px;line-height:1}
+  .jr-now .c small,.jr-row .c small{display:block;font-weight:500;font-size:13px;color:var(--dv-mut)}
+  .jr-kind{margin:18px 0 2px}
+  .jr-day{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:20px 0 8px;border-bottom:1px solid var(--dv-line)}
+  .jr-day b{font-weight:700;font-size:19px}
+  .jr-day span{font-size:15px;color:var(--dv-mut);white-space:nowrap}
+  .jr-row{display:grid;grid-template-columns:62px minmax(0,1fr) auto;gap:2px 12px;padding:12px 0;border-bottom:1px solid var(--dv-line);cursor:pointer;align-items:center}
+  .jr-row .t{grid-row:1/3;font-size:15px;color:var(--dv-mut);line-height:1.25;align-self:start;padding-top:2px}
+  .jr-row .n{font-weight:700;font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .jr-row .m{grid-column:2;font-size:14px;color:var(--dv-mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .jr-row .c{grid-row:1/3;grid-column:3;text-align:right;font-weight:700;font-size:30px;line-height:1}
+  .jr-row .c.hi{color:var(--dv-warn)} .jr-row .c.lo{color:var(--dv-ok)}
+  .jr-tag{display:inline-block;font-size:12px;font-weight:500;color:var(--dv-mut);border:1px solid var(--dv-line);border-radius:6px;padding:0 5px;margin-left:6px;vertical-align:2px}
+  .jr-det{grid-column:1/-1;display:none;margin-top:10px}
+  .jr-row.open .jr-det{display:block}
+  .jr-det dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 18px;margin:0}
+  @media (min-width:620px){ .jr-det dl{grid-template-columns:repeat(3,minmax(0,1fr))} }
+  .jr-det dt{font-size:13px;color:var(--dv-mut)} .jr-det dd{margin:0 0 4px;font-weight:700;font-size:17px}
+  .jr-act{display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap}
+  .jr-act input{flex:1;min-width:140px;background:#0f1218;color:var(--fg);border:1px solid var(--dv-line);border-radius:8px;padding:7px 9px;font:inherit}
+  body.mirror .jr-act, body.mirror .jr-head, body.mirror #jrKind{display:none}
+  .jr-empty{padding:28px 0;color:var(--dv-mut);font-size:15px;line-height:1.5}
+  @media (max-width:420px){ .jr-sum{grid-template-columns:repeat(2,minmax(0,1fr))} .jr-sum div:nth-child(3){padding-left:0;border-left:0} .jr-sum div:nth-child(n+3){border-top:1px solid var(--dv-line)} }
   /* ======== Performans (pist modu): Sürüş ekranıyla aynı renk ve yazı dili ======== */
-  #tab-drive, #tab-perf{--dv-bg:#12171B;--dv-line:#232B32;--dv-fg:#ECEFEC;--dv-mut:#8E999F;--dv-draw:#D6C45C;--dv-regen:#8DB5D6;--dv-warn:#EFA43A;--dv-hot:#EC5A4F;--dv-ok:#6F9484;
+  #tab-drive, #tab-perf, #tab-trip{--dv-bg:#12171B;--dv-line:#232B32;--dv-fg:#ECEFEC;--dv-mut:#8E999F;--dv-draw:#D6C45C;--dv-regen:#8DB5D6;--dv-warn:#EFA43A;--dv-hot:#EC5A4F;--dv-ok:#6F9484;
     font-family:'EX30 Gauge',system-ui,sans-serif;font-variant-numeric:tabular-nums lining-nums;color:var(--dv-fg)}
   .pv{display:grid;grid-template-columns:minmax(0,25fr) minmax(0,43fr) minmax(0,32fr);gap:1px;background:var(--dv-line);
     height:calc(100vh - var(--dv-top,150px));min-height:440px;border-radius:14px;overflow:hidden;outline:1px solid var(--dv-line)}
@@ -185,7 +242,7 @@
     <button data-tab="perf">Performans</button>
     <button data-tab="charge">Şarj<span class="rec"></span></button>
     <button data-tab="cap">Kapasite</button>
-    <button data-tab="trip">Yolculuk<span class="rec"></span></button>
+    <button data-tab="trip">Yolculuklar</button>
     <button data-tab="park">Park<span class="rec"></span></button>
     <button data-tab="heat">Isıtma testi<span class="rec"></span></button>
     <button data-tab="scan">Tarayıcı</button>
@@ -309,19 +366,20 @@
 
   <!-- ============ YOLCULUK ============ -->
   <section id="tab-trip">
-    <div class="row"><button id="tripBtn">Yolculuğu başlat</button><span class="note" id="tripGps" style="margin:0"></span></div>
-    <div class="grid" style="margin-top:12px">
-      <div class="tile"><div class="k">Mesafe (GPS)</div><div class="v" id="t_km">–<small>km</small></div></div>
-      <div class="tile"><div class="k">Tüketim</div><div class="v" id="t_eff">–<small>kWh/100km</small></div></div>
-      <div class="tile"><div class="k">Harcanan</div><div class="v" id="t_out">–<small>kWh</small></div></div>
-      <div class="tile"><div class="k">Geri kazanılan (rejen)</div><div class="v" id="t_reg">–<small>kWh</small></div></div>
-      <div class="tile"><div class="k">Rejen oranı</div><div class="v" id="t_regp">–<small>%</small></div></div>
-      <div class="tile"><div class="k">Kullanılan şarj</div><div class="v" id="t_soc">–<small>%</small></div></div>
-      <div class="tile"><div class="k">Ortalama hız</div><div class="v" id="t_spd">–<small>km/s</small></div></div>
-      <div class="tile"><div class="k">Süre</div><div class="v" id="t_dur">–</div></div>
+    <div class="jr" id="jr">
+      <div class="jr-head">
+        <div class="jr-seg" id="jrPeriod" role="tablist" aria-label="Dönem">
+          <button data-p="7" class="act">7 gün</button><button data-p="30">30 gün</button><button data-p="0">Tümü</button>
+        </div>
+        <button class="sec mini" id="jrCsv">CSV indir</button>
+      </div>
+      <div class="jr-sum" id="jrSum"></div>
+      <div class="jr-live" id="jrLive"></div>
+      <div class="jr-seg jr-kind" id="jrKind" role="tablist" aria-label="Tür">
+        <button data-k="all" class="act">Hepsi</button><button data-k="auto">Otomatik</button><button data-k="man">Trip A/B</button>
+      </div>
+      <div id="jrList"></div>
     </div>
-    <p class="note">Mesafe telefonun GPS'inden gelir; konum izni verin. GPS çalışmazsa bitirirken km'yi elle girebilirsiniz.</p>
-    <div class="card"><h2>Geçmiş yolculuklar</h2><div class="tbl" id="tripList"></div></div>
   </section>
 
   <!-- ============ PARK ============ -->
@@ -1101,7 +1159,6 @@ function setState(id, cls, txt){ const el=$(id); el.className="state"+(cls?" "+c
 function renderAll(){
   for (const b of document.querySelectorAll("nav button")) b.classList.toggle("recording", !!active[b.dataset.tab]);
   $("chgBtn").textContent = active.charge ? "Şarj kaydını bitir" : "Şarj kaydını başlat"; $("chgBtn").className = active.charge?"stop":"";
-  $("tripBtn").textContent = active.trip ? "Yolculuğu bitir" : "Yolculuğu başlat"; $("tripBtn").className = active.trip?"stop":"";
   $("parkBtn").textContent = active.park ? "İzlemeyi bitir" : "Park izlemeyi başlat"; $("parkBtn").className = active.park?"stop":"";
   $("heatBtn").textContent = active.heat ? "Testi bitir" : "Testi başlat"; $("heatBtn").className = active.heat?"stop":"";
   if (tab==="live") renderLive();
@@ -1193,23 +1250,134 @@ function renderCap(){
   $("capList").innerHTML = `<table><tr><th>Tarih</th><th>Şarj %</th><th>Giren</th><th>Tahmin</th><th>Yeniye göre</th></tr>${html}</table>`;
 }
 
+// =====================================================================
+//  Yolculuklar: otomatik yolculuklar, Trip A/B ve eski kayıtlar tek günlükte
+// =====================================================================
+let jrPeriod = store.get("jrPeriod", 7), jrKind = "all", jrOpen = null, jrEditing = false;
+const jrNames = () => store.get("tripNames", {});
+const JR_DAYS = ["Pazar","Pazartesi","Salı","Çarşamba","Perşembe","Cuma","Cumartesi"];
+const jrTime = s => s ? s.slice(11,16) : "";
+const jrDate = s => new Date(+s.slice(0,4), +s.slice(5,7)-1, +s.slice(8,10));
+const jrKm = h => h.km_arac || h.km_gps || 0;
+const jrIsAuto = h => /^oto/i.test(h.tur||"");
+function jrAutoName(h){
+  const hr=+(h.baslangic||"").slice(11,13), km=jrKm(h);
+  const part = hr<5?"gece":hr<11?"sabah":hr<14?"öğle":hr<18?"öğleden sonra":hr<22?"akşam":"gece";
+  if (km>=80) return "Uzun yol, "+part;
+  if (km<3) return "Kısa sürüş, "+part;
+  return part[0].toLocaleUpperCase("tr-TR")+part.slice(1)+" sürüşü";
+}
+function jrName(h){ const c=jrNames()[h._key]; if (c) return c; if (h._legacy) return "Eski kayıt"; return jrIsAuto(h) ? jrAutoName(h) : (h.tur||"Yolculuk"); }
+function jrLegacy(){
+  const z=n=>String(n).padStart(2,"0"), st=t=>{ const d=new Date(t); return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`; };
+  return sessions.filter(s=>s.type==="trip" && s.end).map(s=>{ const m=summarize(s), km=s.meta.km||0, net=s.eOut-s.eIn;
+    return {tur:"Eski kayıt", baslangic:st(s.start), bitis:st(s.end), sure_dk:Math.round((s.end-s.start)/60000), km_gps:km, harcanan_kWh:s.eOut, rejen_kWh:s.eIn,
+      tuketim_kWh100: km>0.5?net/km*100:null, sarj_bas:m.socA, sarj_bit:m.socB, _legacy:true, _sid:s.id}; });
+}
+function jrAll(){
+  let list=[]; try{ ensurePanel(); list = (panelWin && panelWin.ex30Trips) ? panelWin.ex30Trips.list().slice() : store.get("tripHistory", []); }catch{ list=store.get("tripHistory", []); }
+  list = list.concat(jrLegacy());
+  for (const h of list) h._key = h._legacy ? "legacy|"+h._sid : (h.baslangic||"")+"|"+(h.tur||"");
+  return list.sort((x,y)=> (y.baslangic||"").localeCompare(x.baslangic||""));
+}
+function jrTotals(list){
+  let km=0, net=0, kmE=0, n=0;
+  for (const h of list){ const k=jrKm(h); km+=k; n++; if (h.harcanan_kWh!=null && h.rejen_kWh!=null && k>0.5){ net+=h.harcanan_kWh-h.rejen_kWh; kmE+=k; } }
+  return {km, net, cons: kmE>1 ? net/kmE*100 : null, n};
+}
+// Tüketim rengi: dönemin ortalamasına göre belirgin sapma
+const jrCls = (c, avg) => c==null || avg==null ? "" : c > avg*1.2 ? "hi" : c < avg*0.85 ? "lo" : "";
+function jrMeta(h){
+  const x=[`${f1(jrKm(h),1)} km`, `${h.surus_dk||h.sure_dk||0} dk`];
+  if (h.bat_bas_C!=null) x.push(`batarya ${f1(h.bat_bas_C)}→${f1(h.bat_bit_C)}°`);
+  if (h.dis_sicaklik_ort_C!=null) x.push(`dış ${f1(h.dis_sicaklik_ort_C)}°`);
+  if (h.sarj_bas!=null && h.sarj_bit!=null) x.push(`%${f1(h.sarj_bas)}→${f1(h.sarj_bit)}`);
+  return x.join(", ");
+}
+function jrDetails(h){
+  const d=(k,v)=> v==null||v==="–" ? "" : `<div><dt>${k}</dt><dd>${v}</dd></div>`;
+  const rng=(a,b,u="°C")=> a==null?null:`${f1(a)} → ${f1(b)} ${u}`;
+  return `<dl>${[
+    d("Mesafe", f1(jrKm(h),1)+" km"), d("Sürüş süresi", (h.surus_dk||h.sure_dk||0)+" dk"), d("Ortalama hız", h.ort_hiz_kmsa!=null?f1(h.ort_hiz_kmsa)+" km/s":null),
+    d("Harcanan", h.harcanan_kWh!=null?f1(h.harcanan_kWh,2)+" kWh":null), d("Rejen", h.rejen_kWh!=null?f1(h.rejen_kWh,2)+" kWh":null),
+    d("Rejen oranı", h.harcanan_kWh>0.05&&h.rejen_kWh!=null?"%"+f1(h.rejen_kWh/h.harcanan_kWh*100):null),
+    d("Şarj", h.sarj_bas!=null?`%${f1(h.sarj_bas)} → %${f1(h.sarj_bit)}`:null),
+    d("Batarya", rng(h.bat_bas_C,h.bat_bit_C)), d("Batarya en yüksek", h.bat_maks_C!=null?f1(h.bat_maks_C,1)+" °C":null),
+    d("Soğutma sıvısı", rng(h.sogutma_bas_C,h.sogutma_bit_C)), d("Motor en yüksek", h.motor_maks_C!=null?f1(h.motor_maks_C)+" °C":null),
+    d("Dış hava", h.dis_sicaklik_ort_C!=null?f1(h.dis_sicaklik_ort_C)+" °C":null),
+    d("Tırmanış / iniş", h.tirmanis_m!=null?`${f1(h.tirmanis_m)} / ${f1(h.inis_m)} m`:null),
+    d("Sert fren", h.maks_yavaslama_g!=null?`${h.sert_fren_sayisi||0} kez, en sert ${f1(h.maks_yavaslama_g,2)} g`:null),
+    d("Mekanik fren (tahmini)", h.mekanik_fren_kWh_tahmini!=null?f1(h.mekanik_fren_kWh_tahmini,2)+" kWh":null),
+    d("Kaynak", h.kaynak), d("Kayıt türü", h._legacy?"Eski kayıt":jrIsAuto(h)?"Otomatik":h.tur),
+  ].join("")}</dl>`;
+}
 function renderTrip(){
-  const ss=active.trip;
-  $("tripGps").textContent = ss ? (geo.err || (geo.last?"GPS aktif":"GPS bekleniyor…")) : "";
-  if (ss){ const m=summarize(ss); tripTiles(ss, m, geo.dist/1000); }
-  else ["t_km","t_eff","t_out","t_reg","t_regp","t_soc","t_spd"].forEach(id=>setV(id,null,$(id).querySelector("small")?.textContent)), $("t_dur").textContent="–";
-  const list=sessions.filter(s=>s.type==="trip").slice().reverse();
-  $("tripList").innerHTML = list.length ? `<table><tr><th>Tarih</th><th>km</th><th>Tüketim</th><th>Harcanan</th><th>Rejen</th><th>Şarj %</th><th>Süre</th><th></th></tr>`+
-    list.map(s=>{ const m=summarize(s), km=s.meta.km; const net=s.eOut-s.eIn;
-      return `<tr><td>${dt(s.start)}</td><td>${fmt(km,1)}</td><td>${km>0.5?fmt(net/km*100,1)+" kWh/100km":"–"}</td><td>${fmt(s.eOut,2)} kWh</td><td>${fmt(s.eIn,2)} kWh</td><td>${fmt(m.socA,0)}→${fmt(m.socB,0)}</td><td>${dur(m.dur)}</td><td><button class="sec mini" data-csv="${s.id}">CSV</button> <button class="sec mini" data-del="${s.id}">Sil</button></td></tr>`; }).join("")+`</table>`
-    : `<div class="empty">Henüz yolculuk kaydı yok</div>`;
+  if (jrEditing) return;
+  for (const b of $("jrPeriod").children) b.classList.toggle("act", +b.dataset.p===jrPeriod);
+  for (const b of $("jrKind").children) b.classList.toggle("act", b.dataset.k===jrKind);
+  const all = jrAll(), cut = jrPeriod ? Date.now()-jrPeriod*864e5 : 0;
+  const inP = all.filter(h=> !cut || jrDate(h.baslangic).getTime()+864e5 > cut);
+  const T = jrTotals(inP);
+  $("jrSum").innerHTML = `<div><b>${f1(T.km)}<small>km</small></b><span>mesafe</span></div><div><b>${T.cons==null?"–":f1(T.cons,1)}<small>kWh/100</small></b><span>ortalama tüketim</span></div>`+
+    `<div><b>${f1(T.net,1)}<small>kWh</small></b><span>net enerji</span></div><div><b>${T.n}</b><span>yolculuk</span></div>`;
+  // süren yolculuklar
+  let live=[]; try{ live = panelWin && panelWin.ex30Trips ? panelWin.ex30Trips.live() : []; }catch{}
+  $("jrLive").innerHTML = live.map(h=>{ const c=h.tuketim_kWh100;
+    return `<div class="jr-now${h._paused?" paused":""}"><div class="n">${h._auto?"Şu anki yolculuk":h.tur}${h._paused?'<span class="jr-tag">durduruldu</span>':""}${h._auto?"":'<span class="jr-tag">süren</span>'}</div>
+      <div class="m">${f1(jrKm(h),1)} km, ${h.surus_dk||h.sure_dk||0} dk${h.harcanan_kWh!=null?`, ${f1(h.harcanan_kWh-h.rejen_kWh,2)} kWh`:""}</div>
+      <div class="c">${c==null?"–":f1(c,1)}<small>kWh/100</small></div></div>`; }).join("");
+  // günlük
+  const list = inP.filter(h=> jrKind==="all" || (jrKind==="auto" ? jrIsAuto(h) : !jrIsAuto(h) && !h._legacy));
+  if (!list.length){ $("jrList").innerHTML = `<div class="jr-empty">${all.length ? "Bu dönemde kayıt yok." : "Henüz yolculuk yok. Araç hareket edince otomatik yolculuk kendiliğinden başlar, 5 dakika durunca biter ve buraya eklenir. Panel'deki Trip A/B sıfırlandığında da buraya kaydedilir."}</div>`; return; }
+  const today=new Date(); today.setHours(0,0,0,0);
+  const days=new Map(); for (const h of list){ const k=(h.baslangic||"").slice(0,10); if (!days.has(k)) days.set(k, []); days.get(k).push(h); }
+  let html="";
+  for (const [k, hs] of days){
+    const d=jrDate(k+" "), diff=Math.round((today-d)/864e5);
+    const lab = diff===0 ? "Bugün" : diff===1 ? "Dün" : JR_DAYS[d.getDay()];
+    const t=jrTotals(hs);
+    html += `<div class="jr-day"><b>${lab}, ${d.toLocaleDateString("tr-TR",{day:"numeric",month:"long"})}</b><span>${f1(t.km,1)} km${t.cons!=null?`, ${f1(t.cons,1)} kWh/100`:""}</span></div>`;
+    for (const h of hs){ const c=h.tuketim_kWh100, open=jrOpen===h._key;
+      html += `<div class="jr-row${open?" open":""}" data-jk="${encodeURIComponent(h._key)}">
+        <div class="t">${jrTime(h.baslangic)}<br>${jrTime(h.bitis)}</div>
+        <div class="n">${escHtml(jrName(h))}${!jrIsAuto(h)&&!h._legacy?'<span class="jr-tag">elle</span>':""}</div>
+        <div class="c ${jrCls(c,T.cons)}">${c==null?"–":f1(c,1)}<small>kWh/100</small></div>
+        <div class="m">${jrMeta(h)}</div>
+        ${open?`<div class="jr-det">${jrDetails(h)}<div class="jr-act"><input id="jrRen" maxlength="40" placeholder="${escHtml(jrName(h))}" value="${escHtml(jrNames()[h._key]||"")}"><button class="sec mini" data-jact="ren">Adı kaydet</button><button class="sec mini" data-jact="del">Sil</button></div></div>`:""}
+      </div>`; }
+  }
+  $("jrList").innerHTML = html;
 }
-function tripTiles(ss, m, km){
-  const net=ss.eOut-ss.eIn;
-  setV("t_km", km, "km", 1); setV("t_eff", km>0.5?net/km*100:null, "kWh/100km");
-  setV("t_out", ss.eOut, "kWh", 2); setV("t_reg", ss.eIn, "kWh", 2); setV("t_regp", ss.eOut>0.05?ss.eIn/ss.eOut*100:null, "%", 0);
-  setV("t_soc", m.dSoc==null?null:-m.dSoc, "%"); setV("t_spd", m.dur>60e3?km/(m.dur/3600e3):null, "km/s", 0); $("t_dur").textContent=dur(m.dur);
-}
+const escHtml = s => String(s??"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+$("jrPeriod").onclick = e => { const b=e.target.closest("[data-p]"); if (!b) return; jrPeriod=+b.dataset.p; store.set("jrPeriod", jrPeriod); renderTrip(); };
+$("jrKind").onclick = e => { const b=e.target.closest("[data-k]"); if (!b) return; jrKind=b.dataset.k; renderTrip(); };
+$("jrList").addEventListener("focusin", e=>{ if (e.target.id==="jrRen") jrEditing=true; });
+$("jrList").addEventListener("focusout", e=>{ if (e.target.id==="jrRen") setTimeout(()=>{ jrEditing=false; }, 300); });
+$("jrList").onclick = e => {
+  const row=e.target.closest(".jr-row"); if (!row) return; const key=decodeURIComponent(row.dataset.jk);
+  const act=e.target.closest("[data-jact]");
+  if (act){
+    if (act.dataset.jact==="ren"){ const v=$("jrRen").value.trim(), n=jrNames(); if (v) n[key]=v; else delete n[key]; store.set("tripNames", n); jrEditing=false; renderTrip(); }
+    if (act.dataset.jact==="del"){
+      if (!act.dataset.ok){ act.dataset.ok="1"; act.textContent="Emin misiniz?"; setTimeout(()=>{ if (act.isConnected){ delete act.dataset.ok; act.textContent="Sil"; } }, 3000); return; }
+      if (key.startsWith("legacy|")) deleteSession(key.slice(7)); else { try{ panelWin.ex30Trips.remove(key); }catch{} }
+      jrOpen=null; jrEditing=false; renderTrip();
+    }
+    return;
+  }
+  if (e.target.closest(".jr-det")) return;
+  jrOpen = jrOpen===key ? null : key; jrEditing=false; renderTrip();
+};
+$("jrCsv").onclick = () => {
+  const list=jrAll(); if (!list.length) return;
+  const keys=[...new Set(list.flatMap(h=>Object.keys(h).filter(k=>!k.startsWith("_"))))];
+  const q=v=> v==null ? "" : /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g,'""')}"` : String(v);
+  const text = ["ad",...keys].join(",")+"\n"+list.map(h=>[q(jrName(h)),...keys.map(k=>q(h[k]))].join(",")).join("\n")+"\n";
+  saveFileText("EX30_yolculuklar_"+new Date().toISOString().slice(0,10)+".csv", text);
+};
+setInterval(()=>{ if (tab==="trip") renderTrip(); }, 3000);
+// Eski GPS'li yolculuk kaydı açık kaldıysa kapat (o sekme kaldırıldı)
+try{ if (active.trip) stopSession("trip", {km: Math.round((geo.dist||0)/10)/100}); }catch{}
 
 function parkStats(ss){
   const m=summarize(ss), hrs=m.dur/3600e3;
@@ -1437,17 +1605,21 @@ const DV_CELLS = [
   ["amp",  "Akım",                s=>[f1(s.cur,0), "A", ""]],
   ["kwh",  "Kalan enerji",        s=>[f1(s.kwhLeft,1), "kWh", "", s.kwhCap?"Kalan enerji · "+f1(s.kwhCap,1)+" kWh kapasite":null]],
   ["rng",  "Menzil",              s=>[f1(s.rng,0), "km", s.rng!=null&&s.rng<40?"warn":""]],
-  ["cons", "Yolculuk tüketimi",   s=>[f1(s.trip?.cons,1), "kWh/100", ""]],
-  ["trip", "Yolculuk",            s=>[f1(s.trip?.km,1), "km", "", s.trip?"Yolculuk "+(s.trip.name||"")+" · "+(s.trip.min??"–")+" dk":null]],
+  ["volt", "Batarya voltajı",     s=>[f1(s.volt,0), "V", ""]],
   ["dcell","Hücre gerilim farkı", s=>[s.cmax!=null&&s.cmin!=null?f1((s.cmax-s.cmin)*1000,0):"–", "mV", s.cmax!=null&&s.cmin!=null&&(s.cmax-s.cmin)>0.05?"warn":""]],
   ["brk",  "Fren",                s=>[f1(s.brake,0), "bar", ""]],
   ["v12",  "12 V akü",            s=>[f1(s.v12,1), "V", s.v12!=null&&s.v12<12.2?"warn":""]],
+  ["slip", "Patinaj (arka − ön)", s=>[s.slip==null?"–":(s.slip>0?"+":"")+f1(s.slip,1), "km/s", s.slip!=null&&Math.abs(s.slip)>=3?"warn":""]],
   ["tire", "Lastikler (psi)",     null],
 ];
+// Yolculuk bandı: ilk satırdan sonra, tüm genişlikte. Süren otomatik yolculuk; yoksa son yolculuk.
+const DV_BAND = `<div class="dv-band" id="dv-band"><div class="bl"><b id="dvbName">Yolculuk</b><span id="dvbSub">bekleniyor</span></div>
+  <div class="bv main"><b id="dvbCons">–</b><span>kWh/100 km</span></div><div class="bv"><b id="dvbKm">–</b><span>km</span></div>
+  <div class="bv"><b id="dvbMin">–</b><span>dk</span></div><div class="bv"><b id="dvbNet">–</b><span id="dvbNetL">kWh net</span></div></div>`;
 function dvBuild(){
-  $("dvGrid").innerHTML = DV_CELLS.map(([id,l])=> id==="tire"
+  $("dvGrid").innerHTML = DV_CELLS.map(([id,l],i)=> (i===4?DV_BAND:"") + (id==="tire"
     ? `<div class="dv-c" id="dv-${id}"><div class="dv-tires"><span>–</span><span>–</span><span>–</span><span>–</span></div><div class="l">${l}</div></div>`
-    : `<div class="dv-c" id="dv-${id}"><div class="v">–</div><div class="l">${l}</div></div>`).join("");
+    : `<div class="dv-c" id="dv-${id}"><div class="v">–</div><div class="l">${l}</div></div>`)).join("");
 }
 dvBuild();
 const tireCls = p => p==null ? "" : (p<33||p>45) ? "hot" : (p<36||p>42) ? "warn" : "";
@@ -1469,6 +1641,15 @@ function dvTick(){
   $("dvSpd").textContent = live ? f1(s.spd,0) : "–";
   $("dvSoc").textContent = live ? f1(s.soc,0) : "–";
   $("dvInst").textContent = live && s.inst!=null ? f1(Math.max(-99,Math.min(99,s.inst)),0) : "–";
+  { const j = s.jt, band=$("dv-band");
+    band.classList.toggle("live", !!(j && j.live));
+    $("dvbName").textContent = !j ? "Yolculuk" : j.live ? "Şu anki yolculuk" : "Son yolculuk";
+    $("dvbSub").textContent = !j ? "araç hareket edince başlar" : j.live ? "otomatik, 5 dk durunca biter" : (j.start||"").slice(11,16)+" – "+(j.end||"").slice(11,16);
+    $("dvbCons").textContent = j && j.cons!=null ? f1(j.cons,1) : "–";
+    $("dvbKm").textContent = j ? f1(j.km,1) : "–";
+    $("dvbMin").textContent = j && j.min!=null ? j.min : "–";
+    $("dvbNet").textContent = j && j.net!=null ? f1(j.net,1) : "–";
+    $("dvbNetL").textContent = j && j.reg!=null ? `kWh net, rejen ${f1(j.reg,1)}` : "kWh net"; }
   for (const [id,,fn2] of DV_CELLS){
     const el=$("dv-"+id); if (!el) continue;
     if (id==="tire"){ const sp=el.querySelectorAll(".dv-tires span"), t=s.tp||{};
@@ -1523,13 +1704,6 @@ $("chgAuto").checked = cfg.chgAuto;
 $("chgAuto").onchange = () => { cfg.chgAuto=$("chgAuto").checked; saveCfg(); };
 $("chgBtn").onclick = () => active.charge ? stopSession("charge") : startSession("charge", {auto:false});
 $("chgPick").onchange = () => renderCharge();
-$("tripBtn").onclick = () => {
-  if (!active.trip){ startSession("trip"); return; }
-  let km = geo.dist/1000;
-  if (km<0.5){ const v=parseFloat(($("manualKm")?.value||"").replace(",",".")); if (v>0) km=v;
-    else if (!$("manualKm")){ $("tripGps").innerHTML='GPS mesafesi yok. Km girin: <input id="manualKm" type="number" step="0.1" style="width:80px"> ve tekrar "Yolculuğu bitir"e basın.'; return; } }
-  stopSession("trip", {km:r2(km)});
-};
 $("parkBtn").onclick = () => active.park ? stopSession("park") : startSession("park");
 $("heatBtn").onclick = () => { if (active.heat){ stopSession("heat"); return; }
   const out=parseFloat($("heatOut").value); startSession("heat", {method:$("heatMethod").value, out: isFinite(out)?out:null}); };
@@ -1589,7 +1763,7 @@ $("scDel").onclick = () => { const b=$("scDel"); if (!curScan) return;
   delete b.dataset.ok; b.textContent="Sil"; scans=scans.filter(s=>s!==curScan); saveScans(); fillScanHist(); loadScan(scans[scans.length-1]); };
 if (location.hash==="#panel") setTimeout(()=>goTab("panel"), 0);
 // Ayna modu (Android Auto / orta ekran sürüş ekranı): sadece Panel ya da Performans, üst çubuk ve sekmeler gizli
-if (/mirror/.test(location.hash)){ document.body.classList.add("mirror"); const go=()=>goTab(/perf/.test(location.hash)?"perf":/panel/.test(location.hash)?"panel":"drive"); if (document.readyState==="complete") go(); else window.addEventListener("load", go); }
+if (/mirror/.test(location.hash)){ document.body.classList.add("mirror"); const go=()=>goTab(/perf/.test(location.hash)?"perf":/panel/.test(location.hash)?"panel":/trip/.test(location.hash)?"trip":"drive"); if (document.readyState==="complete") go(); else window.addEventListener("load", go); }
 window.ex30MirrorState = () => { try{ ensurePanel(); return panelWin && panelWin.ex30MirrorState ? panelWin.ex30MirrorState() : null; }catch{ return null; } };
 window.ex30MirrorApply = s => { try{ const f=$("panelFrame").contentWindow; f && f.ex30MirrorApply && f.ex30MirrorApply(s); }catch{} };
 try{ if (autoMode()) setTimeout(()=>ex30AutoConnect(), 500); }catch{}

@@ -107,7 +107,7 @@
   <div class="t" id="t-v12"><div class="k">12 V akü <span class="src">Adaptör</span></div><div class="v">–<small>V</small></div><div class="s"></div></div>
   <div class="t" id="t-avgspd"><div class="k">Ortalama hız (yolculuk) <span class="src" id="avgSrc">GPS</span></div><div class="v">–<small>km/s</small></div><div class="s"></div></div>
   <div class="t w2 r2" id="t-trip"><div class="k tripk"><span class="seg" id="tripSeg"></span>
-      <span><button class="sec mini" id="btnTripPause">Durdur</button> <button class="sec mini" id="btnTripReset">Sıfırla</button> <button class="sec mini" id="btnTripDel">Kaldır</button> <button class="sec mini" id="btnTripHist">Geçmiş</button></span></div>
+      <span><button class="sec mini" id="btnTripPause">Durdur</button> <button class="sec mini" id="btnTripReset">Sıfırla</button> <button class="sec mini" id="btnTripDel">Kaldır</button> <button class="sec mini" id="btnTripHist">Tüm yolculuklar</button></span></div>
     <div id="tripAddBox" class="row" style="display:none;margin-top:6px;gap:6px"><input id="tripName" maxlength="20" placeholder="Ad (ör. İş yolu)" style="flex:1;min-width:0;background:#0f1218;color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px 8px"><button class="mini" id="btnTripAddOk">Ekle</button><button class="sec mini" id="btnTripAddNo">Vazgeç</button></div>
     <div class="v">–<small>kWh/100km</small></div>
     <div class="tripinfo" id="tripInfo"></div>
@@ -665,11 +665,33 @@ window.ex30Snap = () => { const n=v=>(v==null||!isFinite(v))?null:+v;
     kwhLeft: aaos("EV_BATTERY_LEVEL")!=null ? n(aaos("EV_BATTERY_LEVEL")/1000) : n(vals.erem),
     kwhCap: aaos("EV_CURRENT_BATTERY_CAPACITY")!=null ? n(aaos("EV_CURRENT_BATTERY_CAPACITY")/1000) : null,
     slip: (()=>{ const k=["w_fl","w_fr","w_rl","w_rr"]; if (!k.every(x=>vals[x]!=null && valT[x] && Date.now()-valT[x]<2500)) return null; return (vals.w_rl+vals.w_rr-vals.w_fl-vals.w_fr)/2; })(),
-    inst: n(vals.inst),
+    inst: n(vals.inst), jt: journalNow(),
     yaw: geo.yaw!=null && Date.now()-geo.yawT<2500 ? geo.yaw : null,
     dsp: aaos("PERF_VEHICLE_SPEED_DISPLAY")!=null ? n(aaos("PERF_VEHICLE_SPEED_DISPLAY")*3.6) : null};
 };
 // Android Auto ekranı için tek seferde gönderilen özet
+// ---- Yolculuk günlüğü: ana sayfadaki Yolculuklar sekmesi ve Sürüş ekranı buradan okur ----
+const tripKey = h => (h.baslangic||"")+"|"+(h.tur||"");
+function tripBrief(h, live){
+  const km = h.km_arac || h.km_gps, out=h.harcanan_kWh, reg=h.rejen_kWh;
+  return {live, key:tripKey(h), tur:h.tur, start:h.baslangic, end:h.bitis, min:h.surus_dk||h.sure_dk, km, cons:h.tuketim_kWh100, out, reg, net: out!=null&&reg!=null ? out-reg : null};
+}
+// Sürüş ekranı: süren otomatik yolculuk; yoksa son biten yolculuk
+function journalNow(){
+  try{
+    if (trips.auto && trips.auto.start) return tripBrief(summarizeAcc(trips.auto, Date.now()), true);
+    const h = (MIRROR ? store.get("tripHistory", []) : tripHist).at(-1); return h ? tripBrief(h, false) : null;
+  }catch{ return null; }
+}
+window.ex30Trips = {
+  list(){ return MIRROR ? store.get("tripHistory", []) : tripHist; },
+  live(){ const now=Date.now(), out=[];
+    for (const k of Object.keys(trips)){ const a=trips[k]; if (!a || !a.start) continue; if (k!=="auto" && !(a.km>0.05 || a.kmCar>0.05)) continue;
+      const h=summarizeAcc(a, now); out.push(Object.assign(h, {_k:k, _auto:k==="auto", _paused:!!a.paused})); }
+    return out; },
+  remove(key){ if (MIRROR) return false; const i=tripHist.findIndex(h=>tripKey(h)===key); if (i<0) return false; tripHist.splice(i,1); saveHist(); return true; },
+  key: tripKey,
+};
 function autoSnap(now, vs){
   const n = v => (v==null || !isFinite(v)) ? null : +v;
   const tq = (vals.torque===0 && vals.torqueCalc!=null && vals.torqueCalc<0) ? vals.torqueCalc : vals.torque;
@@ -930,7 +952,8 @@ $("btnTripReset").onclick=()=>{ const b=$("btnTripReset"); if (!b.dataset.ok){ b
   delete b.dataset.ok; b.textContent="Sıfırla";
   const a=trips[tripView]; if (a && (a.km>0.2||a.kmCar>0.2)){ tripHist.push(summarizeAcc(a, Date.now())); saveHist(); }
   const old=trips[tripView]; trips[tripView]=newAcc(old.kind, old.name); trips[tripView].altStart=trips[tripView].altRef=geo.alt; saveTrip(); lastR=0; render(); };
-$("btnTripHist").onclick=()=>{ renderTripHist(); $("dlgTrips").showModal(); };
+// Geçmiş: ana sayfanın Yolculuklar sekmesine gider (yalnız panel tek başına açıldıysa eski tablo)
+$("btnTripHist").onclick=()=>{ try{ if (HOST && window.parent.goTab){ window.parent.goTab("trip"); return; } }catch{} renderTripHist(); $("dlgTrips").showModal(); };
 $("btnTripClose").onclick=()=>$("dlgTrips").close();
 $("btnTripCsv").onclick=()=>{ if (!tripHist.length) return; const keys=Object.keys(tripHist[0]);
   saveText("EX30_yolculuklar_"+localStamp(Date.now()).slice(0,16).replace(/[: ]/g,"-")+".csv", keys.join(",")+"\n"+tripHist.map(h=>keys.map(k=>h[k]==null?"":String(h[k]).replace(/,/g," ")).join(",")).join("\n")+"\n"); };

@@ -133,8 +133,7 @@ public class DashScreen extends Screen {
         Action drive = new Action.Builder().setTitle("Sürüş").setOnClickListener(() -> show("drive")).build();
         Action panel = new Action.Builder().setTitle("Panel").setOnClickListener(() -> show("panel")).build();
         Action perf = new Action.Builder().setTitle("Performans").setOnClickListener(() -> show("perf")).build();
-        Action list = new Action.Builder().setTitle("Liste")
-                .setOnClickListener(() -> getScreenManager().push(new BatteryScreen(getCarContext()))).build();
+        Action list = new Action.Builder().setTitle("Yolculuklar").setOnClickListener(() -> show("trip")).build();
         return new NavigationTemplate.Builder()
                 .setActionStrip(new ActionStrip.Builder().addAction(drive).addAction(panel).addAction(perf).addAction(list).build())
                 .build();
