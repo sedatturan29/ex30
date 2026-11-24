@@ -306,6 +306,55 @@ public class BleBridge {
         CarData.update(json);
     }
 
+    /**
+     * Telegram Bot API çağrısı (yolculuk özeti / CSV). Yalnızca api.telegram.org'a gider; anahtar
+     * sayfadan gelir, burada saklanmaz ve loga yazılmaz. Sonuç window.__tgDone(id, ok, cevap) ile döner.
+     */
+    @JavascriptInterface
+    public void tg(final String id, final String token, final String method, final String paramsJson, final String fileName, final String fileText) {
+        new Thread(() -> {
+            boolean ok = false; String body;
+            java.net.HttpURLConnection c = null;
+            try {
+                if (token == null || !token.matches("[0-9]+:[A-Za-z0-9_-]{20,}") || !method.matches("[A-Za-z]+")) throw new IllegalArgumentException("Geçersiz anahtar");
+                java.net.URL u = new java.net.URL("https://api.telegram.org/bot" + token + "/" + method);
+                c = (java.net.HttpURLConnection) u.openConnection();
+                c.setConnectTimeout(15000); c.setReadTimeout(45000); c.setDoOutput(true); c.setRequestMethod("POST");
+                JSONObject p = new JSONObject(paramsJson == null || paramsJson.isEmpty() ? "{}" : paramsJson);
+                if (fileName != null && !fileName.isEmpty()) {
+                    String bd = "ex30" + System.nanoTime();
+                    c.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + bd);
+                    java.io.ByteArrayOutputStream o = new java.io.ByteArrayOutputStream();
+                    java.util.Iterator<String> it = p.keys();
+                    while (it.hasNext()) {
+                        String k = it.next();
+                        o.write(("--" + bd + "\r\nContent-Disposition: form-data; name=\"" + k + "\"\r\n\r\n" + p.get(k) + "\r\n").getBytes(StandardCharsets.UTF_8));
+                    }
+                    o.write(("--" + bd + "\r\nContent-Disposition: form-data; name=\"document\"; filename=\"" + fileName.replaceAll("[\"\\r\\n]", "_") + "\"\r\nContent-Type: text/csv\r\n\r\n").getBytes(StandardCharsets.UTF_8));
+                    o.write(fileText.getBytes(StandardCharsets.UTF_8));
+                    o.write(("\r\n--" + bd + "--\r\n").getBytes(StandardCharsets.UTF_8));
+                    byte[] data = o.toByteArray();
+                    c.setFixedLengthStreamingMode(data.length);
+                    try (java.io.OutputStream os = c.getOutputStream()) { os.write(data); }
+                } else {
+                    byte[] data = p.toString().getBytes(StandardCharsets.UTF_8);
+                    c.setRequestProperty("Content-Type", "application/json");
+                    c.setFixedLengthStreamingMode(data.length);
+                    try (java.io.OutputStream os = c.getOutputStream()) { os.write(data); }
+                }
+                int code = c.getResponseCode();
+                InputStream in = code >= 400 ? c.getErrorStream() : c.getInputStream();
+                java.io.ByteArrayOutputStream r = new java.io.ByteArrayOutputStream();
+                if (in != null) { byte[] buf = new byte[8192]; int n; while ((n = in.read(buf)) > 0) r.write(buf, 0, n); in.close(); }
+                body = r.toString("UTF-8");
+                ok = code < 400;
+            } catch (Exception e) {
+                body = "{\"ok\":false,\"description\":" + JSONObject.quote("Bağlantı yok: " + e.getClass().getSimpleName()) + "}";
+            } finally { if (c != null) c.disconnect(); }
+            js("window.__tgDone&&__tgDone(" + JSONObject.quote(id) + "," + ok + "," + JSONObject.quote(body) + ")");
+        }, "ex30-tg").start();
+    }
+
     /** Kayıt dosyasını İndirilenler/EX30 klasörüne yazar ve paylaşma menüsünü açar. */
     @JavascriptInterface
     public void saveFile(final String name, final String mime, final String text) {

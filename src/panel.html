@@ -159,6 +159,16 @@
   </div>
   <p class="note" id="logInfo"></p>
   <div style="overflow-x:auto"><table id="logTable"><thead><tr><th>Başlangıç</th><th>Süre</th><th>Satır</th><th>Boyut</th><th></th></tr></thead><tbody></tbody></table></div>
+  <h2 style="margin-top:14px">Telegram</h2>
+  <p class="note">Yolculuk bitince özeti ve o yolculuğun kaydını (CSV) Telegram botuna gönderir. Konum, irtifa ve kilometre sayacı sütunları gönderilmez. Bot anahtarı yalnızca bu cihazda saklanır; kimseyle paylaşmayın.</p>
+  <div class="row"><input id="tgToken" type="password" autocomplete="off" spellcheck="false" placeholder="BotFather'ın verdiği anahtar" style="flex:1;min-width:0"><button class="sec mini" id="tgLink">Bağla</button></div>
+  <div class="row" style="margin-top:6px">
+    <label class="note"><input type="checkbox" id="tgSum" style="width:auto"> Özet</label>
+    <label class="note"><input type="checkbox" id="tgCsv" style="width:auto"> CSV</label>
+    <button class="sec mini" id="tgTest">Deneme mesajı</button>
+    <button class="sec mini" id="tgOff">Kaldır</button>
+  </div>
+  <p class="note" id="tgInfo"></p>
   <div id="aaosBox" style="display:none">
     <h2 style="margin-top:14px">Araç verileri (Android Automotive)</h2>
     <p class="note" id="aaosStatus">Bekleniyor…</p>
@@ -515,7 +525,8 @@ function tripTick(now, vs){
 }
 function endAuto(){
   const a = trips.auto; if (!a) return; trips.auto = null;
-  if (a.km>0.2 || a.kmCar>0.2) { tripHist.push(summarizeAcc(a, Math.max(a.start, a.lastMove||Date.now()))); saveHist(); log("Otomatik yolculuk kaydedildi"); }
+  if (a.km>0.2 || a.kmCar>0.2) { const endT=Math.max(a.start, a.lastMove||Date.now()), h=summarizeAcc(a, endT); tripHist.push(h); saveHist(); log("Otomatik yolculuk kaydedildi");
+    try{ tgOnTrip(h, a, endT); }catch{} }
   saveTrip();
 }
 const r0=v=>v==null||!isFinite(v)?null:Math.round(v), r1=v=>v==null||!isFinite(v)?null:Math.round(v*10)/10, r2=v=>v==null||!isFinite(v)?null:Math.round(v*100)/100;
@@ -944,6 +955,113 @@ if (!MIRROR) setInterval(()=>{
   }
   if (CARAPI && $("dlg").open) renderAaos();
 }, 1000);
+
+// =====================================================================
+//  Telegram: yolculuk bitince özet + konumsuz CSV (telefon, Android Auto ve orta ekran)
+// =====================================================================
+const TG = Object.assign({token:"", chat:null, chatName:"", bot:"", sum:true, csv:true}, store.get("tg", {}));
+// Dışarı gitmeyecek sütunlar: konum, irtifa, km sayacı ve kimlik sayılabilecek her şey. Yeni sütun bu adlardan birini taşıyorsa o da gitmez.
+const TG_PRIVATE = /enlem|boylam|irtifa|konum|^lat|^lon|km_sayac|odo|vin|sasi|şasi|plaka|mac|adres/i;
+let tgQ = store.get("tgQueue", []), tgBusy=false, tgSeq=0; const tgWait={};
+window.__tgDone = (id, ok, body) => { const w=tgWait[id]; if (w){ delete tgWait[id]; w(body); } };
+function tgCall(method, params, file){
+  const AB = window.AndroidBle || (HOST && window.parent.AndroidBle);
+  if (AB && AB.tg) return new Promise(res=>{
+    const id="t"+(++tgSeq);
+    tgWait[id] = body => { let j=null; try{ j=JSON.parse(body); }catch{} res(j || {ok:false, description:String(body).slice(0,200)}); };
+    setTimeout(()=>{ if (tgWait[id]){ delete tgWait[id]; res({ok:false, description:"zaman aşımı"}); } }, 90000);
+    AB.tg(id, TG.token, method, JSON.stringify(params||{}), file?file.name:"", file?file.text:"");
+  });
+  const url = `https://api.telegram.org/bot${TG.token}/${method}`;
+  let opt;
+  if (file){ const fd=new FormData(); for (const k in params) fd.append(k, params[k]); fd.append("document", new Blob([file.text],{type:"text/csv"}), file.name); opt={method:"POST", body:fd}; }
+  else opt={method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(params||{})};
+  return fetch(url, opt).then(r=>r.json()).catch(e=>({ok:false, description:"Bağlantı yok"}));
+}
+const tgDevice = () => CARAPI ? "orta ekran" : "telefon";
+function tgTripText(h){
+  const f=(v,d=1)=>v==null?null:fmt(v,d), L=[];
+  L.push(`EX30 yolculuk (${tgDevice()})`);
+  L.push(`${h.baslangic.slice(8,10)}.${h.baslangic.slice(5,7)} ${h.baslangic.slice(11,16)} → ${h.bitis.slice(11,16)} (${h.sure_dk} dk)`);
+  const km = h.km_arac || h.km_gps;
+  L.push(`${f(km)} km` + (h.ort_hiz_kmsa!=null?`, ortalama ${f(h.ort_hiz_kmsa,0)} km/s`:""));
+  if (h.tuketim_kWh100!=null) L.push(`Tüketim ${f(h.tuketim_kWh100)} kWh/100 km (harcanan ${f(h.harcanan_kWh,2)}, rejen ${f(h.rejen_kWh,2)} kWh)`);
+  if (h.sarj_bas!=null) L.push(`Şarj %${f(h.sarj_bas,0)} → %${f(h.sarj_bit,0)}`);
+  if (h.bat_bas_C!=null) L.push(`Batarya ${f(h.bat_bas_C,0)} → ${f(h.bat_bit_C,0)} °C (en yüksek ${f(h.bat_maks_C,0)})`);
+  if (h.motor_maks_C!=null) L.push(`Motor en yüksek ${f(h.motor_maks_C,0)} °C`);
+  if (h.dis_sicaklik_ort_C!=null) L.push(`Dış hava ${f(h.dis_sicaklik_ort_C,0)} °C`);
+  if (h.tirmanis_m!=null) L.push(`Tırmanış ${f(h.tirmanis_m,0)} m, iniş ${f(h.inis_m,0)} m`);
+  if (h.maks_yavaslama_g!=null) L.push(`Sert fren ${h.sert_fren_sayisi||0}, en sert ${f(h.maks_yavaslama_g,2)} g`);
+  if (h.kaynak) L.push(`Kaynak: ${h.kaynak}`);
+  return L.join("\n");
+}
+// Yolculuk aralığındaki kayıt satırları; yalnız sabit sütunlar (ek sütunlar oturuma göre değişir), özel sütunlar çıkarılmış
+async function tgTripCsv(start, end){
+  if (!db) db = await openDb(); if (!db) return null;
+  if (logSess) await logFlush();
+  const a=localStamp(start), b=localStamp(end+1000);
+  const list=(await idb(tx("sessions","readonly").getAll())).filter(s=>s.start<=end+1000 && s.end>=start).sort((x,y)=>x.start-y.start);
+  if (!list.length) return null;
+  const names=["zaman", ...LOG_COLS.map(c=>c[1])], keep=names.map((n,i)=>!TG_PRIVATE.test(n));
+  const out=[names.filter((n,i)=>keep[i]).join(",")];
+  for (const s of list){
+    const chunks = await idb(tx("chunks","readonly").index("sid").getAll(s.id));
+    for (const c of chunks) for (const line of c.text.split("\n")){
+      if (!line || line<a || line>b) continue;
+      const v=line.split(","); out.push(names.map((n,i)=>keep[i]?(v[i]??""):null).filter(x=>x!==null).join(","));
+    }
+  }
+  if (out.length<2) return null;
+  return {name:"EX30_"+a.slice(0,16).replace(/[: ]/g,"-")+".csv", text:out.join("\n")+"\n"};
+}
+function tgEnqueue(it){ if (!TG.token || !TG.chat || MIRROR) return; tgQ.push(it); while (tgQ.length>60) tgQ.shift(); store.set("tgQueue", tgQ); tgFlush(); tgRender(); }
+async function tgFlush(){
+  if (tgBusy || !tgQ.length || !TG.token || !TG.chat || MIRROR) return; tgBusy=true;
+  try{
+    while (tgQ.length){
+      const it=tgQ[0]; let r;
+      if (it.kind==="sum") r = await tgCall("sendMessage", {chat_id:TG.chat, text:it.text});
+      else { const f = await tgTripCsv(it.start, it.end); if (!f){ tgQ.shift(); continue; } r = await tgCall("sendDocument", {chat_id:TG.chat, caption:it.caption||""}, f); }
+      if (r && r.ok){ tgQ.shift(); TG.last=Date.now(); store.set("tg", TG); }
+      else if (r && r.error_code>=400 && r.error_code<500 && r.error_code!==429){ log("Telegram reddetti: "+(r.description||r.error_code)); tgQ.shift(); }
+      else break;   // internet yok / geçici hata: sonra yeniden denenir
+      store.set("tgQueue", tgQ);
+    }
+  } finally { tgBusy=false; store.set("tgQueue", tgQ); tgRender(); }
+}
+if (!MIRROR) setInterval(tgFlush, 60000);
+function tgOnTrip(h, a, endT){
+  if (!TG.token || !TG.chat) return;
+  if (TG.sum) tgEnqueue({kind:"sum", text:tgTripText(h)});
+  if (TG.csv) tgEnqueue({kind:"csv", start:a.start, end:endT, caption:`${h.baslangic.slice(0,16)} yolculuk kaydı (${tgDevice()})`});
+}
+function tgRender(){
+  const el=$("tgInfo"); if (!el) return;
+  $("tgSum").checked=!!TG.sum; $("tgCsv").checked=!!TG.csv;
+  el.textContent = !TG.token ? "Bağlı değil. Telegram'da @BotFather → /newbot ile bot oluşturun, botunuza bir mesaj yazın, anahtarı buraya girip Bağla'ya basın."
+    : !TG.chat ? "Anahtar kayıtlı ama sohbet bulunamadı: botunuza Telegram'dan bir mesaj yazıp yeniden Bağla'ya basın."
+    : `Bağlı: @${TG.bot} → ${TG.chatName}. ` + (tgQ.length ? `Gönderilmeyi bekleyen: ${tgQ.length}. ` : "") + (TG.last ? "Son gönderim "+new Date(TG.last).toLocaleString("tr-TR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}) : "");
+}
+$("tgLink").onclick = async () => {
+  const v=$("tgToken").value.trim();
+  if (v){ if (!/^\d+:[\w-]{20,}$/.test(v)){ $("tgInfo").textContent="Anahtar biçimi hatalı (ör. 123456789:AA…)."; return; } TG.token=v; }
+  if (!TG.token){ tgRender(); return; }
+  $("tgInfo").textContent="Kontrol ediliyor…";
+  const me = await tgCall("getMe", {});
+  if (!me.ok){ $("tgInfo").textContent = me.error_code===401 ? "Anahtar geçersiz." : "Telegram'a ulaşılamadı: "+(me.description||""); return; }
+  TG.bot = me.result.username;
+  const up = await tgCall("getUpdates", {limit:50, allowed_updates:["message"]});
+  const msgs = (up.ok ? up.result : []).map(u=>u.message).filter(m=>m && m.chat && m.chat.type==="private");
+  if (msgs.length){ const c=msgs.at(-1).chat; TG.chat=c.id; TG.chatName=[c.first_name,c.last_name].filter(Boolean).join(" ") || c.username || "sohbet"; }
+  $("tgToken").value=""; store.set("tg", TG); tgRender();
+  if (TG.chat){ const r = await tgCall("sendMessage", {chat_id:TG.chat, text:`EX30 Reader bağlandı (${tgDevice()}). Yolculuk özetleri buraya gelecek.`}); if (!r.ok) $("tgInfo").textContent="Mesaj gönderilemedi: "+(r.description||""); }
+};
+$("tgSum").onchange=()=>{ TG.sum=$("tgSum").checked; store.set("tg", TG); };
+$("tgCsv").onchange=()=>{ TG.csv=$("tgCsv").checked; store.set("tg", TG); };
+$("tgTest").onclick=async()=>{ if (!TG.chat){ tgRender(); return; } const r=await tgCall("sendMessage",{chat_id:TG.chat, text:`Deneme (${tgDevice()}): ${new Date().toLocaleString("tr-TR")}`}); $("tgInfo").textContent = r.ok ? "Deneme mesajı gönderildi." : "Gönderilemedi: "+(r.description||""); };
+$("tgOff").onclick=()=>{ if (!confirmBtn($("tgOff"))) return; Object.assign(TG,{token:"", chat:null, chatName:"", bot:""}); tgQ=[]; store.set("tg", TG); store.set("tgQueue", tgQ); tgRender(); };
+function confirmBtn(b){ if (b.dataset.ok) { delete b.dataset.ok; b.textContent=b.dataset.t; return true; } b.dataset.t=b.textContent; b.dataset.ok="1"; b.textContent="Emin misiniz?"; setTimeout(()=>{ if (b.dataset.ok){ delete b.dataset.ok; b.textContent=b.dataset.t; } },3000); return false; }
+tgRender(); setTimeout(tgFlush, 5000);
 // ---- Ayna: durum aktarımı ----
 window.ex30MirrorState = () => { const now=Date.now(), age={}; for (const k in valT) age[k]=now-valT[k];
   return JSON.stringify({vals, trips, tripView, carv, geo, age, running, sT: now-lastSampleT, cT: lastCarT? now-lastCarT : 1e9}); };
