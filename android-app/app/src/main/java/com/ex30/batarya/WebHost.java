@@ -82,16 +82,13 @@ final class WebHost {
     static volatile boolean connected;
     static boolean bootHold() { return System.currentTimeMillis() < bootUntil; }
     static void onBoot(Context c) {
-        bootUntil = System.currentTimeMillis() + 10 * 60_000L;
+        // Orta ekranda araç açık kaldıkça çalış: OBD olmasa da aracın kendi verileriyle kayıt tutulur.
+        // Araç kapanınca sistem uykuya geçer ve hizmet onunla durur.
+        bootUntil = Long.MAX_VALUE;
         autoReq = true;
         ReaderService.start(c);   // açılış yayınından ön plan hizmeti başlatmaya izin var; sonrasında olmayabilir
         WebHost w = get(c);
         w.web.evaluateJavascript("window.ex30AutoConnect&&ex30AutoConnect()", null);
-        w.h.postDelayed(() -> {
-            if (connected) return;
-            if (!carSession) autoReq = false;
-            ReaderService.stop(c);
-        }, 10 * 60_000L + 1000);
     }
 
     static void setKeepAlive(boolean on) {

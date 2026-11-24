@@ -601,7 +601,7 @@ async function checkEnv(){
 }
 
 // Android Auto'dan açılınca: son adaptöre seçim penceresi olmadan bağlan, olmazsa 15 sn'de bir yeniden dene
-let autoBusy=false, autoTimer=null;
+let autoBusy=false, autoTimer=null, autoFails=0;
 // Android Auto'dan açıldıysa ya da orta ekranda (Android Automotive) çalışıyorsa otomatik bağlan
 const autoMode = () => { try{ return !!(window.AndroidCar || (window.AndroidBle && AndroidBle.autoRequested && AndroidBle.autoRequested())); }catch{ return false; } };
 function autoStatus(t){ try{ window.AndroidBle && AndroidBle.publish(JSON.stringify({conn:false, status:t})); }catch{} }
@@ -612,8 +612,9 @@ window.ex30AutoConnect = async () => {
   autoBusy=true; autoStatus("OBD adaptörüne bağlanılıyor…");
   try{ await connect(false, true); }catch{}
   autoBusy=false;
-  if (!chW){ autoStatus("Adaptöre bağlanılamadı; 15 sn sonra tekrar denenecek. Araç açık, adaptör takılı ve Car Scanner kapalı olmalı.");
-    autoTimer=setTimeout(()=>{ if (autoMode()) ex30AutoConnect(); }, 15000); }
+  if (!chW){ autoStatus((window.AndroidCar?"Araç verileriyle kayıt sürüyor. ":"")+"Adaptöre bağlanılamadı; tekrar denenecek. Araç açık, adaptör takılı ve Car Scanner kapalı olmalı.");
+    autoFails++; autoTimer=setTimeout(()=>{ if (autoMode()) ex30AutoConnect(); }, autoFails>40 ? 60000 : 15000); }
+  else autoFails=0;
 };
 async function connect(all=false, auto=false){
   if (!navigator.bluetooth){ goTab("conn"); checkEnv(); return; }
@@ -1272,7 +1273,7 @@ function showBanner(t){ const b=$("banner"); b.textContent=t; b.style.display="b
 btnConn.onclick = () => { if (btnConn.textContent==="Kes") disconnect(); else { if (tab!=="panel") goTab("conn"); connect(false); } };
 function sizePanel(){ const f=$("panelFrame"); const h=document.querySelector("header").offsetHeight; f.style.height=(window.innerHeight-h)+"px"; }
 // Panel bağlantı kurulunca arka planda da yüklenir: otomatik yolculuk, oturum kaydı ve tüm değerler hangi sekme açık olursa olsun sürer
-function ensurePanel(){ const f=$("panelFrame"); if (!f.dataset.loaded){ f.dataset.loaded="1"; f.srcdoc = "<!DOCTYPE html>" + $("panelSrc").innerHTML; } }
+function ensurePanel(){ const f=$("panelFrame"), src=$("panelSrc"); if (!f.dataset.loaded && src){ f.srcdoc = "<!DOCTYPE html>" + src.innerHTML; f.dataset.loaded="1"; } }
 
 // =====================================================================
 //  Performans (pist modu tarzı)
@@ -1591,6 +1592,8 @@ if (/mirror/.test(location.hash)){ document.body.classList.add("mirror"); const 
 window.ex30MirrorState = () => { try{ ensurePanel(); return panelWin && panelWin.ex30MirrorState ? panelWin.ex30MirrorState() : null; }catch{ return null; } };
 window.ex30MirrorApply = s => { try{ const f=$("panelFrame").contentWindow; f && f.ex30MirrorApply && f.ex30MirrorApply(s); }catch{} };
 try{ if (autoMode()) setTimeout(()=>ex30AutoConnect(), 500); }catch{}
+// Orta ekranda (Android Automotive) panel her zaman yüklü: OBD bağlı olmasa da aracın kendi verileriyle yolculuk ve kayıt tutulur
+if (window.AndroidCar && !/mirror/.test(location.hash)){ const ep=()=>{ try{ ensurePanel(); }catch{} }; if (document.readyState==="complete") ep(); else window.addEventListener("load", ep); }
 $("scRe").onclick = rescan;
 $("scCopy").onclick = () => copyText(curScan ? scanCsv(curScan) : "unite,istek,cevap,kod,ham,onceki\n"+scanRes.map(x=>`${x.unit},${x.tx},${x.rx},${x.did},${hexb(x.bytes)},${x.prev?hexb(x.prev):""}`).join("\n"), "Tarama sonucu");
 document.addEventListener("click", e => {

@@ -604,7 +604,7 @@ async function checkEnv(){
 }
 
 // Android Auto'dan açılınca: son adaptöre seçim penceresi olmadan bağlan, olmazsa 15 sn'de bir yeniden dene
-let autoBusy=false, autoTimer=null;
+let autoBusy=false, autoTimer=null, autoFails=0;
 // Android Auto'dan açıldıysa ya da orta ekranda (Android Automotive) çalışıyorsa otomatik bağlan
 const autoMode = () => { try{ return !!(window.AndroidCar || (window.AndroidBle && AndroidBle.autoRequested && AndroidBle.autoRequested())); }catch{ return false; } };
 function autoStatus(t){ try{ window.AndroidBle && AndroidBle.publish(JSON.stringify({conn:false, status:t})); }catch{} }
@@ -615,8 +615,9 @@ window.ex30AutoConnect = async () => {
   autoBusy=true; autoStatus("OBD adaptörüne bağlanılıyor…");
   try{ await connect(false, true); }catch{}
   autoBusy=false;
-  if (!chW){ autoStatus("Adaptöre bağlanılamadı; 15 sn sonra tekrar denenecek. Araç açık, adaptör takılı ve Car Scanner kapalı olmalı.");
-    autoTimer=setTimeout(()=>{ if (autoMode()) ex30AutoConnect(); }, 15000); }
+  if (!chW){ autoStatus((window.AndroidCar?"Araç verileriyle kayıt sürüyor. ":"")+"Adaptöre bağlanılamadı; tekrar denenecek. Araç açık, adaptör takılı ve Car Scanner kapalı olmalı.");
+    autoFails++; autoTimer=setTimeout(()=>{ if (autoMode()) ex30AutoConnect(); }, autoFails>40 ? 60000 : 15000); }
+  else autoFails=0;
 };
 async function connect(all=false, auto=false){
   if (!navigator.bluetooth){ goTab("conn"); checkEnv(); return; }
@@ -1275,7 +1276,7 @@ function showBanner(t){ const b=$("banner"); b.textContent=t; b.style.display="b
 btnConn.onclick = () => { if (btnConn.textContent==="Kes") disconnect(); else { if (tab!=="panel") goTab("conn"); connect(false); } };
 function sizePanel(){ const f=$("panelFrame"); const h=document.querySelector("header").offsetHeight; f.style.height=(window.innerHeight-h)+"px"; }
 // Panel bağlantı kurulunca arka planda da yüklenir: otomatik yolculuk, oturum kaydı ve tüm değerler hangi sekme açık olursa olsun sürer
-function ensurePanel(){ const f=$("panelFrame"); if (!f.dataset.loaded){ f.dataset.loaded="1"; f.srcdoc = "<!DOCTYPE html>" + $("panelSrc").innerHTML; } }
+function ensurePanel(){ const f=$("panelFrame"), src=$("panelSrc"); if (!f.dataset.loaded && src){ f.srcdoc = "<!DOCTYPE html>" + src.innerHTML; f.dataset.loaded="1"; } }
 
 // =====================================================================
 //  Performans (pist modu tarzı)
@@ -1594,6 +1595,8 @@ if (/mirror/.test(location.hash)){ document.body.classList.add("mirror"); const 
 window.ex30MirrorState = () => { try{ ensurePanel(); return panelWin && panelWin.ex30MirrorState ? panelWin.ex30MirrorState() : null; }catch{ return null; } };
 window.ex30MirrorApply = s => { try{ const f=$("panelFrame").contentWindow; f && f.ex30MirrorApply && f.ex30MirrorApply(s); }catch{} };
 try{ if (autoMode()) setTimeout(()=>ex30AutoConnect(), 500); }catch{}
+// Orta ekranda (Android Automotive) panel her zaman yüklü: OBD bağlı olmasa da aracın kendi verileriyle yolculuk ve kayıt tutulur
+if (window.AndroidCar && !/mirror/.test(location.hash)){ const ep=()=>{ try{ ensurePanel(); }catch{} }; if (document.readyState==="complete") ep(); else window.addEventListener("load", ep); }
 $("scRe").onclick = rescan;
 $("scCopy").onclick = () => copyText(curScan ? scanCsv(curScan) : "unite,istek,cevap,kod,ham,onceki\n"+scanRes.map(x=>`${x.unit},${x.tx},${x.rx},${x.did},${hexb(x.bytes)},${x.prev?hexb(x.prev):""}`).join("\n"), "Tarama sonucu");
 document.addEventListener("click", e => {
@@ -1948,7 +1951,7 @@ async function startEmbedded(){
   if (!HOST || running || hostPaused || !HOST.connected()) return;
   chW={host:true}; suffix=HOST.suffix(); curEcu=""; curCp="";
   setPill("on","Bağlı"); $("btnConn").textContent="Kes";
-  if (!logSess) logStart();
+  if (!logSess || logSess.src!=="obd") logStart("obd");
   loop();
 }
 function stopEmbedded(){ running=false; chW=null; logStop(); setPill("","Bağlı değil"); $("btnConn").textContent="Bağlan"; }
@@ -1978,7 +1981,7 @@ async function connect(){
     const r1 = await send("22491B1"); suffix = parseDid(r1,"491B") ? "1" : ""; log("Tek-cevap modu: "+(suffix?"açık":"kapalı"));
     setPill("on","Bağlı"); $("btnConn").textContent="Kes";
     try{ wake = await navigator.wakeLock?.request("screen"); }catch{}
-    logStart();
+    logStart("obd");
     loop();
   }catch(e){ log("Hata: "+e.message); setPill("err","Bağlantı hatası"); cleanup(); }
 }
@@ -2089,7 +2092,8 @@ async function loopBody(){
 const carv = {};   // "AD" ya da "AD@alan" → değer
 const aaos = k => { const v = carv[k]; return typeof v === "number" && isFinite(v) ? v : null; };
 const WHEEL_AREA = {fl:1, fr:2, rl:4, rr:8};
-window.__car = o => { carv[o.area ? o.name+"@"+o.area : o.name] = o.value; if (!running) render(); };
+let lastCarT=0;
+window.__car = o => { lastCarT=Date.now(); carv[o.area ? o.name+"@"+o.area : o.name] = o.value; if (!running) render(); };
 window.__carStatus = t => { const el=document.getElementById("aaosStatus"); if (el) el.textContent = t; };
 // Volvo EX30: EV_BATTERY_INSTANTANEOUS_CHARGE_RATE park halinde (şarj kablosu yokken) +201000 mW → deşarjı artı veriyor (Android tanımının tersi)
 function aaosPower(){ const v=aaos("EV_BATTERY_INSTANTANEOUS_CHARGE_RATE"); return v==null ? null : v/1e6; }
@@ -2117,9 +2121,10 @@ function tripTick(now, vs){
   const outT = aaos("ENV_OUTSIDE_TEMPERATURE");
   for (const a of accs()){
     if (now - a.lastStat < 1000) continue; a.lastStat = now;
-    if (vals.soc!=null){ if (a.socStart==null) a.socStart=vals.soc; a.socEnd=vals.soc; }
+    { const sc = vals.soc ?? aaosSoc(); if (sc!=null){ if (a.socStart==null) a.socStart=sc; a.socEnd=sc; } }
+    a.src = running ? "OBD" : (a.src==="OBD" ? "OBD" : "araç");
     if (vals.odo!=null){ if (a.odoStart==null) a.odoStart=vals.odo; a.odoEnd=vals.odo; }
-    stat(a,"avg",vals.avg); stat(a,"max",vals.max); stat(a,"cin",vals.cin); stat(a,"cout",defined("cout")?vals.cout:null); stat(a,"motor",defined("motor")?vals.motor:null);
+    stat(a,"avg",batTemp()); stat(a,"max",vals.max); stat(a,"cin",vals.cin); stat(a,"cout",defined("cout")?vals.cout:null); stat(a,"motor",defined("motor")?vals.motor:null);
     stat(a,"outT",outT);
     if (moving) for (const w of ["fl","fr","rl","rr"]) stat(a,"p_"+w,tirePsi(w));
   }
@@ -2143,13 +2148,42 @@ function summarizeAcc(a, endT){
     sogutma_bas_C:r0(st("cin").f), sogutma_bit_C:r0(st("cin").l), sogutma_min_C:r0(st("cin").min), sogutma_maks_C:r0(st("cin").max),
     guc_akt_sogutma_bas_C:r1(st("cout").f), guc_akt_sogutma_bit_C:r1(st("cout").l), guc_akt_sogutma_maks_C:r1(st("cout").max), motor_maks_C:r0(st("motor").max),
     basinc_ort_sol_on_psi:r1(avg("p_fl")), basinc_ort_sag_on_psi:r1(avg("p_fr")), basinc_ort_sol_arka_psi:r1(avg("p_rl")), basinc_ort_sag_arka_psi:r1(avg("p_rr")),
-    dis_sicaklik_ort_C:r1(avg("outT"))};
+    dis_sicaklik_ort_C:r1(avg("outT")),
+    sert_fren_sayisi:a.hardBrk||0, maks_yavaslama_g:r2(a.maxDec), mekanik_fren_kWh_tahmini:r2(a.eBrk), kaynak:a.src||null};
 }
+// ---- Yavaşlama ve mekanik fren tahmini (fren basıncı yoksa) ----
+// Gereken yavaşlatma gücü m·a·v; bunun aerodinamik + yuvarlanma direnci ve rejen (batarya gücü / verim) ile
+// açıklanamayan kısmı mekanik frene yazılır. Kaba bir tahmindir; OBD'den fren basıncı geliyorsa o esas alınır.
+const MASS=1960, BRK_G=0.3;
+const accBuf=[];
+function brakeEst(now, vs, P){
+  vals.acc_g=null; vals.brk_kw=null;
+  if (vs==null) return;
+  accBuf.push({t:now, v:vs/3.6}); while (accBuf.length && now-accBuf[0].t>1500) accBuf.shift();
+  if (accBuf.length<2 || now-accBuf[0].t<700) return;
+  const a=(accBuf.at(-1).v-accBuf[0].v)/((accBuf.at(-1).t-accBuf[0].t)/1000), v=vs/3.6;
+  vals.acc_g = a/9.81;
+  if (a<0 && v>1){
+    const need=MASS*(-a)*v, res=(0.5*1.2*0.28*2.25*v*v + 0.009*MASS*9.81)*v, regen = P!=null && P<0 ? -P*1000/0.88 : 0;
+    vals.brk_kw = Math.max(0, need-res-regen)/1000;
+  } else vals.brk_kw = 0;
+  const hard = vals.acc_g <= -BRK_G;
+  for (const x of accs()){
+    if (hard && !x.inHard){ x.hardBrk=(x.hardBrk||0)+1; }
+    x.inHard = hard;
+    if (x.maxDec==null || -vals.acc_g > x.maxDec) x.maxDec = -vals.acc_g;
+    if (lastS && vals.brk_kw>0) x.eBrk=(x.eBrk||0) + vals.brk_kw*Math.min(now-lastS.t,15000)/3600e3;
+  }
+}
+function aaosSoc(){ const l=aaos("EV_BATTERY_LEVEL"), c=aaos("EV_CURRENT_BATTERY_CAPACITY"); return l!=null && c ? l/c*100 : null; }
+function batTemp(){ return vals.avg ?? aaos("EV_BATTERY_AVERAGE_TEMPERATURE"); }
 function sample(fromLoop){
   const now=Date.now();
   if (fromLoop){ lastSampleT=now; speed.cyc.push(now); while (speed.cyc.length && now-speed.cyc[0]>10000) speed.cyc.shift(); }
-  const P = (vals.volt!=null && vals.cur!=null) ? vals.volt*vals.cur/1000*sign : (aaos("EV_BATTERY_INSTANTANEOUS_CHARGE_RATE")!=null ? aaosPower() : null);
-  vals.kw = (vals.volt!=null && vals.cur!=null) ? P : vals.kw;
+  // OBD bağlıyken batarya gücü BMS'den (daha hassas); bağlı değilken eski OBD değerleri değil aracın kendi verisi kullanılır
+  const obdP = running && vals.volt!=null && vals.cur!=null;
+  const P = obdP ? vals.volt*vals.cur/1000*sign : (aaos("EV_BATTERY_INSTANTANEOUS_CHARGE_RATE")!=null ? aaosPower() : null);
+  vals.kw = obdP ? P : running ? vals.kw : null;
   const vs = carSpeed().v;
   if (lastS){
     const dth = Math.min(now-lastS.t, 15000)/3600e3;
@@ -2158,6 +2192,7 @@ function sample(fromLoop){
       if (vs!=null && lastS.vs!=null){ const vm=(vs+lastS.vs)/2; a.kmCar += vm*dth; if (vm>3) a.movingMsCar += dth*3600e3; }
     }
   }
+  brakeEst(now, vs, P);
   lastS={t:now, P, vs};
   tripTick(now, vs);
   if (HOST && fromLoop && now-lastFeed>=500){ lastFeed=now; try{ HOST.feed({avg:vals.avg, max:vals.max, cool:vals.cin, soc:vals.soc, volt:vals.volt, cur:vals.cur, aa:autoSnap(now, vs)}); }catch{} }
@@ -2224,7 +2259,9 @@ let lastR=0;
 window.ex30Snap = () => { const n=v=>(v==null||!isFinite(v))?null:+v;
   const tq = (vals.torque===0 && vals.torqueCalc!=null && vals.torqueCalc<0) ? vals.torqueCalc : vals.torque;
   const tc = w => { const s=pcfg.sources["t_"+w]; return s && s.did ? n(vals["t_"+w]) : null; };
-  return {t:lastSampleT, running, kw:n(vals.kw), volt:n(vals.volt), cur:n(vals.cur!=null?vals.cur*sign:null), rpm:n(vals.rpm), tq:n(tq), tqRaw:n(vals.torque),
+  // OBD yokken orta ekranda: aracın kendi verileri geldikçe Sürüş/Performans ekranları canlı sayılır
+  const tLive = running ? lastSampleT : (CARAPI || Object.keys(carv).length) && Date.now()-lastCarT<60000 ? Date.now() : lastSampleT;
+  return {t:tLive, running, kw:n(vals.kw), volt:n(vals.volt), cur:n(vals.cur!=null?vals.cur*sign:null), rpm:n(vals.rpm), tq:n(tq), tqRaw:n(vals.torque),
     spd:n(carSpeed().v ?? geo.spd), minv:n(vals.minv), mdcv:n(vals.mdcv), cmax:n(vals.cmax), cmin:n(vals.cmin), tmin:n(vals.tmin), erem:n(vals.erem), soh2:n(vals.soh2), soc:n(vals.soc), avg:n(vals.avg), max:n(vals.max), cin:n(vals.cin), cout:n(vals.cout), motor:n(vals.motor),
     brake:n(vals.brake), v12:n(vals.v12), socd:n(vals.socd), ws:{fl:n(vals.w_fl),fr:n(vals.w_fr),rl:n(vals.w_rl),rr:n(vals.w_rr)}, multi:window.ex30Multi(),
     out:n(aaos("ENV_OUTSIDE_TEMPERATURE")), tp:{fl:n(tirePsi("fl")),fr:n(tirePsi("fr")),rl:n(tirePsi("rl")),rr:n(tirePsi("rr"))}, tt:{fl:tc("fl"),fr:tc("fr"),rl:tc("rl"),rr:tc("rr")}, hz:speed.cyc.length>2?(speed.cyc.length-1)*1000/(speed.cyc.at(-1)-speed.cyc[0]):null, perf:perfMode,
@@ -2365,7 +2402,8 @@ const LOG_COLS = [["avg","bat_ort_C"],["cin","sogutma_giris_C"],["cout","guc_akt
   ["t_fl","lastik_sol_on_C"],["t_fr","lastik_sag_on_C"],["t_rl","lastik_sol_arka_C"],["t_rr","lastik_sag_arka_C"],["alt","irtifa_m"],["auto","oto_yolculuk"],["torqueCalc","tork_hesap_Nm"],
   ["brake","fren_bar"],["w_fl","teker_sol_on_kmsa"],["w_fr","teker_sag_on_kmsa"],["w_rl","teker_sol_arka_kmsa"],["w_rr","teker_sag_arka_kmsa"],["slip","arka_eksi_on_kmsa"],
   ["a_kw","aaos_guc_kW"],["a_kwh","aaos_kalan_kWh"],["a_cap","aaos_kapasite_kWh"],["a_rng","aaos_menzil_km"],["a_spd","aaos_hiz_kmsa"],["a_dsp","aaos_gosterge_kmsa"],["a_out","aaos_dis_C"],["a_rgn","aaos_rejen_mod"],["a_chg","aaos_sarj_durum"],["socd","sarj_gosterge"],["v12","aku_12V"],["cmax","hucre_maks_V"],["cmin","hucre_min_V"],["tmin","bat_min_C"],["erem","kalan_enerji_kWh_aday"],["soh2","soh2_yuzde"],["mdcv","inv_dc_V"],["minv","inv_C_aday"],["mtq2","E301_tork_aday"],["mtq3","E308_tork_aday"],["mrpm2","E312_devir_aday"],["mlim","E353_sinir_yuzde"],["mx363","E363_aday"],["mx314","E314_aday"],["mx315","E315_aday"],["mx341","E341_aday"],
-  ["h28","vcu_4A28_C"],["h29","vcu_4A29_C"],["h30","vcu_4A30_C"],["h31","vcu_4A31_C"],["h32","vcu_4A32_C"],["h33","vcu_4A33_C"],["eused","harcanan_enerji_kWh_aday"],["pdis","bms_desarj_kW"],["pchg","bms_sarj_kW"]];
+  ["h28","vcu_4A28_C"],["h29","vcu_4A29_C"],["h30","vcu_4A30_C"],["h31","vcu_4A31_C"],["h32","vcu_4A32_C"],["h33","vcu_4A33_C"],["eused","harcanan_enerji_kWh_aday"],["pdis","bms_desarj_kW"],["pchg","bms_sarj_kW"],
+  ["a_soc","aaos_sarj_yuzde"],["a_batT","aaos_bat_C"],["a_gear","aaos_vites"],["acc_g","ivme_g"],["brk_kw","mekanik_fren_kW_tahmini"]];
 const p2=n=>String(n).padStart(2,"0");
 const localStamp = t => { const d=new Date(t); return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3,"0")}`; };
 const LOG_HEADER = "zaman," + LOG_COLS.map(c=>c[1]).join(",");
@@ -2375,19 +2413,29 @@ function openDb(){ return new Promise(res=>{ try{ const r=indexedDB.open("ex30lo
   r.onsuccess=()=>res(r.result); r.onerror=()=>res(null); }catch{ res(null); } }); }
 function tx(store, mode){ return db.transaction(store, mode).objectStore(store); }
 const idb = req => new Promise((res,rej)=>{ req.onsuccess=()=>res(req.result); req.onerror=()=>rej(req.error); });
-async function logStart(){
-  if (!pcfg.logOn) return; if (!db) db = await openDb(); if (!db){ log("Kayıt veritabanı açılamadı"); return; }
-  logSess = {id:String(Date.now()), start:Date.now(), end:Date.now(), rows:0, bytes:0, mode:pcfg.logMode, extra:extras.map(e=>({id:e.id, name:e.name}))};
+// src: "obd" (adaptör bağlı) ya da "arac" (orta ekranda adaptörsüz, yalnız aracın kendi verileri). OBD bağlanınca araç kaydı kapanıp OBD kaydı açılır.
+let logStarting=false;
+async function logStart(src="obd"){
+  if (!pcfg.logOn || logStarting) return;
+  if (logSess && logSess.src===src) return;
+  logStarting=true;
+  try{
+  if (logSess) await logStop();
+  if (!db) db = await openDb(); if (!db){ log("Kayıt veritabanı açılamadı"); return; }
+  logSess = {id:String(Date.now()), start:Date.now(), end:Date.now(), rows:0, bytes:0, mode:pcfg.logMode, src, extra:src==="obd"?extras.map(e=>({id:e.id, name:e.name})):[]};
   await idb(tx("sessions","readwrite").put(logSess)); logBuf=[]; lastLogRow=0;
-  $("recPill").style.display=""; logFlushTimer=setInterval(logFlush, 15000); log("Oturum kaydı başladı");
+  $("recPill").style.display=""; logFlushTimer=setInterval(logFlush, 15000); log(src==="arac" ? "Araç verisi kaydı başladı (OBD yok)" : "Oturum kaydı başladı");
+  } finally { logStarting=false; }
 }
 function logRow(now){
   if (!logSess) return; if (+pcfg.logMode && now-lastLogRow < +pcfg.logMode) return; lastLogRow=now;
   const v = Object.assign({}, vals, {vspd: carSpeed().v, p_fl: aaosTire("fl") ?? vals.p_fl, p_fr: aaosTire("fr") ?? vals.p_fr, p_rl: aaosTire("rl") ?? vals.p_rl, p_rr: aaosTire("rr") ?? vals.p_rr, gps: (geo.t && now-geo.t<5000) ? geo.spd : null, lat: geo.last?.lat, lon: geo.last?.lon, alt: (geo.alt!=null && now-geo.altT<15000) ? geo.alt : null, auto: trips.auto ? 1 : 0});
   for (const w of ["w_fl","w_fr","w_rl","w_rr"]) if (!valT[w] || now-valT[w] > 2500) v[w]=null;
+  if (logSess.src==="arac") for (const k in valT) if (now-valT[k] > 10000) v[k]=null;   // OBD koptuysa eski OBD değerlerini yazma
   Object.assign(v, {a_kw: aaosPower(), a_kwh: aaos("EV_BATTERY_LEVEL")!=null ? aaos("EV_BATTERY_LEVEL")/1000 : null, a_cap: aaos("EV_CURRENT_BATTERY_CAPACITY")!=null ? aaos("EV_CURRENT_BATTERY_CAPACITY")/1000 : null,
     a_rng: aaos("RANGE_REMAINING")!=null ? aaos("RANGE_REMAINING")/1000 : null, a_dsp: aaos("PERF_VEHICLE_SPEED_DISPLAY")!=null ? aaos("PERF_VEHICLE_SPEED_DISPLAY")*3.6 : null,
-    a_spd: aaos("PERF_VEHICLE_SPEED")!=null ? aaos("PERF_VEHICLE_SPEED")*3.6 : null, a_out: aaos("ENV_OUTSIDE_TEMPERATURE"), a_rgn: aaos("EV_REGENERATIVE_BRAKING_STATE"), a_chg: aaos("EV_CHARGE_STATE")});
+    a_spd: aaos("PERF_VEHICLE_SPEED")!=null ? aaos("PERF_VEHICLE_SPEED")*3.6 : null, a_out: aaos("ENV_OUTSIDE_TEMPERATURE"), a_rgn: aaos("EV_REGENERATIVE_BRAKING_STATE"), a_chg: aaos("EV_CHARGE_STATE"),
+    a_soc: aaosSoc(), a_batT: aaos("EV_BATTERY_AVERAGE_TEMPERATURE"), a_gear: aaos("GEAR_SELECTION") ?? aaos("CURRENT_GEAR")});
   v.slip = [v.w_fl,v.w_fr,v.w_rl,v.w_rr].every(x=>x!=null) ? (v.w_rl+v.w_rr-v.w_fl-v.w_fr)/2 : null;
   const cols = LOG_COLS.map(c=>c[0]).concat((logSess.extra||[]).map(e=>e.id));
   const line = localStamp(now) + "," + cols.map(k=>{ const x=v[k]; return x==null||!isFinite(x) ? "" : (k==="lat"||k==="lon" ? (+x).toFixed(6) : +(+x).toFixed(3)); }).join(",");
@@ -2408,7 +2456,7 @@ async function renderLogs(){
   const list = (await idb(tx("sessions","readonly").getAll())).sort((a,b)=>b.start-a.start);
   const total = list.reduce((a,x)=>a+x.bytes,0);
   $("logInfo").textContent = `${list.length} kayıt, toplam ${kb(total)}. Saniyede bir satır ≈ saatte 0,5 MB; ham mod ≈ saatte 2–3 MB.`;
-  tb.innerHTML = list.map(x=>`<tr><td>${new Date(x.start).toLocaleString("tr-TR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}${logSess&&logSess.id===x.id?" (sürüyor)":""}</td><td>${Math.round((x.end-x.start)/60000)} dk</td><td>${x.rows}</td><td>${kb(x.bytes)}</td><td style="white-space:nowrap"><button class="sec mini" data-dl="${x.id}">İndir</button> <button class="sec mini" data-rm="${x.id}">Sil</button></td></tr>`).join("") || `<tr><td colspan="5" class="note">Henüz kayıt yok</td></tr>`;
+  tb.innerHTML = list.map(x=>`<tr><td>${new Date(x.start).toLocaleString("tr-TR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}${x.src==="arac"?" · araç verisi":""}${logSess&&logSess.id===x.id?" (sürüyor)":""}</td><td>${Math.round((x.end-x.start)/60000)} dk</td><td>${x.rows}</td><td>${kb(x.bytes)}</td><td style="white-space:nowrap"><button class="sec mini" data-dl="${x.id}">İndir</button> <button class="sec mini" data-rm="${x.id}">Sil</button></td></tr>`).join("") || `<tr><td colspan="5" class="note">Henüz kayıt yok</td></tr>`;
 }
 async function logExport(id){
   if (logSess && logSess.id===id) await logFlush();
@@ -2466,7 +2514,7 @@ $("btnCopy").onclick=async()=>{ try{ await CLIP().writeText($("srcJson").value);
 $("btnAaosCopy").onclick=async()=>{ try{ await CLIP().writeText($("aaosStatus").textContent+"\n"+$("aaosList").textContent); log("Kopyalandı"); }catch{} };
 $("btnAaosRetry").onclick=()=>{ try{ AndroidCar.start(); }catch{} };
 $("btnSet").onclick=()=>{ renderAaos(); buildSrcTable(); $("interval").value=String(pcfg.interval); $("logOn").checked=!!pcfg.logOn; $("logMode").value=String(pcfg.logMode); renderLogs(); $("dlg").showModal(); };
-$("logOn").onchange=()=>{ pcfg.logOn=$("logOn").checked; savePcfg(); if (!pcfg.logOn) logStop(); else if (chW && !logSess) logStart(); };
+$("logOn").onchange=()=>{ pcfg.logOn=$("logOn").checked; savePcfg(); if (!pcfg.logOn) logStop(); else if (chW && !logSess) logStart("obd"); };
 $("logMode").onchange=()=>{ pcfg.logMode=$("logMode").value; savePcfg(); };
 $("btnClose").onclick=()=>$("dlg").close();
 $("interval").onchange=()=>{ pcfg.interval=+$("interval").value; savePcfg(); };
@@ -2501,15 +2549,25 @@ $("tireLegend").innerHTML = [TIRE_STAGES[0],TIRE_STAGES[1],TIRE_STAGES[2],TIRE_S
 const CARAPI = window.AndroidCar || (HOST ? window.parent.AndroidCar : null);
 if (CARAPI && !MIRROR){ $("aaosBox").style.display=""; try{ CARAPI.start(); }catch(e){} }
 $("btnAaosRetry").onclick=()=>{ try{ CARAPI && CARAPI.start(); }catch{} };
-if (!MIRROR) setInterval(()=>{ if (!running) sample(false); if (CARAPI && $("dlg").open) renderAaos(); }, 1000);
+if (!MIRROR) setInterval(()=>{
+  if (!running) sample(false);
+  // Orta ekranda OBD bağlı değilken: araç hareket edince (otomatik yolculukla birlikte) aracın kendi verileriyle kayıt
+  if (CARAPI && !running && pcfg.logOn){
+    const now=Date.now();
+    if (trips.auto && !logSess) logStart("arac");
+    else if (!trips.auto && logSess && logSess.src==="arac") logStop();
+    if (logSess && logSess.src==="arac") logRow(now);
+  }
+  if (CARAPI && $("dlg").open) renderAaos();
+}, 1000);
 // ---- Ayna: durum aktarımı ----
 window.ex30MirrorState = () => { const now=Date.now(), age={}; for (const k in valT) age[k]=now-valT[k];
-  return JSON.stringify({vals, trips, tripView, carv, geo, age, running, sT: now-lastSampleT}); };
+  return JSON.stringify({vals, trips, tripView, carv, geo, age, running, sT: now-lastSampleT, cT: lastCarT? now-lastCarT : 1e9}); };
 window.ex30MirrorApply = s => { try{ if (typeof s==="string") s=JSON.parse(s); if (!s) return; const now=Date.now();
   for (const k in vals) delete vals[k]; Object.assign(vals, s.vals||{});
   trips = s.trips || trips; tripView = s.tripView || tripView;
   for (const k in carv) delete carv[k]; Object.assign(carv, s.carv||{}); Object.assign(geo, s.geo||{});
-  for (const k in s.age||{}) valT[k]=now-s.age[k]; running=!!s.running; lastSampleT=now-(s.sT||0); render(); }catch(e){} };
+  for (const k in s.age||{}) valT[k]=now-s.age[k]; running=!!s.running; lastSampleT=now-(s.sT||0); lastCarT=now-(s.cT??1e9); render(); }catch(e){} };
 loadExtras();
 window.addEventListener("storage", e=>{ if (e.key==="ex30.panelExtras") window.ex30ReloadExtras(); });
 if (HOST){ try{ HOST.register(window); }catch{} }
