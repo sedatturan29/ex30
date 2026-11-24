@@ -31,12 +31,13 @@ jobs:
 
       - name: EX30 Reader derle
         working-directory: android-app
-        run: gradle assemblePhoneDebug bundleCarRelease --no-daemon --stacktrace
+        run: gradle assemblePhoneDebug assembleMirrorDebug bundleCarRelease --no-daemon --stacktrace
 
       - name: APK'yı adlandır
         run: |
           cp android-app/app/build/outputs/apk/phone/debug/app-phone-debug.apk EX30-Reader.apk
           cp android-app/app/build/outputs/bundle/carRelease/app-car-release.aab EX30-Reader-Play.aab
+          cp android-app/app/build/outputs/apk/mirror/debug/app-mirror-debug.apk EX30-Reader-Ayna.apk
 
       - uses: actions/upload-artifact@v4
         with:
@@ -44,6 +45,7 @@ jobs:
           path: |
             EX30-Reader.apk
             EX30-Reader-Play.aab
+            EX30-Reader-Ayna.apk
 
       - name: Release olarak yayınla
         uses: softprops/action-gh-release@v2
@@ -52,9 +54,11 @@ jobs:
           name: EX30 Reader 2.${{ github.run_number }}
           body: |
             EX30-Reader.apk: telefon, Android Auto ve orta ekran için tek uygulama.
+            EX30-Reader-Ayna.apk: ekran yansıtma başlatıcıları için (Android Auto parçaları yok, yan yana kurulur).
             EX30-Reader-Play.aab: yalnızca Google Play'e (orta ekran iç test kanalı) yüklemek için.
             Her zaman son sürüm: https://github.com/${{ github.repository }}/releases/latest/download/EX30-Reader.apk
           files: |
             EX30-Reader.apk
             EX30-Reader-Play.aab
+            EX30-Reader-Ayna.apk
           make_latest: true
