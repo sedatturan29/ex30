@@ -24,6 +24,13 @@ android {
     flavorDimensions 'form'
     productFlavors {
         phone { dimension 'form' }
+        // play: telefon sürümünün Google Play paketi. Play Console'daki aynı uygulama (ex30.reader) içinde
+        // telefon kanalına yüklenir; Play'den kurulunca Android Auto onu Car Scanner gibi kendiliğinden listeler.
+        play {
+            dimension 'form'
+            applicationId 'ex30.reader'
+            versionCode 300000 + runNumber
+        }
         car {
             dimension 'form'
             applicationId 'ex30.reader'   // Play Console'daki uygulamanın paket adı (orta ekran)

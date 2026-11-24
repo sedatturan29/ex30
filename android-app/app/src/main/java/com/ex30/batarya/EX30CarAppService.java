@@ -32,7 +32,7 @@ public class EX30CarAppService extends CarAppService {
             @Override
             public Screen onCreateScreen(@NonNull Intent intent) {
                 // Telefon (Android Auto, navigasyon kategorisi): kendi çizdiğimiz gösterge. Orta ekran Play sürümü (IOT): liste.
-                if ("ex30.reader".equals(getCarContext().getPackageName())) return new BatteryScreen(getCarContext());
+                if (getCarContext().getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_AUTOMOTIVE)) return new BatteryScreen(getCarContext());
                 return new DashScreen(getCarContext());
             }
         };
