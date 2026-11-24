@@ -11,9 +11,7 @@
     <!-- Orta ekran açılınca okumayı kendiliğinden başlatmak için -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
-    <!-- Orta ekran Play sürümü navigasyon değil (IOT): telefon için eklenen izinleri/medya servisini çıkar -->
-    <uses-permission android:name="androidx.car.app.NAVIGATION_TEMPLATES" tools:node="remove" />
-    <uses-permission android:name="androidx.car.app.ACCESS_SURFACE" tools:node="remove" />
+    <!-- Orta ekran: sürüş ekranı da navigasyon kategorisinde (çizim yüzeyi → panelin aynısı); medya servisi gerekmez -->
 
     <application>
         <service android:name=".EX30MediaService" tools:node="remove" />
@@ -39,7 +37,7 @@
         <service android:name=".EX30CarAppService" android:exported="true" tools:node="replace">
             <intent-filter>
                 <action android:name="androidx.car.app.CarAppService" />
-                <category android:name="androidx.car.app.category.IOT" />
+                <category android:name="androidx.car.app.category.NAVIGATION" />
             </intent-filter>
         </service>
         <meta-data android:name="com.google.android.gms.car.application" tools:node="remove" />

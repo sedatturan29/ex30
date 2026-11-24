@@ -28,6 +28,8 @@
   button.mini{padding:5px 9px;font-size:12px;font-weight:500}
   main{padding:14px;max-width:1100px;margin:0 auto}
   section{display:none} section.act{display:block}
+  body.mirror .bar, body.mirror #tabs, body.mirror #log, body.mirror #pfReset{display:none !important}
+  body.mirror main, body.mirror .wrap{padding-top:0 !important}
   /* ---- Performans ---- */
   #tab-perf .pgrid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin-top:12px}
   @media (min-width:760px){ #tab-perf .pgrid{grid-template-columns:minmax(260px,0.9fr) minmax(0,1.1fr)} }
@@ -417,7 +419,7 @@ const hexb = b => b.map(x=>x.toString(16).padStart(2,"0")).join(" ").toUpperCase
 // =====================================================================
 const store = {
   get(k,def){ try{ const v=localStorage.getItem("ex30."+k); return v==null?def:JSON.parse(v); }catch{ return def; } },
-  set(k,v){ try{ localStorage.setItem("ex30."+k, JSON.stringify(v)); }catch{} }
+  set(k,v){ if (/mirror/.test(location.hash)) return; try{ localStorage.setItem("ex30."+k, JSON.stringify(v)); }catch{} }
 };
 const cfg = Object.assign({sign:1, signKnown:false, capModel:"64", capNew:64, chgAuto:true, interval:5000}, store.get("cfg",{}));
 let sessions = store.get("sessions", []);           // tamamlanan kayıtlar
@@ -1391,6 +1393,10 @@ $("scDel").onclick = () => { const b=$("scDel"); if (!curScan) return;
   if (!b.dataset.ok){ b.dataset.ok="1"; b.textContent="Emin misiniz?"; setTimeout(()=>{ delete b.dataset.ok; b.textContent="Sil"; },3000); return; }
   delete b.dataset.ok; b.textContent="Sil"; scans=scans.filter(s=>s!==curScan); saveScans(); fillScanHist(); loadScan(scans[scans.length-1]); };
 if (location.hash==="#panel") setTimeout(()=>goTab("panel"), 0);
+// Ayna modu (Android Auto / orta ekran sürüş ekranı): sadece Panel ya da Performans, üst çubuk ve sekmeler gizli
+if (/mirror/.test(location.hash)){ document.body.classList.add("mirror"); const go=()=>goTab(/perf/.test(location.hash)?"perf":"panel"); if (document.readyState==="complete") go(); else window.addEventListener("load", go); }
+window.ex30MirrorState = () => { try{ ensurePanel(); return panelWin && panelWin.ex30MirrorState ? panelWin.ex30MirrorState() : null; }catch{ return null; } };
+window.ex30MirrorApply = s => { try{ const f=$("panelFrame").contentWindow; f && f.ex30MirrorApply && f.ex30MirrorApply(s); }catch{} };
 try{ if (autoMode()) setTimeout(()=>ex30AutoConnect(), 500); }catch{}
 $("scRe").onclick = rescan;
 $("scCopy").onclick = () => copyText(curScan ? scanCsv(curScan) : "unite,istek,cevap,kod,ham,onceki\n"+scanRes.map(x=>`${x.unit},${x.tx},${x.rx},${x.did},${hexb(x.bytes)},${x.prev?hexb(x.prev):""}`).join("\n"), "Tarama sonucu");
@@ -1590,6 +1596,8 @@ renderAll();
 // Ana uygulamanın sekmesi içinde açıldıysa bağlantıyı ana uygulama yönetir (EX30_HOST)
 const HOST = (()=>{ try{ return window.parent!==window && window.parent.EX30_HOST ? window.parent.EX30_HOST : null; }catch{ return null; } })();
 if (HOST) document.documentElement.classList.add("embed");
+// Ayna modu: Android Auto / orta ekran sürüş ekranında aynı paneli gösterir; veriyi ana sayfadan alır, kendisi bağlanmaz/yazmaz
+const MIRROR = (()=>{ try{ return /mirror/.test(window.parent.location.hash); }catch{ return false; } })();
 // Pano: sekme içindeyken ana sayfanınkini kullan (uygulamada orada tanımlı)
 const CLIP = () => (HOST ? window.parent.navigator.clipboard : navigator.clipboard) || {writeText: async()=>{ throw new Error("pano yok"); }};
 // ============ Bilinen BMS kodları (EX30 / Geely SEA) ============
@@ -1660,7 +1668,7 @@ const INIT = ["ATZ","ATE0","ATL0","ATS0","ATH1","ATAL","ATST64","ATSP7"];
 const SERVICES = [0xfff0, 0xffe0, 0x18f0, "e7810a71-73ae-499d-8c15-faa9aef0c3f2"];
 
 // ============ Kalıcı ayarlar ============
-const store = { get(k,d){ try{ const v=localStorage.getItem("ex30."+k); return v==null?d:JSON.parse(v);}catch{return d;} }, set(k,v){ try{ localStorage.setItem("ex30."+k, JSON.stringify(v)); }catch{} } };
+const store = { get(k,d){ try{ const v=localStorage.getItem("ex30."+k); return v==null?d:JSON.parse(v);}catch{return d;} }, set(k,v){ if (MIRROR) return; try{ localStorage.setItem("ex30."+k, JSON.stringify(v)); }catch{} } };
 const mainCfg = store.get("cfg", {});
 const sign = mainCfg.sign || 1;
 const pcfg = Object.assign({interval:0, sources:{}, logOn:true, logMode:"1000"}, store.get("panel", {}));
@@ -2271,13 +2279,21 @@ window.addEventListener("pagehide", ()=>{ saveTrip(); logFlush(); });
 document.addEventListener("visibilitychange", async()=>{ if (document.visibilityState==="visible" && chW && !wake){ try{ wake=await navigator.wakeLock?.request("screen"); }catch{} } });
 $("tireLegend").innerHTML = [TIRE_STAGES[0],TIRE_STAGES[1],TIRE_STAGES[2],TIRE_STAGES[3],TIRE_STAGES[4],TIRE_STAGES[5],TIRE_STAGES[6]].map(s=>`<span><i style="background:${s.c}"></i>${s.t}</span>`).join("");
 const CARAPI = window.AndroidCar || (HOST ? window.parent.AndroidCar : null);
-if (CARAPI){ $("aaosBox").style.display=""; try{ CARAPI.start(); }catch(e){} }
+if (CARAPI && !MIRROR){ $("aaosBox").style.display=""; try{ CARAPI.start(); }catch(e){} }
 $("btnAaosRetry").onclick=()=>{ try{ CARAPI && CARAPI.start(); }catch{} };
-setInterval(()=>{ if (!running) sample(false); if (CARAPI && $("dlg").open) renderAaos(); }, 1000);
+if (!MIRROR) setInterval(()=>{ if (!running) sample(false); if (CARAPI && $("dlg").open) renderAaos(); }, 1000);
+// ---- Ayna: durum aktarımı ----
+window.ex30MirrorState = () => { const now=Date.now(), age={}; for (const k in valT) age[k]=now-valT[k];
+  return JSON.stringify({vals, trips, tripView, carv, geo, age, running, sT: now-lastSampleT}); };
+window.ex30MirrorApply = s => { try{ if (typeof s==="string") s=JSON.parse(s); if (!s) return; const now=Date.now();
+  for (const k in vals) delete vals[k]; Object.assign(vals, s.vals||{});
+  trips = s.trips || trips; tripView = s.tripView || tripView;
+  for (const k in carv) delete carv[k]; Object.assign(carv, s.carv||{}); Object.assign(geo, s.geo||{});
+  for (const k in s.age||{}) valT[k]=now-s.age[k]; running=!!s.running; lastSampleT=now-(s.sT||0); render(); }catch(e){} };
 loadExtras();
 window.addEventListener("storage", e=>{ if (e.key==="ex30.panelExtras") window.ex30ReloadExtras(); });
 if (HOST){ try{ HOST.register(window); }catch{} }
-geoStart(); render();
+if (!MIRROR) geoStart(); render();
 </script>
 </body>
 </html>

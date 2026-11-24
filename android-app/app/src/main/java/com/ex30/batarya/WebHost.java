@@ -188,6 +188,26 @@ final class WebHost {
         web.loadUrl("https://ex30.app/ex30-reader.html");
     }
 
+    /** Ayna (Android Auto / sürüş ekranı) için: ana sayfadaki panel durumunu JSON olarak al. */
+    static void mirrorState(android.webkit.ValueCallback<String> cb) {
+        WebHost w = inst;
+        if (w == null) { cb.onReceiveValue(null); return; }
+        w.web.evaluateJavascript("window.ex30MirrorState?ex30MirrorState():null", cb);
+    }
+
+    /** Ayna WebView'u için https://ex30.app/… adreslerini uygulama içinden sun (Bluetooth köprüsü olmadan). */
+    static WebResourceResponse serveAsset(Context c, Uri u) {
+        if (!"ex30.app".equals(u.getHost())) return null;
+        String path = u.getPath();
+        String name = (path == null || path.equals("/") || path.isEmpty()) ? "ex30-reader.html" : path.substring(1);
+        try {
+            String mime = name.endsWith(".html") ? "text/html" : name.endsWith(".js") ? "text/javascript" : name.endsWith(".css") ? "text/css" : "application/octet-stream";
+            return new WebResourceResponse(mime, "UTF-8", c.getAssets().open(name));
+        } catch (Exception e) {
+            return new WebResourceResponse("text/plain", "UTF-8", 404, "Not Found", null, new ByteArrayInputStream(new byte[0]));
+        }
+    }
+
     /** Telefon ekranı açıldı: WebView'u ekrana yerleştir. */
     void attach(Activity a, ViewGroup parent) {
         act = a;

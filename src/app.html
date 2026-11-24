@@ -28,6 +28,8 @@
   button.mini{padding:5px 9px;font-size:12px;font-weight:500}
   main{padding:14px;max-width:1100px;margin:0 auto}
   section{display:none} section.act{display:block}
+  body.mirror .bar, body.mirror #tabs, body.mirror #log, body.mirror #pfReset{display:none !important}
+  body.mirror main, body.mirror .wrap{padding-top:0 !important}
   /* ---- Performans ---- */
   #tab-perf .pgrid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin-top:12px}
   @media (min-width:760px){ #tab-perf .pgrid{grid-template-columns:minmax(260px,0.9fr) minmax(0,1.1fr)} }
@@ -417,7 +419,7 @@ const hexb = b => b.map(x=>x.toString(16).padStart(2,"0")).join(" ").toUpperCase
 // =====================================================================
 const store = {
   get(k,def){ try{ const v=localStorage.getItem("ex30."+k); return v==null?def:JSON.parse(v); }catch{ return def; } },
-  set(k,v){ try{ localStorage.setItem("ex30."+k, JSON.stringify(v)); }catch{} }
+  set(k,v){ if (/mirror/.test(location.hash)) return; try{ localStorage.setItem("ex30."+k, JSON.stringify(v)); }catch{} }
 };
 const cfg = Object.assign({sign:1, signKnown:false, capModel:"64", capNew:64, chgAuto:true, interval:5000}, store.get("cfg",{}));
 let sessions = store.get("sessions", []);           // tamamlanan kayıtlar
@@ -1391,6 +1393,10 @@ $("scDel").onclick = () => { const b=$("scDel"); if (!curScan) return;
   if (!b.dataset.ok){ b.dataset.ok="1"; b.textContent="Emin misiniz?"; setTimeout(()=>{ delete b.dataset.ok; b.textContent="Sil"; },3000); return; }
   delete b.dataset.ok; b.textContent="Sil"; scans=scans.filter(s=>s!==curScan); saveScans(); fillScanHist(); loadScan(scans[scans.length-1]); };
 if (location.hash==="#panel") setTimeout(()=>goTab("panel"), 0);
+// Ayna modu (Android Auto / orta ekran sürüş ekranı): sadece Panel ya da Performans, üst çubuk ve sekmeler gizli
+if (/mirror/.test(location.hash)){ document.body.classList.add("mirror"); const go=()=>goTab(/perf/.test(location.hash)?"perf":"panel"); if (document.readyState==="complete") go(); else window.addEventListener("load", go); }
+window.ex30MirrorState = () => { try{ ensurePanel(); return panelWin && panelWin.ex30MirrorState ? panelWin.ex30MirrorState() : null; }catch{ return null; } };
+window.ex30MirrorApply = s => { try{ const f=$("panelFrame").contentWindow; f && f.ex30MirrorApply && f.ex30MirrorApply(s); }catch{} };
 try{ if (autoMode()) setTimeout(()=>ex30AutoConnect(), 500); }catch{}
 $("scRe").onclick = rescan;
 $("scCopy").onclick = () => copyText(curScan ? scanCsv(curScan) : "unite,istek,cevap,kod,ham,onceki\n"+scanRes.map(x=>`${x.unit},${x.tx},${x.rx},${x.did},${hexb(x.bytes)},${x.prev?hexb(x.prev):""}`).join("\n"), "Tarama sonucu");
