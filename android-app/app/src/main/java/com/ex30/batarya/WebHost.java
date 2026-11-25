@@ -34,6 +34,8 @@ final class WebHost {
     private static volatile boolean autoReq;
     private static volatile boolean keepAlive;
     private static volatile boolean carSession;
+    private static volatile boolean linkHold;
+    private PhoneLink link;
 
     final WebView web;
     final BleBridge ble;
@@ -91,6 +93,12 @@ final class WebHost {
         w.web.evaluateJavascript("window.ex30AutoConnect&&ex30AutoConnect()", null);
     }
 
+    /** Telefon: araçtaki uygulamaya bağlanınca ekran kapalı olsa da sayfa çalışsın (eşitleme ve canlı veri). */
+    static void onLink(Context c, boolean up) {
+        linkHold = up;
+        if (up) get(c); else maybeRelease();
+    }
+
     static void setKeepAlive(boolean on) {
         keepAlive = on;
         WebHost w = inst;
@@ -103,7 +111,7 @@ final class WebHost {
         WebHost w = inst;
         if (w == null) return;
         w.h.postDelayed(() -> {
-            if (inst == w && w.act == null && !carSession && !keepAlive) w.destroy();
+            if (inst == w && w.act == null && !carSession && !keepAlive && !linkHold) w.destroy();
         }, 30_000);
     }
 
@@ -143,6 +151,11 @@ final class WebHost {
 
         ble = new BleBridge(app, web);
         web.addJavascriptInterface(ble, "AndroidBle");
+        // Telefon ile orta ekran arasındaki Bluetooth köprüsü
+        link = PhoneLink.get(app);
+        web.addJavascriptInterface(link, "AndroidLink");
+        link.attach(web);
+        link.start();
 
         web.setWebChromeClient(new WebChromeClient() {
             @Override
@@ -270,6 +283,7 @@ final class WebHost {
         ReaderService.stop(app);
         try { ble.shutdown(); } catch (Exception ignored) { }
         if (carBridge != null) try { carBridge.shutdown(); } catch (Exception ignored) { }
+        if (link != null) link.detach(web);
         try { web.destroy(); } catch (Exception ignored) { }
     }
 

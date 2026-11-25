@@ -14,6 +14,7 @@ public class MainActivity extends Activity {
     static final int REQ_BLE = 10;
     static final int REQ_GEO = 11;
     static final int REQ_FILE = 12;
+    static final int REQ_LINK = 14;
 
     private WebHost host;
 
@@ -43,6 +44,9 @@ public class MainActivity extends Activity {
 
         host = WebHost.get(this);
         host.attach(this, root);
+        // Telefon–orta ekran köprüsü için Bluetooth izni (OBD için de gerekiyor)
+        if (android.os.Build.VERSION.SDK_INT >= 31 && checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT) != android.content.pm.PackageManager.PERMISSION_GRANTED)
+            requestPermissions(new String[]{android.Manifest.permission.BLUETOOTH_CONNECT}, REQ_LINK);
     }
 
     @Override

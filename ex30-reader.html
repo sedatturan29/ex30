@@ -306,6 +306,12 @@
       <div class="row" style="margin-top:8px"><button class="sec" id="cnAll">Listede yoksa: tüm cihazları göster</button></div>
       <div id="stepChecks" style="margin-top:10px"></div>
     </div>
+    <div class="card" id="lkCard" style="display:none">
+      <h2>Telefon ve orta ekran</h2>
+      <p class="note" style="margin-top:0" id="lkInfo"></p>
+      <div id="lkState"></div>
+      <p class="note" id="lkLast"></p>
+    </div>
     <div class="card" id="rpCard">
       <h2>Test modu: kaydı tekrar oynat</h2>
       <p class="note" style="margin-top:0">İndirdiğin bir EX30 Reader kaydını (CSV) seç; Sürüş, Panel, Performans, Yolculuklar ve Şarj ekranları o anki gibi çalışır. Test sırasında hiçbir şey kaydedilmez ve Telegram'a gönderilmez; çıkınca uygulama kaldığı yerden devam eder.</p>
@@ -613,8 +619,12 @@ const hexb = b => b.map(x=>x.toString(16).padStart(2,"0")).join(" ").toUpperCase
 // =====================================================================
 const store = {
   get(k,def){ try{ const v=localStorage.getItem("ex30."+k); return v==null?def:JSON.parse(v); }catch{ return def; } },
-  set(k,v){ if (/mirror/.test(location.hash) || window.ex30Replay) return; try{ localStorage.setItem("ex30."+k, JSON.stringify(v)); }catch{} }
+  set(k,v){ if (/mirror/.test(location.hash) || window.ex30Replay) return; try{ syncBump(k,v); localStorage.setItem("ex30."+k, JSON.stringify(v)); }catch{} }
 };
+// Eşitlenen ayarlar değişince zaman damgası (telefon ↔ orta ekran: yeni olan kazanır)
+const SYNC_KEYS = ["cfg","panel","tg","panelExtras","units"];
+function syncBump(k, v){ if (!SYNC_KEYS.includes(k)) return; if (window.__cfgApplied) throw 0;   // alınan ayarlar yenilemeden önce eskisiyle ezilmesin const nm=x=>{ try{ const o=JSON.parse(JSON.stringify(x)); if (o && typeof o==="object") delete o.last; return JSON.stringify(o); }catch{ return ""; } };
+  let ov=null; try{ ov=JSON.parse(localStorage.getItem("ex30."+k)); }catch{} if (nm(ov)!==nm(v)) localStorage.setItem("ex30.syncT", String(Date.now())); }
 const cfg = Object.assign({sign:1, signKnown:false, capModel:"64", capNew:64, chgAuto:true, interval:5000}, store.get("cfg",{}));
 let sessions = store.get("sessions", []);           // tamamlanan kayıtlar
 const active = {charge:null, trip:null, park:null, heat:null};
@@ -1584,6 +1594,79 @@ function showBanner(t){ const b=$("banner"); b.textContent=t; b.style.display="b
 btnConn.onclick = () => { if (btnConn.textContent==="Kes") disconnect(); else { if (tab!=="panel") goTab("conn"); connect(false); } };
 function sizePanel(){ const f=$("panelFrame"); const h=document.querySelector("header").offsetHeight; f.style.height=(window.innerHeight-h)+"px"; }
 // Panel bağlantı kurulunca arka planda da yüklenir: otomatik yolculuk, oturum kaydı ve tüm değerler hangi sekme açık olursa olsun sürer
+// =====================================================================
+//  Telefon ↔ orta ekran köprüsü (Bluetooth, ek kurulum yok)
+//  Bağlanınca iki taraf da elindekileri bildirir ("hello"); karşı tarafta olmayan
+//  yolculuklar, şarj/park kayıtları ve sürüş kayıtları gönderilir, ayarlarda yeni olan kazanır.
+//  Orta ekran ayrıca aracın kendi verilerini canlı olarak telefona yollar.
+// =====================================================================
+const LINK = (!/mirror/.test(location.hash) && window.AndroidLink) || null;
+let linkSt = {up:false}, linkStat = store.get("linkStat", {});
+const linkSend = m => { try{ return !!(LINK && LINK.send(JSON.stringify(m))); }catch{ return false; } };
+function withPanel(fn, tries=0){ ensurePanel(); if (panelWin && panelWin.ex30Sync) return fn(panelWin); if (tries<100) setTimeout(()=>withPanel(fn, tries+1), 200); }
+function linkHello(ask){
+  withPanel(async pw => {
+    const logs = await pw.ex30Sync.logList().catch(()=>[]);
+    linkSend({k:"hello", ask, role:linkSt.role, trips:pw.ex30Sync.tripKeys(), names:store.get("tripNames",{}),
+      sess:sessions.map(x=>x.id), logs:logs.map(x=>x.id), setT:+(localStorage.getItem("ex30.syncT")||0)});
+  });
+}
+let linkBusy=false;
+async function linkOnHello(m){
+  if (m.ask) linkHello(false);
+  // yolculuk isimleri: bende olmayanları al
+  const nm=store.get("tripNames",{}); let ch=false; for (const k in (m.names||{})) if (!(k in nm)){ nm[k]=m.names[k]; ch=true; } if (ch) store.set("tripNames", nm);
+  if (linkBusy) return; linkBusy=true;
+  try{
+    // ayarlar: yeni olan gönderir
+    const myT=+(localStorage.getItem("ex30.syncT")||0);
+    if (myT > (m.setT||0)){ const data={}; for (const k of SYNC_KEYS){ const v=localStorage.getItem("ex30."+k); if (v!=null) data[k]=v; } linkSend({k:"cfg", t:myT, data}); }
+    await new Promise(res=>withPanel(async pw=>{
+      const tl = pw.ex30Sync.tripsMissing(m.trips); if (tl.length) linkSend({k:"trips", list:tl});
+      const have=new Set(m.sess||[]), lim=Date.now()-60*86400e3;
+      for (const x of sessions) if (!have.has(x.id) && x.end && x.start>lim){ linkSend({k:"sess", s:x}); await sleep(20); }
+      const hl=new Set(m.logs||[]);
+      for (const l of await pw.ex30Sync.logList()) if (!hl.has(l.id)){ if (!(await pw.ex30Sync.logSend(l.id, linkSend))) break; await sleep(50); }
+      linkSend({k:"done"}); res();
+    }));
+  } finally { linkBusy=false; }
+}
+let linkGot = (()=>{ try{ const g=JSON.parse(sessionStorage.getItem("linkGot")); sessionStorage.removeItem("linkGot"); if (g) return g; }catch{} return {trips:0, sess:0, logs:0}; })();
+function linkRecv(m){
+  if (!m || !m.k) return;
+  if (m.k==="car"){ if (linkSt.role==="phone"){ window.__car(m.o); linkLastCar=Date.now(); } return; }
+  if (m.k==="hello") return linkOnHello(m);
+  if (m.k==="trips") return withPanel(pw=>{ const n=pw.ex30Sync.addTrips(m.list); linkGot.trips+=n; if (n) renderAll(); });
+  if (m.k==="sess"){ const x=m.s; if (x && x.id && !sessions.some(y=>y.id===x.id)){ sessions.push(x); sessions.sort((a,b)=>a.start-b.start); saveSessions(true); linkGot.sess++; renderAll(); } return; }
+  if (m.k==="logm"||m.k==="logc"||m.k==="loge"){ if (m.k==="loge") linkGot.logs++; return withPanel(pw=>pw.ex30Sync.logRecv(m)); }
+  if (m.k==="cfg") return linkApplyCfg(m);
+  if (m.k==="done"){ linkStat={t:Date.now(), peer:linkSt.peer, got:Object.assign({}, linkGot)}; store.set("linkStat", linkStat); renderLink(); }
+}
+function linkApplyCfg(m){
+  if (!m.data || (m.t||0) <= +(localStorage.getItem("ex30.syncT")||0)) return;
+  window.__cfgApplied = true;
+  for (const k in m.data) if (SYNC_KEYS.includes(k)) try{ localStorage.setItem("ex30."+k, m.data[k]); }catch{}
+  localStorage.setItem("ex30.syncT", String(m.t));
+  const moving = (()=>{ try{ const sn=panelWin && panelWin.ex30Snap && panelWin.ex30Snap(); return sn && sn.spd>1; }catch{ return false; } })();
+  if (!chW && !moving && !window.ex30Replay){ log("Ayarlar diğer cihazdan alındı, uygulama yenileniyor"); setTimeout(()=>{ try{ sessionStorage.setItem("linkGot", JSON.stringify(linkGot)); }catch{} location.reload(); }, 1500); }
+  else { window.__cfgApplied = false; log("Ayarlar diğer cihazdan alındı; uygulama yeniden açılınca geçerli olur"); }
+}
+let linkLastCar=0;
+function renderLink(){
+  if (!LINK) return; $("lkCard").style.display="";
+  const car = linkSt.role==="car";
+  $("lkInfo").textContent = car
+    ? "Telefonundaki EX30 Reader, araca Bluetooth ile bağlıyken bu ekrana kendiliğinden bağlanır. Yolculuklar, şarj kayıtları, sürüş kayıtları ve ayarlar iki yönde eşitlenir; aracın kendi verileri de telefona canlı gider."
+    : "Araçtaki EX30 Reader açıkken telefon araca Bluetooth ile bağlanınca kendiliğinden eşitlenir: araçta kaydedilen yolculuklar, şarjlar ve sürüş kayıtları buraya gelir, ayarlar iki yönde güncellenir. OBD ile kayıt alırken aracın kendi verileri (menzil, dış sıcaklık, rejen modu…) de bu kayda eklenir.";
+  const ok = linkSt.up;
+  const esc = t => String(t||"").replace(/[<>&]/g,"");
+  $("lkState").innerHTML = `<div class="chk ${ok?"ok":"warn"}"><span class="ic">${ok?"✓":"…"}</span><div><div class="t">${ok ? (car?"Telefon bağlı":"Araç bağlı")+(linkSt.peer?": "+esc(linkSt.peer):"") : (car?"Telefon bağlı değil":"Araca bağlı değil")}</div>${ok?"":`<div class="d">${esc(linkSt.state)}</div>`}</div></div>`;
+  const L=linkStat; $("lkLast").textContent = L.t ? `Son eşitleme ${new Date(L.t).toLocaleString("tr-TR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}: ${L.got.trips} yolculuk, ${L.got.sess} şarj/park, ${L.got.logs} sürüş kaydı alındı.` : "";
+}
+window.__linkState = st => { const was=linkSt.up; linkSt = st || {up:false}; renderLink(); if (linkSt.up && !was) linkHello(true); };
+window.__link = line => { let m; try{ m=JSON.parse(line); }catch{ return; } try{ linkRecv(m); }catch(e){ log("Köprü mesajı işlenemedi: "+e.message); } };
+if (LINK) setTimeout(()=>{ try{ window.__linkState(JSON.parse(LINK.state())); }catch{} }, 500);
+
 function ensurePanel(){ const f=$("panelFrame"), src=$("panelSrc"); if (!f.dataset.loaded && src){ f.srcdoc = "<!DOCTYPE html>" + src.innerHTML; f.dataset.loaded="1"; } }
 
 // =====================================================================
@@ -2307,7 +2390,11 @@ const SERVICES = [0xfff0, 0xffe0, 0x18f0, "e7810a71-73ae-499d-8c15-faa9aef0c3f2"
 // ============ Kalıcı ayarlar ============
 // Test modu (kayıt oynatma): açıkken hiçbir şey kalıcı yazılmaz, Telegram'a gönderilmez; çıkışta sayfa yeniden yüklenir
 const REPLAY = {on:false};
-const store = { get(k,d){ try{ const v=localStorage.getItem("ex30."+k); return v==null?d:JSON.parse(v);}catch{return d;} }, set(k,v){ if (MIRROR || REPLAY.on) return; try{ localStorage.setItem("ex30."+k, JSON.stringify(v)); }catch{} } };
+// Eşitlenen ayarlar değişince zaman damgası (telefon ↔ orta ekran: yeni olan kazanır)
+const SYNC_KEYS = ["cfg","panel","tg","panelExtras","units"];
+function syncBump(k, v){ if (!SYNC_KEYS.includes(k)) return; try{ if (window.parent.__cfgApplied) throw 1; }catch(e){ if (e===1) throw 0; } const nm=x=>{ try{ const o=JSON.parse(JSON.stringify(x)); if (o && typeof o==="object") delete o.last; return JSON.stringify(o); }catch{ return ""; } };
+  let ov=null; try{ ov=JSON.parse(localStorage.getItem("ex30."+k)); }catch{} if (nm(ov)!==nm(v)) localStorage.setItem("ex30.syncT", String(Date.now())); }
+const store = { get(k,d){ try{ const v=localStorage.getItem("ex30."+k); return v==null?d:JSON.parse(v);}catch{return d;} }, set(k,v){ if (MIRROR || REPLAY.on) return; try{ syncBump(k,v); localStorage.setItem("ex30."+k, JSON.stringify(v)); }catch{} } };
 const mainCfg = store.get("cfg", {});
 const sign = mainCfg.sign || 1;
 const pcfg = Object.assign({interval:0, sources:{}, logOn:true, logMode:"1000"}, store.get("panel", {}));
@@ -2758,6 +2845,62 @@ function journalNow(){
     const h = (MIRROR ? store.get("tripHistory", []) : tripHist).at(-1); return h ? tripBrief(h, false) : null;
   }catch{ return null; }
 }
+// ---- Telefon ↔ orta ekran eşitlemesi (app.html köprüsü çağırır) ----
+const syncTime = str => { const m=/^(\d{4})-(\d\d)-(\d\d) (\d\d):(\d\d)/.exec(str||""); return m ? new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5]).getTime() : null; };
+function syncOverlap(a0,a1,b0,b1){ if (a0==null||b0==null) return 0; a1=a1??a0; b1=b1??b0; const o=Math.min(a1,b1)-Math.max(a0,b0); const d=Math.min(a1-a0,b1-b0)||60000; return o<0 ? 0 : o/d; }
+const isObd = h => /obd/i.test(h.kaynak||"");
+let syncQ = Promise.resolve(), syncIn = null;
+window.ex30Sync = {
+  tripKeys(){ return tripHist.map(tripKey); },
+  tripsMissing(keys){ const k=new Set(keys||[]); return tripHist.filter(h=>!k.has(tripKey(h))); },
+  // Aynı sürüşü iki cihaz da kaydettiyse (zaman %50+ örtüşüyorsa) OBD'li olan kalır
+  addTrips(list){
+    let added=0;
+    for (const h of list||[]){
+      if (!h || !h.baslangic || tripHist.some(x=>tripKey(x)===tripKey(h))) continue;
+      const h0=syncTime(h.baslangic), h1=syncTime(h.bitis);
+      const dup = tripHist.findIndex(x=>/^oto/i.test(x.tur||"") && /^oto/i.test(h.tur||"") && syncOverlap(h0,h1,syncTime(x.baslangic),syncTime(x.bitis))>0.5);
+      if (dup>=0){ if (isObd(h) && !isObd(tripHist[dup])){ tripHist[dup]=h; added++; } continue; }
+      tripHist.push(h); added++;
+    }
+    if (added){ tripHist.sort((a,b)=>(a.baslangic||"").localeCompare(b.baslangic||"")); saveHist(); lastR=0; }
+    return added;
+  },
+  async logList(){
+    if (!db) db = await openDb(); if (!db) return [];
+    const lim = Date.now()-30*86400e3;
+    return (await idb(tx("sessions","readonly").getAll())).filter(x=>x.start>lim && !(logSess && logSess.id===x.id) && x.rows>0).map(x=>({id:x.id, start:x.start, end:x.end, src:x.src}));
+  },
+  // Bir kaydı parça parça gönder (send: mesaj gönderen işlev)
+  async logSend(id, send){
+    if (!db) db = await openDb(); if (!db) return false;
+    const meta = await idb(tx("sessions","readonly").get(id)); if (!meta) return false;
+    const chunks = await idb(tx("chunks","readonly").index("sid").getAll(id));
+    if (!send({k:"logm", s:meta})) return false;
+    for (const c of chunks){ const t=c.text||""; for (let i=0;i<t.length;i+=48000) if (!send({k:"logc", sid:id, text:t.slice(i,i+48000)})) return false;
+      await new Promise(r=>setTimeout(r,15)); }
+    send({k:"loge", sid:id}); return true;
+  },
+  logRecv(m){ syncQ = syncQ.then(()=>logRecvOne(m)).catch(()=>{}); return syncQ; },
+};
+async function logRecvOne(m){
+  if (!db) db = await openDb(); if (!db) return;
+  if (m.k==="logm"){
+    const s=m.s; syncIn=null; if (!s || !s.id) return;
+    if (await idb(tx("sessions","readonly").get(s.id))) return;
+    // Araç verisi kaydı, bu cihazda aynı zamanı kapsayan bir kayıt varsa alınmaz (telefondaki OBD kaydı araç verilerini de içerir)
+    if (s.src==="arac"){ const all=await idb(tx("sessions","readonly").getAll()); if (all.some(x=>syncOverlap(s.start,s.end,x.start,x.end)>0.5)) return; }
+    syncIn = {id:s.id, meta:Object.assign({}, s, {synced:true}), parts:[]};
+  } else if (m.k==="logc"){ if (syncIn && syncIn.id===m.sid) syncIn.parts.push(m.text||""); }
+  else if (m.k==="loge"){
+    if (!syncIn || syncIn.id!==m.sid) return;
+    const x=syncIn; syncIn=null;
+    await idb(tx("chunks","readwrite").add({sid:x.id, text:x.parts.join("")}));
+    await idb(tx("sessions","readwrite").put(x.meta));
+    log("Kayıt alındı: "+new Date(x.meta.start).toLocaleString("tr-TR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}));
+    renderLogs();
+  }
+}
 window.ex30Trips = {
   list(){ return MIRROR ? store.get("tripHistory", []) : tripHist; },
   live(){ const now=Date.now(), out=[];
@@ -2954,7 +3097,7 @@ async function renderLogs(){
   const list = (await idb(tx("sessions","readonly").getAll())).sort((a,b)=>b.start-a.start);
   const total = list.reduce((a,x)=>a+x.bytes,0);
   $("logInfo").textContent = `${list.length} kayıt, toplam ${kb(total)}. Saniyede bir satır ≈ saatte 0,5 MB; ham mod ≈ saatte 2–3 MB.`;
-  tb.innerHTML = list.map(x=>`<tr><td>${new Date(x.start).toLocaleString("tr-TR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}${x.src==="arac"?" · araç verisi":""}${logSess&&logSess.id===x.id?" (sürüyor)":""}</td><td>${Math.round((x.end-x.start)/60000)} dk</td><td>${x.rows}</td><td>${kb(x.bytes)}</td><td style="white-space:nowrap"><button class="sec mini" data-dl="${x.id}">İndir</button> <button class="sec mini" data-rm="${x.id}">Sil</button></td></tr>`).join("") || `<tr><td colspan="5" class="note">Henüz kayıt yok</td></tr>`;
+  tb.innerHTML = list.map(x=>`<tr><td>${new Date(x.start).toLocaleString("tr-TR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}${x.src==="arac"?" · araç verisi":""}${x.synced?" · eşitlendi":""}${logSess&&logSess.id===x.id?" (sürüyor)":""}</td><td>${Math.round((x.end-x.start)/60000)} dk</td><td>${x.rows}</td><td>${kb(x.bytes)}</td><td style="white-space:nowrap"><button class="sec mini" data-dl="${x.id}">İndir</button> <button class="sec mini" data-rm="${x.id}">Sil</button></td></tr>`).join("") || `<tr><td colspan="5" class="note">Henüz kayıt yok</td></tr>`;
 }
 async function logExport(id){
   if (logSess && logSess.id===id) await logFlush();

@@ -184,7 +184,10 @@ public class CarBridge {
             else if (x instanceof Object[]) { JSONArray a = new JSONArray(); for (Object e : (Object[]) x) a.put(e); o.put("value", a); }
             else if (x instanceof byte[]) { StringBuilder sb = new StringBuilder(); for (byte b : (byte[]) x) sb.append(String.format("%02X", b)); o.put("value", sb.toString()); }
             else o.put("value", String.valueOf(x));
-            js("window.__car&&__car(" + o + ")");
+            String j = o.toString();
+            js("window.__car&&__car(" + j + ")");
+            PhoneLink l = PhoneLink.peek();
+            if (l != null) l.car(j);
         } catch (Throwable ignored) { }
     }
 
