@@ -94,7 +94,7 @@
   body.mirror{padding:var(--aa-t,0px) var(--aa-r,0px) var(--aa-b,0px) var(--aa-l,0px);box-sizing:border-box}
   body.mirror .dv, body.mirror .pv{height:calc(100vh - var(--aa-t,0px) - var(--aa-b,0px)) !important}
   /* Android Auto Şarj: denetimler yok, değerler büyük, eğri ekranın kalanını kaplar */
-  body.mirror #tab-charge > .row, body.mirror #chgFirst, body.mirror #effCard, body.mirror #tab-charge .card:last-child, body.mirror #tab-charge .legend + .row{display:none !important}
+  body.mirror #tab-charge > .row, body.mirror #chgFirst, body.mirror #cjCard, body.mirror #tab-charge .legend + .row{display:none !important}
   body.mirror #tab-charge{display:none}
   body.mirror #tab-charge.act{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:0;height:calc(100vh - var(--aa-t,0px) - var(--aa-b,0px));background:var(--line)}
   body.mirror #tab-charge .grid{margin:0 !important;gap:1px;grid-template-columns:1fr 1fr;align-content:stretch}
@@ -106,6 +106,16 @@
   body.mirror #tab-charge .card h2{font-size:15px;margin:0 0 6px}
   body.mirror #cvCharge{flex:1;min-height:0;height:auto !important}
   body.mirror #chgMirrorEmpty{display:block}
+  .cj-sum{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);margin-bottom:14px}
+  .cj-sum div{background:var(--card);padding:10px 12px} .cj-sum b{display:block;font-size:22px;font-weight:600;font-variant-numeric:tabular-nums} .cj-sum span{font-size:13px;color:var(--mut)}
+  .cj-day{font-size:13px;color:var(--mut);margin:14px 0 4px}
+  .cj-row{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:10px 0;border-top:1px solid var(--line);cursor:pointer}
+  .cj-row .t{font-weight:600;font-size:16px} .cj-row .c{font-size:18px;font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
+  .cj-row .d{font-size:13px;color:var(--mut);grid-column:1 / -1;font-variant-numeric:tabular-nums}
+  .cj-row .c.none{color:var(--mut);font-weight:400;font-size:14px}
+  .cj-ed{grid-column:1 / -1;margin-top:10px;cursor:default}
+  .cj-ed .row label{font-size:14px} .cj-ed input{width:96px}
+  .cj-facts{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:10px 0;font-size:14px} .cj-facts b{font-weight:500;color:var(--mut)}
   .nom-rows{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;align-items:baseline}
   .nom-rows b{font-weight:500;color:var(--mut);font-size:14px}
   .nom-rows span{font-size:18px;font-variant-numeric:tabular-nums}
@@ -402,22 +412,11 @@
       <div class="legend"><span><i style="background:var(--ok)"></i>Güç (kW, sol eksen)</span><span><i style="background:var(--mut)"></i>Nominal (kesikli)</span><span><i style="background:var(--hot)"></i>Ort. sıcaklık (°C, sağ eksen)</span></div>
       <div class="row" style="margin-top:8px"><label>Göster: <select id="chgPick"></select></label></div>
     </div>
-    <div class="card" id="effCard">
-      <h2>Şarj verimi</h2>
-      <p class="note" id="effFor"></p>
-      <div class="row" id="effForm">
-        <label>İstasyonun verdiği <input id="chgGrid" type="number" step="0.01" min="0" inputmode="decimal" style="width:110px"> kWh</label>
-        <button id="chgGridSave">Kaydet</button>
-        <span class="note" id="effMsg" style="margin:0"></span>
-      </div>
-      <div class="grid" style="margin-top:12px">
-        <div class="tile"><div class="k">Verim</div><div class="v" id="e_eff">–<small>%</small></div></div>
-        <div class="tile"><div class="k">Kayıp</div><div class="v" id="e_loss">–<small>kWh</small></div></div>
-        <div class="tile"><div class="k">Bataryaya giren</div><div class="v" id="e_in">–<small>kWh</small></div></div>
-      </div>
-      <p class="note" id="effNote">Faturada ya da istasyon uygulamasında yazan kWh'ı girin. Kayıp; kablo, araçtaki dönüşüm, şarj sırasında batarya ısıtma/soğutma, 12 V sistem ve batarya içindeki ısınmanın toplamıdır.</p>
+    <div class="card" id="cjCard">
+      <h2>Şarj günlüğü</h2>
+      <div class="cj-sum" id="cjSum"></div>
+      <div id="cjList"></div>
     </div>
-    <div class="card"><h2>Geçmiş şarjlar</h2><div class="tbl" id="chgList"></div><p class="note" id="chgAvgEff"></p></div>
   </section>
 
   <!-- ============ KAPASİTE ============ -->
@@ -874,8 +873,8 @@ async function pollOnce(){
 let fedByPanel=false;
 function makeSample(t){
   const sg = fedByPanel ? 1 : cfg.sign;
-  const P = (vals.volt!=null && vals.cur!=null) ? vals.volt*vals.cur/1000*sg : null; // + çekiş, − şarj
-  return {t, avg:vals.avg, max:vals.max, cool:vals.cool, soc:vals.soc, volt:vals.volt, cur:vals.cur!=null?vals.cur*sg:null, P, spd:vals.spd};
+  const P = (vals.volt!=null && vals.cur!=null) ? vals.volt*vals.cur/1000*sg : vals.Pd ?? null; // + çekiş, − şarj (OBD yoksa aracın kendi gücü)
+  return {t, avg:vals.avg, max:vals.max, cool:vals.cool, soc:vals.soc, volt:vals.volt, cur:vals.cur!=null?vals.cur*sg:null, P, spd:vals.spd, out:vals.out};
 }
 
 // Her yeni ölçümde tüm aktif kayıtları güncelle
@@ -896,7 +895,7 @@ function onSample(s){
   for (const type in active){
     const ss = active[type]; if (!ss) continue;
     const last = ss.samples[ss.samples.length-1];
-    const rec = {t:s.t, soc:r2(s.soc), avg:r2(s.avg), max:r2(s.max), cool:s.cool, P:r2(s.P)};
+    const rec = {t:s.t, soc:r2(s.soc), avg:r2(s.avg), max:r2(s.max), cool:s.cool, P:r2(s.P)}; if (s.out!=null) rec.out=r2(s.out);
     if (type==="trip" && geo.last) rec.lat=+geo.last.lat.toFixed(5), rec.lon=+geo.last.lon.toFixed(5);
     const lp = ss.lastPt || (last ? {t:last.t, P:last.P} : null);   // enerji her ölçümde toplanır
     if (lp && s.P!=null && lp.P!=null){
@@ -1000,8 +999,8 @@ function summarize(ss){
 function deleteSession(id){ sessions = sessions.filter(s=>s.id!==id); saveSessions(true); renderAll(); }
 async function copyText(t, what){ try{ await navigator.clipboard.writeText(t); log(what+" panoya kopyalandı"); }catch{ log("Kopyalanamadı"); } }
 function sessionCsv(ss){
-  const cols=["t","soc","avg","max","cool","P","lat","lon"];
-  return ["zaman,soc_yuzde,ort_C,maks_C,sogutma_C,guc_kW,enlem,boylam"].concat(
+  const cols=["t","soc","avg","max","cool","P","out","lat","lon"];
+  return ["zaman,soc_yuzde,ort_C,maks_C,sogutma_C,guc_kW,dis_C,enlem,boylam"].concat(
     ss.samples.map(x=>cols.map(c=>c==="t"?new Date(x.t).toISOString():(x[c]??"")).join(","))).join("\n");
 }
 
@@ -1435,44 +1434,85 @@ function renderCharge(){
   renderNom(ss);
   const me=$("chgMirrorEmpty"); me.style.display = ss ? "none" : "";
   me.textContent = ss ? "" : shown ? `Şarj başlayınca eğri burada çizilir. Şu an son şarj gösteriliyor (${dt(shown.start)}).` : "Şarj başlayınca eğri burada çizilir.";
-  renderEff(shown, list);
-  $("chgList").innerHTML = list.length ? `<table><tr><th>Tarih</th><th>Şarj %</th><th>Giren</th><th>İstasyon</th><th>Verim</th><th>En yüksek</th><th>Sıcaklık</th><th>Süre</th><th></th></tr>`+
-    list.map(s=>{ const m=summarize(s), e=chgEff(s); return `<tr><td>${dt(s.start)}</td><td>${fmt(m.socA,0)}→${fmt(m.socB,0)}</td><td>${fmt(s.eIn,1)} kWh</td><td>${e?fmt(e.grid,1)+" kWh":"–"}</td><td>${e?"%"+fmt(e.eff,1):"–"}</td><td>${fmt(m.peakIn,0)} kW</td><td>${fmt(m.tA,0)}→${fmt(m.tB,0)}°C</td><td>${dur(m.dur)}</td><td><button class="sec mini" data-csv="${s.id}">CSV</button> <button class="sec mini" data-del="${s.id}">Sil</button></td></tr>`; }).join("")+`</table>`
-    : `<div class="empty">Henüz şarj kaydı yok</div>`;
-  const effs = list.map(chgEff).filter(Boolean);
-  if (effs.length){ const g=effs.reduce((a,e)=>a+e.grid,0), b=effs.reduce((a,e)=>a+e.batt,0);
-    $("chgAvgEff").textContent = `İstasyon değeri girilen ${effs.length} şarjda ortalama verim %${fmt(b/g*100,1)}, toplam kayıp ${fmt(g-b,1)} kWh.`; }
-  else $("chgAvgEff").textContent = "";
+  renderJournal(list);
 }
 // istasyonun verdiği kWh ile verim: bataryaya giren / istasyon
 function chgEff(s){ const g=s && s.meta && s.meta.gridKwh; if (!(g>0) || !(s.eIn>0)) return null;
   return {grid:g, batt:s.eIn, eff:s.eIn/g*100, loss:g-s.eIn}; }
-let effShownId = null;
-function renderEff(shown, list){
-  const card=$("effCard");
-  if (!list.length && !shown){ card.style.display="none"; return; } card.style.display="";
-  const done = shown && shown.end;
-  $("effForm").style.display = done ? "" : "none";
-  if (!done){
-    $("effFor").textContent = shown ? "Şarj sürüyor. Bittikten sonra istasyonun verdiği kWh'ı buraya girebilirsiniz." : "Yukarıdan bir şarj seçin.";
-    setV("e_eff", null, "%"); setV("e_loss", null, "kWh"); setV("e_in", shown?shown.eIn:null, "kWh", 2); effShownId=null; return;
-  }
-  $("effFor").textContent = `${dt(shown.start)} şarjı`;
-  if (effShownId !== shown.id){ effShownId = shown.id; $("effMsg").textContent = ""; $("chgGrid").value = shown.meta.gridKwh ?? ""; }
-  const e = chgEff(shown);
-  setV("e_in", shown.eIn, "kWh", 2);
-  setV("e_eff", e?e.eff:null, "%", 1); setV("e_loss", e?e.loss:null, "kWh", 2);
+// ---- Şarj günlüğü ----
+const TR_DAYS=["Pazar","Pazartesi","Salı","Çarşamba","Perşembe","Cuma","Cumartesi"], TR_MON=["Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
+const tl = v => v==null||!isFinite(v) ? "–" : v.toLocaleString("tr-TR",{minimumFractionDigits:v<100?2:0, maximumFractionDigits:v<100?2:0})+" TL";
+const hm = t => { const d=new Date(t); return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0"); };
+function chgInfo(s){
+  const m=summarize(s), sm=s.samples, outs=sm.map(x=>x.out).filter(v=>v!=null), maxs=sm.map(x=>x.max).filter(v=>v!=null);
+  const grid = s.meta.gridKwh>0 ? s.meta.gridKwh : null, price = s.meta.price>0 ? s.meta.price : null;
+  const durH = m.dur/3600e3;
+  return {m, grid, price, cost: price!=null ? (grid ?? s.eIn)*price : null, costEst: price!=null && grid==null,
+    out: outs.length ? outs.reduce((a,b)=>a+b,0)/outs.length : null, tMax: maxs.length ? Math.max(...maxs) : m.tMax,
+    avgKw: durH>0.01 ? s.eIn/durH : null, eff: chgEff(s), lost: chargeLoss(s)};
 }
-const toast = t => { $("effMsg").textContent = t; };
-function saveGrid(){
-  const pick=$("chgPick"), s=sessions.find(x=>x.id===pick.value && x.type==="charge"); if (!s || !s.end) return;
-  const raw=($("chgGrid").value||"").replace(",","."), v=raw==="" ? null : parseFloat(raw);
-  if (v!=null && !(v>0)){ toast("Geçerli bir kWh değeri girin"); return; }
-  if (v!=null && v < s.eIn){ toast(`İstasyon değeri bataryaya girenden (${fmt(s.eIn,1)} kWh) az olamaz; faturayı kontrol edin`); return; }
-  if (v!=null && v > s.eIn*1.5){ toast(`Bu değer bataryaya girenin 1,5 katından fazla; faturayı kontrol edin`); return; }
-  if (v==null) delete s.meta.gridKwh; else s.meta.gridKwh = Math.round(v*100)/100;
+let cjOpen = null, cjSig = "";
+function renderJournal(list){
+  const done = list.filter(s=>s.end).sort((a,b)=>b.start-a.start);
+  // yalnızca kayıtlar değişince yeniden çiz (düzenlerken yazılan silinmesin)
+  const sig = cjOpen+"|"+done.map(s=>s.id+":"+(s.meta.mt||0)).join(",")+"|"+new Date().getMonth();
+  if (sig===cjSig && $("cjList").childElementCount) return; cjSig = sig;
+  // bu ay
+  const now=new Date(), mon=done.filter(s=>{ const d=new Date(s.start); return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear(); });
+  const I = mon.map(chgInfo), kwh=mon.reduce((a,s)=>a+s.eIn,0), priced=I.filter(x=>x.cost!=null), cost=priced.reduce((a,x)=>a+x.cost,0);
+  const gridSum=priced.reduce((a,x,i)=>a+(x.grid ?? 0),0);
+  $("cjSum").innerHTML = done.length ? [
+    [mon.length, TR_MON[now.getMonth()]+" şarjı"], [fmt(kwh,1), "kWh bataryaya"], [priced.length?tl(cost):"–", priced.length<mon.length&&priced.length?`fiyatı girilen ${priced.length} şarj`:"toplam maliyet"],
+    [priced.length && gridSum>0 ? tl(cost/I.filter(x=>x.cost!=null).reduce((a,x)=>a+(x.grid??0),0)) : "–", "ortalama kWh fiyatı"]
+  ].map(([v,k])=>`<div><b>${v}</b><span>${k}</span></div>`).join("") : "";
+  if (!done.length){ $("cjList").innerHTML = `<div class="empty">Şarj başlayınca kendiliğinden kaydedilir ve burada görünür</div>`; return; }
+  let html="", day="";
+  for (const s of done){
+    const d=new Date(s.start), dk=d.toDateString();
+    if (dk!==day){ day=dk; html+=`<div class="cj-day">${d.getDate()} ${TR_MON[d.getMonth()]} ${TR_DAYS[d.getDay()]}</div>`; }
+    const x=chgInfo(s), open=cjOpen===s.id;
+    html += `<div class="cj-row" data-cj="${s.id}">
+      <div class="t">${hm(s.start)}–${hm(s.end)}${s.meta.note?` · ${String(s.meta.note).replace(/[<>&]/g,"")}`:""}</div>
+      <div class="c ${x.cost==null?"none":""}">${x.cost!=null ? (x.costEst?"≈ ":"")+tl(x.cost) : "fiyat yok"}</div>
+      <div class="d">${dur(x.m.dur)} · %${fmt(x.m.socA,0)} → %${fmt(x.m.socB,0)} · ${fmt(s.eIn,1)} kWh${x.grid?` (istasyon ${fmt(x.grid,1)})`:""} · ort. ${fmt(x.avgKw,0)} kW, en yüksek ${fmt(x.m.peakIn,0)} kW</div>
+      <div class="d">Batarya ${fmt(x.m.tA,1)} → ${fmt(x.m.tB,1)} °C${x.tMax!=null?`, en yüksek ${fmt(x.tMax,1)}`:""} · dış ${x.out!=null?fmt(x.out,0)+" °C":"–"}${x.lost!=null&&x.lost>=0.5?` · nominale göre ${fmtMin(x.lost)} kayıp`:""}</div>
+      ${open ? cjEditor(s, x) : ""}
+    </div>`;
+  }
+  $("cjList").innerHTML = html;
+}
+function cjEditor(s, x){
+  const v = n => n==null ? "" : String(n).replace(".",",");
+  return `<div class="cj-ed" data-ed="${s.id}">
+    <div class="row">
+      <label>İstasyonun verdiği <input inputmode="decimal" data-f="gridKwh" value="${v(s.meta.gridKwh)}" placeholder="${fmt(s.eIn*1.07,1)}"> kWh</label>
+      <label>kWh fiyatı <input inputmode="decimal" data-f="price" value="${v(s.meta.price)}" placeholder="${v(store.get("lastPrice",null))||"ör. 12,50"}"> TL</label>
+      <label>Not <input data-f="note" value="${String(s.meta.note||"").replace(/"/g,"&quot;")}" placeholder="istasyon" style="width:150px"></label>
+      <button data-cjsave="${s.id}">Kaydet</button>
+    </div>
+    <p class="note" data-msg style="margin:6px 0 0"></p>
+    <div class="cj-facts">
+      <b>Bataryaya giren</b><span>${fmt(s.eIn,2)} kWh</span>
+      ${x.eff?`<b>Verim</b><span>%${fmt(x.eff.eff,1)} · kayıp ${fmt(x.eff.loss,2)} kWh</span>`:""}
+      ${x.cost!=null?`<b>Maliyet</b><span>${tl(x.cost)} = ${fmt(x.grid??s.eIn,2)} kWh × ${tl(x.price)}${x.costEst?" (istasyon kWh girilmedi, bataryaya girenle hesaplandı)":""}</span>`:""}
+      ${x.cost!=null&&x.m.dSoc>0?`<b>Şarj yüzdesi başına</b><span>${tl(x.cost/x.m.dSoc)}</span>`:""}
+    </div>
+    <div class="row"><button class="sec mini" data-cjcurve="${s.id}">Eğriyi göster</button><button class="sec mini" data-csv="${s.id}">CSV</button><button class="sec mini" data-del="${s.id}">Sil</button></div>
+  </div>`;
+}
+function cjSave(id){
+  const s=sessions.find(x=>x.id===id); if (!s) return; const ed=document.querySelector(`[data-ed="${id}"]`); if (!ed) return;
+  const msg=ed.querySelector("[data-msg]"), num = f => { let r=(ed.querySelector(`[data-f="${f}"]`).value||"").trim(); if (r.includes(",")) r=r.replace(/\./g,"").replace(",","."); return r==="" ? null : parseFloat(r); };
+  const g=num("gridKwh"), p=num("price"), note=ed.querySelector('[data-f="note"]').value.trim().slice(0,40);
+  if (g!=null && !(g>0)) { msg.textContent="İstasyon kWh değeri geçersiz"; return; }
+  if (g!=null && g < s.eIn*0.98){ msg.textContent=`İstasyonun verdiği, bataryaya girenden (${fmt(s.eIn,1)} kWh) az olamaz; faturayı kontrol edin`; return; }
+  if (g!=null && g > s.eIn*1.5){ msg.textContent="Bu değer bataryaya girenin 1,5 katından fazla; faturayı kontrol edin"; return; }
+  if (p!=null && !(p>0 && p<200)){ msg.textContent="kWh fiyatı geçersiz"; return; }
+  if (g==null) delete s.meta.gridKwh; else s.meta.gridKwh=Math.round(g*100)/100;
+  if (p==null) delete s.meta.price; else { s.meta.price=Math.round(p*100)/100; store.set("lastPrice", s.meta.price); }
+  if (note) s.meta.note=note; else delete s.meta.note;
+  s.meta.mt = Date.now();   // eşitlemede yeni olan kazanır
   saveSessions(true); renderCharge();
-  const e=chgEff(s); toast(e ? `Verim %${fmt(e.eff,1)}, kayıp ${fmt(e.loss,2)} kWh` : "İstasyon değeri silindi");
 }
 
 function renderCap(){
@@ -1693,7 +1733,7 @@ function linkHello(ask){
   withPanel(async pw => {
     const logs = await pw.ex30Sync.logList().catch(()=>[]);
     linkSend({k:"hello", ask, role:linkSt.role, trips:pw.ex30Sync.tripKeys(), names:store.get("tripNames",{}),
-      sess:sessions.map(x=>x.id), logs:logs.map(x=>x.id), setT:+(localStorage.getItem("ex30.syncT")||0)});
+      sess:sessions.map(x=>x.id), sm:Object.fromEntries(sessions.map(x=>[x.id, (x.meta&&x.meta.mt)||0])), logs:logs.map(x=>x.id), setT:+(localStorage.getItem("ex30.syncT")||0)});
   });
 }
 let linkBusy=false;
@@ -1709,6 +1749,7 @@ async function linkOnHello(m){
     await new Promise(res=>withPanel(async pw=>{
       const tl = pw.ex30Sync.tripsMissing(m.trips); if (tl.length) linkSend({k:"trips", list:tl});
       const have=new Set(m.sess||[]), lim=Date.now()-60*86400e3;
+      for (const x of sessions) if (have.has(x.id) && ((x.meta&&x.meta.mt)||0) > ((m.sm||{})[x.id]||0)) linkSend({k:"smeta", id:x.id, meta:x.meta});
       for (const x of sessions) if (!have.has(x.id) && x.end && x.start>lim){ linkSend({k:"sess", s:x}); await sleep(20); }
       const hl=new Set(m.logs||[]);
       for (const l of await pw.ex30Sync.logList()) if (!hl.has(l.id)){ if (!(await pw.ex30Sync.logSend(l.id, linkSend))) break; await sleep(50); }
@@ -1722,7 +1763,12 @@ function linkRecv(m){
   if (m.k==="car"){ if (linkSt.role==="phone"){ window.__car(m.o); linkLastCar=Date.now(); } return; }
   if (m.k==="hello") return linkOnHello(m);
   if (m.k==="trips") return withPanel(pw=>{ const n=pw.ex30Sync.addTrips(m.list); linkGot.trips+=n; if (n) renderAll(); });
-  if (m.k==="sess"){ const x=m.s; if (x && x.id && !sessions.some(y=>y.id===x.id)){ sessions.push(x); sessions.sort((a,b)=>a.start-b.start); saveSessions(true); linkGot.sess++; renderAll(); } return; }
+  if (m.k==="sess"){ const x=m.s; if (!x || !x.id || sessions.some(y=>y.id===x.id)) return;
+    // aynı şarjı iki cihaz da kaydettiyse (zaman %50+ örtüşüyorsa) yenisini ekleme; girilen fiyat/not yeniyse onu al
+    const ov = sessions.find(y=>y.type===x.type && Math.min(y.end||y.start, x.end||x.start)-Math.max(y.start, x.start) > 0.5*Math.min((y.end||y.start)-y.start, (x.end||x.start)-x.start));
+    if (ov){ if (((x.meta&&x.meta.mt)||0) > ((ov.meta&&ov.meta.mt)||0)){ for (const k of ["gridKwh","price","note","mt"]) if (x.meta[k]!=null) ov.meta[k]=x.meta[k]; saveSessions(true); renderAll(); } return; }
+    sessions.push(x); sessions.sort((a,b)=>a.start-b.start); saveSessions(true); linkGot.sess++; renderAll(); return; }
+  if (m.k==="smeta"){ const x=sessions.find(y=>y.id===m.id); if (x && m.meta && (m.meta.mt||0) > ((x.meta&&x.meta.mt)||0)){ x.meta=m.meta; saveSessions(true); renderAll(); } return; }
   if (m.k==="logm"||m.k==="logc"||m.k==="loge"){ if (m.k==="loge") linkGot.logs++; return withPanel(pw=>pw.ex30Sync.logRecv(m)); }
   if (m.k==="cfg") return linkApplyCfg(m);
   if (m.k==="done"){ linkStat={t:Date.now(), peer:linkSt.peer, got:Object.assign({}, linkGot)}; store.set("linkStat", linkStat); renderLink(); }
@@ -2089,8 +2135,13 @@ $("chgAuto").checked = cfg.chgAuto;
 $("chgAuto").onchange = () => { cfg.chgAuto=$("chgAuto").checked; saveCfg(); };
 $("chgBtn").onclick = () => active.charge ? stopSession("charge") : startSession("charge", {auto:false});
 $("chgPick").onchange = () => renderCharge();
-$("chgGridSave").onclick = saveGrid;
-$("chgGrid").onkeydown = e => { if (e.key==="Enter") saveGrid(); };
+$("cjList").addEventListener("click", e => {
+  const sv=e.target.closest("[data-cjsave]"); if (sv){ cjSave(sv.dataset.cjsave); return; }
+  const cv=e.target.closest("[data-cjcurve]"); if (cv){ $("chgPick").value=cv.dataset.cjcurve; renderCharge(); $("chgChartCard").scrollIntoView({behavior:"smooth"}); return; }
+  if (e.target.closest(".cj-ed")) return;
+  const r=e.target.closest("[data-cj]"); if (r){ cjOpen = cjOpen===r.dataset.cj ? null : r.dataset.cj; renderCharge(); }
+});
+$("cjList").addEventListener("keydown", e => { if (e.key==="Enter"){ const ed=e.target.closest("[data-ed]"); if (ed) cjSave(ed.dataset.ed); } });
 $("parkBtn").onclick = () => active.park ? stopSession("park") : startSession("park");
 $("heatBtn").onclick = () => { if (active.heat){ stopSession("heat"); return; }
   const out=parseFloat($("heatOut").value); startSession("heat", {method:$("heatMethod").value, out: isFinite(out)?out:null}); };

@@ -652,7 +652,10 @@ function sample(fromLoop){
   brakeEst(now, vs, P);
   lastS={t:now, P, vs};
   tripTick(now, vs);
-  if (HOST && fromLoop && now-lastFeed>=500){ lastFeed=now; try{ HOST.feed({avg:vals.avg, max:vals.max, cool:vals.cin, soc:vals.soc, volt:vals.volt, cur:vals.cur, spd:vs, aa:autoSnap(now, vs)}); }catch{} }
+  if (HOST && fromLoop && now-lastFeed>=500){ lastFeed=now; try{ HOST.feed({avg:vals.avg, max:vals.max, cool:vals.cin, soc:vals.soc, volt:vals.volt, cur:vals.cur, Pd:null, out:aaos("ENV_OUTSIDE_TEMPERATURE"), spd:vs, aa:autoSnap(now, vs)}); }catch{} }
+  // OBD yokken aracın kendi verileri (orta ekran ya da köprüyle telefon): şarj kaydı ve günlüğü yine dolsun
+  else if (HOST && !running && !fromLoop && now-lastFeed>=2000 && Date.now()-lastCarT<15000 && aaosPower()!=null){ lastFeed=now;
+    try{ HOST.feed({avg:batTemp(), max:null, cool:null, soc:aaosSoc(), volt:null, cur:null, Pd:aaosPower(), out:aaos("ENV_OUTSIDE_TEMPERATURE"), spd:vs, src:"arac"}); }catch{} }
   if (fromLoop) logRow(now);   // okuma duraklatıldığında (Tarayıcı/terminal) eski değerleri tekrar tekrar yazma
   render();
 }
