@@ -733,7 +733,7 @@ window.ex30Snap = () => { const n=v=>(v==null||!isFinite(v))?null:+v;
     kwhLeft: aaos("EV_BATTERY_LEVEL")!=null ? n(aaos("EV_BATTERY_LEVEL")/1000) : n(vals.erem),
     kwhCap: aaos("EV_CURRENT_BATTERY_CAPACITY")!=null ? n(aaos("EV_CURRENT_BATTERY_CAPACITY")/1000) : null,
     slip: (()=>{ const k=["w_fl","w_fr","w_rl","w_rr"]; if (!k.every(x=>vals[x]!=null && valT[x] && Date.now()-valT[x]<2500)) return null; return (vals.w_rl+vals.w_rr-vals.w_fl-vals.w_fr)/2; })(),
-    inst: n(vals.inst), jt: journalNow(),
+    inst: n(vals.inst), jt: journalNow(), batT: n(batTemp()), socAny: n(vals.soc ?? aaosSoc()),
     yaw: geo.yaw!=null && Date.now()-geo.yawT<2500 ? geo.yaw : null,
     dsp: aaos("PERF_VEHICLE_SPEED_DISPLAY")!=null ? n(aaos("PERF_VEHICLE_SPEED_DISPLAY")*3.6) : null};
 };

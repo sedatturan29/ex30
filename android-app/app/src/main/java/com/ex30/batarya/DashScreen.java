@@ -24,6 +24,9 @@ import androidx.car.app.SurfaceCallback;
 import androidx.car.app.SurfaceContainer;
 import androidx.car.app.model.Action;
 import androidx.car.app.model.ActionStrip;
+import androidx.car.app.model.ItemList;
+import androidx.car.app.model.ListTemplate;
+import androidx.car.app.model.Row;
 import androidx.car.app.model.Template;
 import androidx.car.app.navigation.model.NavigationTemplate;
 import androidx.lifecycle.Lifecycle;
@@ -42,6 +45,8 @@ public class DashScreen extends Screen {
     private Presentation pres;
     private WebView mirror;
     private String page = "drive";
+    private int sw, sh, sdpi;
+    private Rect visible;   // medya kartı ve düğmeler dışında kalan alan
 
     private final Runnable tick = new Runnable() {
         @Override public void run() {
@@ -56,7 +61,7 @@ public class DashScreen extends Screen {
     private final SurfaceCallback cb = new SurfaceCallback() {
         @Override public void onSurfaceAvailable(@NonNull SurfaceContainer c) { h.post(() -> attach(c)); }
         @Override public void onSurfaceDestroyed(@NonNull SurfaceContainer c) { h.post(DashScreen.this::detach); }
-        @Override public void onVisibleAreaChanged(@NonNull Rect r) { }
+        @Override public void onVisibleAreaChanged(@NonNull Rect r) { h.post(() -> { visible = new Rect(r); applyInset(); }); }
         @Override public void onStableAreaChanged(@NonNull Rect r) { }
         @Override public void onScroll(float dx, float dy) {
             h.post(() -> { if (mirror != null) mirror.evaluateJavascript("window.scrollBy(0," + Math.round(dy) + ")", null); });
@@ -91,14 +96,16 @@ public class DashScreen extends Screen {
             WebSettings ws = mirror.getSettings();
             ws.setJavaScriptEnabled(true);
             ws.setDomStorageEnabled(true);
+            sw = c.getWidth(); sh = c.getHeight(); sdpi = c.getDpi();
             mirror.setWebViewClient(new WebViewClient() {
                 @Override public WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest r) {
                     return WebHost.serveAsset(v.getContext(), r.getUrl());
                 }
+                @Override public void onPageFinished(WebView v, String url) { applyInset(); applyFollow(); }
             });
             pres.setContentView(mirror);
             pres.show();
-            mirror.loadUrl("https://ex30.app/ex30-reader.html#mirror-" + page);
+            mirror.loadUrl("https://ex30.app/ex30-reader.html#mirror-" + ("follow".equals(page) ? "drive" : page));
         } catch (Throwable e) {
             detach();
             drawError(c, "Ekran açılamadı: " + e.getMessage());
@@ -112,9 +119,25 @@ public class DashScreen extends Screen {
         pres = null; mirror = null; vd = null;
     }
 
-    private void show(String p) {
+    void show(String p) {
         page = p;
-        if (mirror != null) mirror.evaluateJavascript("goTab('" + p + "');window.scrollTo(0,0)", null);
+        if (mirror == null) return;
+        applyFollow();
+        if (!"follow".equals(p)) mirror.evaluateJavascript("goTab('" + p + "');window.scrollTo(0,0)", null);
+    }
+
+    /** "Telefondaki ekran": ayna, telefonda açık sekmeyi izler. */
+    private void applyFollow() {
+        if (mirror != null) mirror.evaluateJavascript("window.ex30MirrorFollow&&ex30MirrorFollow(" + "follow".equals(page) + ")", null);
+    }
+
+    /** Görünür alanı CSS piksel olarak sayfaya ver: içerik medya kartının altında kalmasın. */
+    private void applyInset() {
+        if (mirror == null || visible == null || sw <= 0) return;
+        float k = sdpi > 0 ? sdpi / 160f : 1f;
+        int l = Math.max(0, Math.round(visible.left / k)), t = Math.max(0, Math.round(visible.top / k));
+        int r = Math.max(0, Math.round((sw - visible.right) / k)), b = Math.max(0, Math.round((sh - visible.bottom) / k));
+        mirror.evaluateJavascript("window.ex30Inset&&ex30Inset(" + l + "," + t + "," + r + "," + b + ")", null);
     }
 
     private static void drawError(SurfaceContainer c, String msg) {
@@ -133,9 +156,30 @@ public class DashScreen extends Screen {
         Action drive = new Action.Builder().setTitle("Sürüş").setOnClickListener(() -> show("drive")).build();
         Action panel = new Action.Builder().setTitle("Panel").setOnClickListener(() -> show("panel")).build();
         Action perf = new Action.Builder().setTitle("Performans").setOnClickListener(() -> show("perf")).build();
-        Action list = new Action.Builder().setTitle("Yolculuklar").setOnClickListener(() -> show("trip")).build();
+        Action more = new Action.Builder().setTitle("Diğer").setOnClickListener(() -> getScreenManager().push(new MoreScreen(getCarContext(), this))).build();
         return new NavigationTemplate.Builder()
-                .setActionStrip(new ActionStrip.Builder().addAction(drive).addAction(panel).addAction(perf).addAction(list).build())
+                .setActionStrip(new ActionStrip.Builder().addAction(drive).addAction(panel).addAction(perf).addAction(more).build())
                 .build();
+    }
+
+    /** Dört düğmeye sığmayan ekranlar: listeden seçilir, sonra aynaya dönülür. */
+    static final class MoreScreen extends Screen {
+        private final DashScreen dash;
+        MoreScreen(@NonNull CarContext c, DashScreen d) { super(c); dash = d; }
+
+        private Row row(String title, String sub, String p) {
+            return new Row.Builder().setTitle(title).addText(sub).setOnClickListener(() -> { dash.show(p); getScreenManager().pop(); }).build();
+        }
+
+        @NonNull
+        @Override
+        public Template onGetTemplate() {
+            ItemList list = new ItemList.Builder()
+                    .addItem(row("Telefondaki ekran", "Telefonda hangi sekme açıksa onu gösterir", "follow"))
+                    .addItem(row("Şarj", "Şarj gücü, şarj yüzdesi ve şarj eğrisi", "charge"))
+                    .addItem(row("Yolculuklar", "Otomatik yolculuklar ve tüketim", "trip"))
+                    .build();
+            return new ListTemplate.Builder().setTitle("EX30 ekranları").setHeaderAction(Action.BACK).setSingleList(list).build();
+        }
     }
 }
