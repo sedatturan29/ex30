@@ -416,7 +416,7 @@
       <div class="jr-sum" id="jrSum"></div>
       <div class="jr-live" id="jrLive"></div>
       <div class="jr-seg jr-kind" id="jrKind" role="tablist" aria-label="Tür">
-        <button data-k="all" class="act">Hepsi</button><button data-k="auto">Otomatik</button><button data-k="man">Trip A/B</button>
+        <button data-k="auto" class="act">Otomatik</button><button data-k="all">Hepsi</button><button data-k="man">Trip A/B</button>
       </div>
       <div id="jrList"></div>
     </div>
@@ -546,6 +546,11 @@
       </div>
       <div class="tbl" id="scList"><div class="empty">Henüz tarama yapılmadı</div></div>
       <p class="note">Park halindeyken okuyun, sonra sürüşte, şarjda ya da ısıtma çalışırken tekrar okuyun: değişen kodlar sarı görünür. "1 bayt −50" ve "2 bayt /100 −50" sütunları sıcaklık olabilecek değerleri gösterir. Bir değerin anlamını bulduğunuzda <b>Panele ekle</b> ile Panel'de kutu olarak izleyebilirsiniz.</p>
+    </div>
+    <div class="card" id="mtCard">
+      <h2>4. Olası anlamlar</h2>
+      <p class="note">Her "Tekrar oku"da uygulama o anki hız, güç, akım, sıcaklık gibi bilinen değerleri de kaydeder. Yeterli okuma birikince her kodun baytlarını bu değerlerle karşılaştırır ve birlikte değişenleri gösterir. En iyi sonuç için "5 sn'de bir tekrar oku"yu açıp hızlanın, fren yapın, klimayı açıp kapatın; tek yönde yavaşça değişen değerler (ör. ısınan batarya) yanıltıcı eşleşme verebilir.</p>
+      <div class="tbl" id="mtList"><div class="empty">Henüz yeterli okuma yok</div></div>
     </div>
     <div class="card" id="addBox" style="display:none">
       <h2>Panele ekle</h2>
@@ -1001,8 +1006,13 @@ function scanFromRes(found, u, range){
   const s={id:String(Date.now()), t:Date.now(), unit:u.name||u.tx.slice(4), tx:u.tx, rx:u.rx, range, snaps:[{t:Date.now()}], rows:found.map(x=>({did:x.did, v:[hexb(x.bytes)]}))};
   scans.push(s); while (scans.length>MAX_SCANS) scans.shift(); curScan=s; saveScans(); fillScanHist(); return s;
 }
-function addSnap(){
-  if (!curScan) return; const now=Date.now(); curScan.snaps.push({t:now});
+// Eşleştirme için o anki bilinen değerler (panelden)
+const MT_SIG = {spd:["Hız","km/s"], kw:["Güç","kW"], cur:["Batarya akımı","A"], volt:["Batarya voltajı","V"], soc:["Şarj","%"], avg:["Batarya ort.","°C"], max:["Batarya maks.","°C"], tmin:["Batarya min.","°C"],
+  cin:["Batarya soğutma girişi","°C"], cout:["Güç aktarma soğutma","°C"], motor:["Motor","°C"], rpm:["Motor devri","dev/dk"], tq:["Motor torku","Nm"], brake:["Fren basıncı","bar"], v12:["12 V akü","V"], out:["Dış sıcaklık","°C"]};
+function scanRef(){ try{ ensurePanel(); const sn = panelWin && panelWin.ex30Snap ? panelWin.ex30Snap() : null; if (!sn) return null;
+  const o={}; for (const k in MT_SIG) if (sn[k]!=null && isFinite(sn[k])) o[k]=+sn[k]; return Object.keys(o).length ? o : null; }catch{ return null; } }
+function addSnap(ref){
+  if (!curScan) return; const now=Date.now(); curScan.snaps.push(ref ? {t:now, ref} : {t:now});
   const m={}; for (const x of scanRes) m[x.did]=hexb(x.bytes);
   for (const r of curScan.rows) r.v.push(m[r.did] ?? "");
   if (curScan.snaps.length>MAX_SNAPS){ curScan.snaps.splice(1,1); for (const r of curScan.rows) r.v.splice(1,1); }
@@ -1023,7 +1033,9 @@ function fillScanHist(){
 }
 function scanCsv(s){
   const z=n=>String(n).padStart(2,"0"), ts=t=>{ const d=new Date(t); return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}:${z(d.getSeconds())}`; };
-  return "unite,istek,cevap,kod," + s.snaps.map(x=>ts(x.t)).join(",") + "\n" + s.rows.map(r=>`${s.unit},${s.tx},${s.rx},${r.did},${r.v.join(",")}`).join("\n") + "\n";
+  const refs = Object.keys(MT_SIG).filter(k=>s.snaps.some(x=>x.ref && x.ref[k]!=null))
+    .map(k=>`referans,,,${k},${s.snaps.map(x=>x.ref && x.ref[k]!=null ? x.ref[k] : "").join(",")}`);
+  return "unite,istek,cevap,kod," + s.snaps.map(x=>ts(x.t)).join(",") + "\n" + s.rows.map(r=>`${s.unit},${s.tx},${s.rx},${r.did},${r.v.join(",")}`).concat(refs).join("\n") + "\n";
 }
 function saveFileText(name, text){
   try{ if (window.AndroidBle && AndroidBle.saveFile){ AndroidBle.saveFile(name, "text/csv", text); return; } }catch{}
@@ -1124,21 +1136,77 @@ async function runScan(){
 let rescanning=false;
 async function rescan(){
   if (!scanRes.length || !chW || rescanning) return;
+  const ref = scanRef();
   rescanning=true; $("scRe").disabled=true; await pausePolling();
   let cur="";
   for (const x of scanRes){ if (cur!==x.tx){ await setUnit(x.tx, x.rx); cur=x.tx; }
     const r=parseUds(await send("22"+x.did,800), x.did); x.prev=x.bytes; if (r && r.ok) x.bytes=r.data; }
-  await restoreBms(); addSnap();
+  await restoreBms(); addSnap(ref);
   $("scRe").disabled=false; rescanning=false; renderScan(); startPolling();
 }
 setInterval(()=>{ if ($("scAuto").checked && tab==="scan" && !scanning && !finding) rescan(); }, 5000);
 function renderScan(){
+  try{ renderMatch(); }catch(e){ $("mtList").innerHTML='<div class="empty">Eşleştirme hesaplanamadı</div>'; }
   const el=$("scList");
   if (!scanRes.length){ el.innerHTML='<div class="empty">Cevap veren kod yok</div>'; return; }
   el.innerHTML = `<table><tr><th>Ünite</th><th>Kod</th><th>Ham değer</th><th>Önceki</th><th>1 bayt −50</th><th>2 bayt /100 −50</th><th></th></tr>`+
     scanRes.map((x,i)=>{ const ch = x.prev && hexb(x.prev)!==hexb(x.bytes);
       const t1 = x.bytes[x.bytes.length-1]-50, t2 = x.bytes.length>=2 ? u16(x.bytes)/100-50 : null;
       return `<tr class="${ch?"chg":""}"><td>${x.unit}</td><td class="mono">${x.did}</td><td class="mono">${hexb(x.bytes)}</td><td class="mono">${x.prev?hexb(x.prev):""}</td><td>${t1}</td><td>${t2==null?"":t2.toFixed(2)}</td><td><button class="sec mini" data-add="${i}">Panele ekle</button></td></tr>`; }).join("")+`</table>`;
+}
+
+// ---- Olası anlamlar: kod baytları ile bilinen değerlerin birlikte değişimi ----
+function mtPear(x, y){ const n=x.length; let mx=0,my=0; for (let i=0;i<n;i++){ mx+=x[i]; my+=y[i]; } mx/=n; my/=n;
+  let vx=0,vy=0,c=0; for (let i=0;i<n;i++){ const a=x[i]-mx, b=y[i]-my; vx+=a*a; vy+=b*b; c+=a*b; }
+  if (!vx || !vy) return null; return {r:c/Math.sqrt(vx*vy), a:c/vx, b:my-c/vx*mx}; }
+const mtDistinct = a => new Set(a).size;
+function matchScan(s){
+  if (!s) return {n:0, list:[]};
+  const idx = s.snaps.map((x,i)=>x.ref?i:-1).filter(i=>i>=0);
+  if (idx.length < 6) return {n:idx.length, list:[]};
+  const out=[];
+  for (const row of s.rows){
+    const vs = idx.map(i=>unhex(row.v[i])); const L = Math.min(...vs.filter(Boolean).map(v=>v.length)); if (!isFinite(L) || !L) continue;
+    const interps=[];
+    for (let st=0; st<L; st++){ interps.push([st,1,false],[st,1,true]); if (st+1<L) interps.push([st,2,false],[st,2,true]); }
+    let best=null;
+    for (const [st,len,sg] of interps){
+      const xv = vs.map(v=>v ? readBytesVal(v, st, len, sg) : null);
+      if (mtDistinct(xv.filter(v=>v!=null)) < 3) continue;
+      for (const k in MT_SIG){
+        const X=[], Y=[]; idx.forEach((si,j)=>{ const y=s.snaps[si].ref[k]; if (xv[j]!=null && y!=null){ X.push(xv[j]); Y.push(y); } });
+        if (X.length<6 || mtDistinct(Y)<3) continue;
+        const f=mtPear(X,Y); if (!f || Math.abs(f.r)<0.8) continue;
+        // ardışık farklar: ikisi de yalnızca zamanla artıyorsa bu düşük çıkar
+        let fd=null; if (X.length>=8){ const dx=[],dy=[]; for (let i=1;i<X.length;i++){ dx.push(X[i]-X[i-1]); dy.push(Y[i]-Y[i-1]); } fd=mtPear(dx,dy); }
+        const score = Math.min(Math.abs(f.r), fd ? Math.abs(fd.r) : Math.abs(f.r)-0.1);
+        if (!best || score>best.score) best={did:row.did, st, len, sg, k, r:f.r, rd:fd?fd.r:null, a:f.a, b:f.b, n:X.length, score, bytes:vs[vs.length-1]};
+      }
+    }
+    if (best) out.push(best);
+  }
+  out.sort((a,b)=>b.score-a.score);
+  return {n:idx.length, list:out};
+}
+const mtNum = v => { if (!isFinite(v)) return "–"; const a=Math.abs(v); return (a>=100 ? v.toFixed(1) : a>=1 ? v.toFixed(3) : (+v.toPrecision(3)).toString()).replace(".",","); };
+let mtRes = [];
+function renderMatch(){
+  const el=$("mtList"); const m = matchScan(curScan); mtRes = m.list;
+  if (!curScan){ el.innerHTML='<div class="empty">Önce bir tarama yapın ya da kayıtlı taramayı seçin</div>'; return; }
+  if (m.n < 6){ el.innerHTML=`<div class="empty">Bilinen değerlerle birlikte ${m.n} okuma var; en az 6 gerekiyor. Canlı okuma açıkken "Tekrar oku"yu kullanın.</div>`; return; }
+  if (!m.list.length){ el.innerHTML=`<div class="empty">${m.n} okumada belirgin bir eşleşme çıkmadı. Daha farklı durumlarda (sürüş, şarj, klima) tekrar okuyun.</div>`; return; }
+  const q = x => x.score>=0.85 ? "güçlü" : x.score>=0.6 ? "orta" : "zayıf";
+  el.innerHTML = `<table><tr><th>Kod</th><th>Baytlar</th><th>Benzediği</th><th>Uyum</th><th>Formül</th><th></th></tr>`+
+    m.list.map((x,i)=>`<tr><td class="mono">${x.did}</td><td class="mono">${x.st}${x.len>1?"–"+(x.st+x.len-1):""}${x.sg?" işaretli":""}</td><td>${MT_SIG[x.k][0]}</td><td>${q(x)} <small style="color:var(--mut)">r ${mtNum(x.r)}${x.rd!=null?", değişim "+mtNum(x.rd):""}, ${x.n} okuma</small></td><td class="mono">ham × ${mtNum(x.a)} ${x.b<0?"−":"+"} ${mtNum(Math.abs(x.b))} ${MT_SIG[x.k][1]}</td><td><button class="sec mini" data-mt="${i}">Panele ekle</button></td></tr>`).join("")+`</table>`+
+    `<p class="note">"Değişim" uyumu, iki değerin okumadan okumaya birlikte inip çıkıp çıkmadığını gösterir. Yalnızca genel uyum yüksekse ikisi de zamanla aynı yöne gidiyor olabilir; bu bir anlam kanıtı değildir.</p>`;
+}
+function openMatch(x){
+  const r = scanRes.find(y=>y.did===x.did) || {tx:curScan.tx, rx:curScan.rx, unit:curScan.unit, did:x.did, bytes:x.bytes};
+  openAdd(r);
+  $("addName").value = MT_SIG[x.k][0]+" (eşleşen "+x.did+")"; $("addUnit").value = MT_SIG[x.k][1];
+  $("addStart").value=String(x.st); $("addLen").value=String(x.len); $("addSigned").checked=x.sg;
+  $("addScale").value = String(+x.a.toPrecision(4)).replace(".",","); $("addOffset").value = String(+x.b.toPrecision(4)).replace(".",",");
+  addPreview();
 }
 
 // ---- Panele ek değer ekleme (panel.html "extras") ----
@@ -1327,7 +1395,7 @@ function renderCap(){
 // =====================================================================
 //  Yolculuklar: otomatik yolculuklar, Trip A/B ve eski kayıtlar tek günlükte
 // =====================================================================
-let jrPeriod = store.get("jrPeriod", 7), jrKind = "all", jrOpen = null, jrEditing = false;
+let jrPeriod = store.get("jrPeriod", 7), jrKind = "auto", jrOpen = null, jrEditing = false;
 const jrNames = () => store.get("tripNames", {});
 const JR_DAYS = ["Pazar","Pazartesi","Salı","Çarşamba","Perşembe","Cuma","Cumartesi"];
 const jrTime = s => s ? s.slice(11,16) : "";
@@ -1866,6 +1934,7 @@ $("scUnit").onchange = fillPresets;
 $("scPresets").onclick = e => { const b=e.target.closest("[data-range]"); if (!b) return; const [f,t]=b.dataset.range.split("-"); $("scFrom").value=f; $("scTo").value=t; };
 $("ufList").onclick = e => { const b=e.target.closest("[data-unit]"); if (!b) return; $("scUnit").value=b.dataset.unit; fillPresets(); const p=(UNIT_PRESETS[b.dataset.unit]||["0000-00FF"])[0].split("-"); $("scFrom").value=p[0]; $("scTo").value=p[1]; $("scUnit").scrollIntoView({behavior:"smooth"}); };
 $("scList").addEventListener("click", e => { const b=e.target.closest("[data-add]"); if (b) openAdd(scanRes[+b.dataset.add]); });
+$("mtList").addEventListener("click", e => { const b=e.target.closest("[data-mt]"); if (b && mtRes[+b.dataset.mt]) openMatch(mtRes[+b.dataset.mt]); });
 for (const id of ["addStart","addLen","addSigned","addScale","addOffset","addUnit"]) $(id).addEventListener("input", addPreview);
 $("addCancel").onclick = () => { $("addBox").style.display="none"; addSel=null; };
 $("addOk").onclick = () => { if (!addSel) return; const name=$("addName").value.trim() || `${addSel.unit} ${addSel.did}`;
@@ -2204,9 +2273,9 @@ const CUSTOM_KEYS = [
   ["brk0","Fren basıncı 1 (bar)"],["brk1","Fren basıncı 2 (bar)"],["brk2","Fren basıncı 3 (bar)"],["brk3","Fren basıncı 4 (bar)"],
   ["w_fl","Teker hızı sol ön (km/sa)"],["w_fr","Teker hızı sağ ön (km/sa)"],["w_rl","Teker hızı sol arka (km/sa)"],["w_rr","Teker hızı sağ arka (km/sa)"],
   ["socd","Göstergedeki şarj (%)"],
-  ["mdcv","İnverter DC gerilimi (V)"],["minv","İnverter sıcaklığı (°C, aday)"],["mtq2","Tork adayı E301 (işaretli)"],["mtq3","Tork adayı E308 (işaretli)"],
-  ["mrpm2","Devir adayı E312"],["mlim","Motor güç sınırı (%, aday)"],["mx363","E363 (aday)"],
-  ["mx314","E314 (aday)"],["mx315","E315 (aday)"],["mx341","E341 (aday)"],
+  ["mdcv","İnverter DC gerilimi (V)"],["minv","İnverter sıcaklığı (°C, aday)"],["mtq2","Tork adayı E301 (işaretli)"],["mtq3","Motor torku, rejen dahil (E308, Nm, aday)"],
+  ["mrpm2","E312 (devirle orantılı)"],["mlim","Motor güç sınırı (%, aday)"],["mx363","E363 (hızla orantılı)"],
+  ["mx314","E314 (aday)"],["mx315","E315 (aday)"],["mx341","E341 (hızla orantılı)"],
   ["h28","Isı yön. 4A28 (°C, aday)"],["h29","Isı pompası 4A29 (°C, aday)"],["h30","Isı yön. 4A30 (°C, aday)"],["h31","Kabin ısıtma 4A31 (°C, aday)"],["h32","Kabin? 4A32 (°C, aday)"],["h33","Kabin ısıtma 4A33 (°C, aday)"],
   ["p_fl","Basınç sol ön (psi)"],["p_fr","Basınç sağ ön (psi)"],["p_rl","Basınç sol arka (psi)"],["p_rr","Basınç sağ arka (psi)"],
   ["t_fl","Lastik sıc. sol ön (°C)"],["t_fr","Lastik sıc. sağ ön (°C)"],["t_rl","Lastik sıc. sol arka (°C)"],["t_rr","Lastik sıc. sağ arka (°C)"],
@@ -2224,9 +2293,10 @@ const DEFAULT_SOURCES = {
 // ifmeidan/ex-30-driver-display (MIT) çalışmasından: fren basıncı doğrulanmış; teker hızları aday; D901 göstergedeki şarj
 for (const [i,d] of ["FD00","FD01","FD02","FD03"].entries()) DEFAULT_SOURCES["brk"+i] = {tx:"1DD01701", rx:"1EE02E80", did:d, start:"0", len:"2", scale:"0.01", offset:"0", every:"2"};
 for (const [w,d] of [["fl","2B06"],["fr","2B07"],["rl","2B08"],["rr","2B09"]]) DEFAULT_SOURCES["w_"+w] = {tx:"1DD01701", rx:"1EE02E80", did:d, start:"0", len:"1", scale:"1", offset:"0", every:"1"};
+// 24.11 kaydı: E308 ×0,1 rejende eksiye inen tork (E304 ile r 0,90); E312/E341/E363 hızla orantılı; E314+E315 ≈ 16384
 // Arka motor taraması (15.11): E300 ≈ DC bara gerilimi ×0,25 (batarya voltajıyla örtüşüyor); diğerleri adaylar, logdan doğrulanacak
 const M=(did,len,scale,offset,every)=>({tx:"1DD01637", rx:"1EC6EE80", did, start:"0", len:String(len), scale:String(scale), offset:String(offset), every:String(every)});
-Object.assign(DEFAULT_SOURCES, {mdcv:M("E300",2,0.25,0,3), minv:M("E305",1,1,-50,6), mtq2:M("E301",2,1,-8192,2), mtq3:M("E308",2,1,-8192,2), mrpm2:M("E312",2,1,-16384,4), mlim:M("E353",2,0.1,0,4), mx363:M("E363",1,1,0,4), mx314:M("E314",2,1,0,6), mx315:M("E315",2,1,0,6), mx341:M("E341",2,1,-13107,6)});
+Object.assign(DEFAULT_SOURCES, {mdcv:M("E300",2,0.25,0,3), minv:M("E305",1,1,-50,6), mtq2:M("E301",2,1,-8192,2), mtq3:M("E308",2,0.1,-819.2,2), mrpm2:M("E312",2,1,-16384,4), mlim:M("E353",2,0.1,0,4), mx363:M("E363",1,1,0,4), mx314:M("E314",2,1,0,6), mx315:M("E315",2,1,0,6), mx341:M("E341",2,1,-13107,6)});
 // VCU ısı yönetimi (15.11 tarama): 4 bayt, son iki bayt ×0,1 − 40 °C; yavaş değişir
 for (const [k,d] of [["h28","4A28"],["h29","4A29"],["h30","4A30"],["h31","4A31"],["h32","4A32"],["h33","4A33"]]) DEFAULT_SOURCES[k] = {tx:"1DD01601", rx:"1EC02E80", did:d, start:"2", len:"2", scale:"0.1", offset:"-40", every:"10"};
 // D901 (göstergedeki şarj) bu araçta hep 0 döndü (15.11 log) → kaldırıldı
@@ -2243,6 +2313,8 @@ const sign = mainCfg.sign || 1;
 const pcfg = Object.assign({interval:0, sources:{}, logOn:true, logMode:"1000"}, store.get("panel", {}));
 for (const w of ["fl","fr","rl","rr"]){ const s=pcfg.sources["w_"+w]; if (s && s.did && s.did.startsWith("2B0") && s.every==="3") s.every="1"; }
 for (const k in DEFAULT_SOURCES) if (pcfg.sources[k] === undefined) pcfg.sources[k] = Object.assign({}, DEFAULT_SOURCES[k]);
+// 24.11: E308 artık ×0,1 Nm; eski varsayılan ayarı kendiliğinden güncelle
+{ const m3=pcfg.sources.mtq3; if (m3 && m3.did==="E308" && String(m3.scale)==="1" && String(m3.offset)==="-8192") pcfg.sources.mtq3=Object.assign({}, DEFAULT_SOURCES.mtq3); }
 if (pcfg.sources.socd && pcfg.sources.socd.did==="D901") delete pcfg.sources.socd;
 // v1.8–v1.11'de lastik basıncı için denenen FEE7 kodu lastik değilmiş: kayıtlı ayarlardan kaldır
 for (const w of ["fl","fr","rl","rr"]){ const x=pcfg.sources["p_"+w]; if (x && String(x.did).toUpperCase()==="FEE7"){ pcfg.sources["p_"+w]=null; } }
@@ -2254,7 +2326,7 @@ const TRIP_NAMES = {A:"Trip A", B:"Trip B", auto:"Otomatik"};
 const newAcc = (kind, name) => ({kind, name: name||null, paused:false, start:Date.now(), lastMove:null, km:0, kmCar:0, eOut:0, eIn:0, movingMs:0, movingMsCar:0,
   odoStart:null, odoEnd:null, socStart:null, socEnd:null, altStart:null, altEnd:null, altRef:null, up:0, down:0, st:{}, lastStat:0});
 let trips = Object.assign({A:newAcc("A"), B:newAcc("B"), auto:null}, store.get("panelTrips", {}));
-let tripView = store.get("tripView", "A");
+let tripView = "auto";   // her açılışta otomatik yolculuk seçili gelir
 if (!trips.A) trips.A=newAcc("A"); if (!trips.B) trips.B=newAcc("B");
 if (tripView!=="auto" && !trips[tripView]) tripView="A";
 let lastTripSave=0;
@@ -2698,10 +2770,12 @@ window.ex30Trips = {
 function autoSnap(now, vs){
   const n = v => (v==null || !isFinite(v)) ? null : +v;
   const tq = (vals.torque===0 && vals.torqueCalc!=null && vals.torqueCalc<0) ? vals.torqueCalc : vals.torque;
-  const a = (trips.auto && trips.auto.start) ? trips.auto : trips.A;
+  const a = (trips.auto && trips.auto.start) ? trips.auto : null;
   let tr=null;
-  if (a && a.start){ const km=tripKm(a), net=a.eOut-a.eIn;
-    tr={name: a===trips.auto?"Oto":"A", km:n(km), cons: km>0.5?n(net/km*100):null, avgS:n(tripAvgSpeed(a)), out:n(a.eOut), reg:n(a.eIn), min:Math.round((now-a.start)/60000)}; }
+  if (a){ const km=tripKm(a), net=a.eOut-a.eIn;
+    tr={name:"Oto", km:n(km), cons: km>0.5?n(net/km*100):null, avgS:n(tripAvgSpeed(a)), out:n(a.eOut), reg:n(a.eIn), min:Math.round((now-a.start)/60000)}; }
+  else { const h=[...tripHist].reverse().find(x=>x.tur==="Otomatik");   // canlı yoksa son otomatik yolculuk
+    if (h) tr={name:"Son", km:n(h.km_arac||h.km_gps), cons:n(h.tuketim_kWh100), avgS:n(h.ort_hiz_kmsa), out:n(h.harcanan_kWh), reg:n(h.rejen_kWh), min:n(h.sure_dk)}; }
   const tp={}; for (const w of ["fl","fr","rl","rr"]){ const pa=aaosTire(w); tp[w]=n(pa!=null?pa:vals["p_"+w]); }
   return {kw:n(vals.kw), volt:n(vals.volt), cur:n(vals.cur!=null?vals.cur*sign:null), vs:n(vs), cin:n(vals.cin), cout:n(vals.cout), motor:n(vals.motor),
     rpm:n(vals.rpm), tq:n(tq), out:n(aaos("ENV_OUTSIDE_TEMPERATURE")), rng:aaos("RANGE_REMAINING")!=null?n(aaos("RANGE_REMAINING")/1000):null, tp, trip:tr};
@@ -2775,8 +2849,8 @@ function renderTrip(now, pct){
   const a = trips[tripView];
   if (!a){
     const last = [...tripHist].reverse().find(h=>h.tur==="Otomatik");
-    tile("avgspd", null, "km/s", 0, "Araç hareket edince başlar");
-    tile("trip", null, "kWh/100km", 1, "");
+    tile("avgspd", last ? last.ort_hiz_kmsa : null, "km/s", 0, last ? "son yolculuk" : "Araç hareket edince başlar");
+    tile("trip", last ? last.tuketim_kWh100 : null, "kWh/100km", 1, last ? `son yolculuk, ${fmt(last.km_arac||last.km_gps,1)} km` : "");
     $("tripInfo").innerHTML = `<b>Durum</b><span>Araç hareket edince başlar, 5 dk durunca biter</span>` + (last ? `<b>Son</b><span>${fmt(last.tuketim_kWh100,1)} kWh/100 km <i>${fmt(last.km_arac||last.km_gps,1)} km, ${last.baslangic.slice(11,16)}–${(last.bitis||"").slice(11,16)}</i></span>` : "");
     return;
   }

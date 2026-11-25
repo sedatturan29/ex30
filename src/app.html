@@ -413,7 +413,7 @@
       <div class="jr-sum" id="jrSum"></div>
       <div class="jr-live" id="jrLive"></div>
       <div class="jr-seg jr-kind" id="jrKind" role="tablist" aria-label="Tür">
-        <button data-k="all" class="act">Hepsi</button><button data-k="auto">Otomatik</button><button data-k="man">Trip A/B</button>
+        <button data-k="auto" class="act">Otomatik</button><button data-k="all">Hepsi</button><button data-k="man">Trip A/B</button>
       </div>
       <div id="jrList"></div>
     </div>
@@ -543,6 +543,11 @@
       </div>
       <div class="tbl" id="scList"><div class="empty">Henüz tarama yapılmadı</div></div>
       <p class="note">Park halindeyken okuyun, sonra sürüşte, şarjda ya da ısıtma çalışırken tekrar okuyun: değişen kodlar sarı görünür. "1 bayt −50" ve "2 bayt /100 −50" sütunları sıcaklık olabilecek değerleri gösterir. Bir değerin anlamını bulduğunuzda <b>Panele ekle</b> ile Panel'de kutu olarak izleyebilirsiniz.</p>
+    </div>
+    <div class="card" id="mtCard">
+      <h2>4. Olası anlamlar</h2>
+      <p class="note">Her "Tekrar oku"da uygulama o anki hız, güç, akım, sıcaklık gibi bilinen değerleri de kaydeder. Yeterli okuma birikince her kodun baytlarını bu değerlerle karşılaştırır ve birlikte değişenleri gösterir. En iyi sonuç için "5 sn'de bir tekrar oku"yu açıp hızlanın, fren yapın, klimayı açıp kapatın; tek yönde yavaşça değişen değerler (ör. ısınan batarya) yanıltıcı eşleşme verebilir.</p>
+      <div class="tbl" id="mtList"><div class="empty">Henüz yeterli okuma yok</div></div>
     </div>
     <div class="card" id="addBox" style="display:none">
       <h2>Panele ekle</h2>
@@ -998,8 +1003,13 @@ function scanFromRes(found, u, range){
   const s={id:String(Date.now()), t:Date.now(), unit:u.name||u.tx.slice(4), tx:u.tx, rx:u.rx, range, snaps:[{t:Date.now()}], rows:found.map(x=>({did:x.did, v:[hexb(x.bytes)]}))};
   scans.push(s); while (scans.length>MAX_SCANS) scans.shift(); curScan=s; saveScans(); fillScanHist(); return s;
 }
-function addSnap(){
-  if (!curScan) return; const now=Date.now(); curScan.snaps.push({t:now});
+// Eşleştirme için o anki bilinen değerler (panelden)
+const MT_SIG = {spd:["Hız","km/s"], kw:["Güç","kW"], cur:["Batarya akımı","A"], volt:["Batarya voltajı","V"], soc:["Şarj","%"], avg:["Batarya ort.","°C"], max:["Batarya maks.","°C"], tmin:["Batarya min.","°C"],
+  cin:["Batarya soğutma girişi","°C"], cout:["Güç aktarma soğutma","°C"], motor:["Motor","°C"], rpm:["Motor devri","dev/dk"], tq:["Motor torku","Nm"], brake:["Fren basıncı","bar"], v12:["12 V akü","V"], out:["Dış sıcaklık","°C"]};
+function scanRef(){ try{ ensurePanel(); const sn = panelWin && panelWin.ex30Snap ? panelWin.ex30Snap() : null; if (!sn) return null;
+  const o={}; for (const k in MT_SIG) if (sn[k]!=null && isFinite(sn[k])) o[k]=+sn[k]; return Object.keys(o).length ? o : null; }catch{ return null; } }
+function addSnap(ref){
+  if (!curScan) return; const now=Date.now(); curScan.snaps.push(ref ? {t:now, ref} : {t:now});
   const m={}; for (const x of scanRes) m[x.did]=hexb(x.bytes);
   for (const r of curScan.rows) r.v.push(m[r.did] ?? "");
   if (curScan.snaps.length>MAX_SNAPS){ curScan.snaps.splice(1,1); for (const r of curScan.rows) r.v.splice(1,1); }
@@ -1020,7 +1030,9 @@ function fillScanHist(){
 }
 function scanCsv(s){
   const z=n=>String(n).padStart(2,"0"), ts=t=>{ const d=new Date(t); return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}:${z(d.getSeconds())}`; };
-  return "unite,istek,cevap,kod," + s.snaps.map(x=>ts(x.t)).join(",") + "\n" + s.rows.map(r=>`${s.unit},${s.tx},${s.rx},${r.did},${r.v.join(",")}`).join("\n") + "\n";
+  const refs = Object.keys(MT_SIG).filter(k=>s.snaps.some(x=>x.ref && x.ref[k]!=null))
+    .map(k=>`referans,,,${k},${s.snaps.map(x=>x.ref && x.ref[k]!=null ? x.ref[k] : "").join(",")}`);
+  return "unite,istek,cevap,kod," + s.snaps.map(x=>ts(x.t)).join(",") + "\n" + s.rows.map(r=>`${s.unit},${s.tx},${s.rx},${r.did},${r.v.join(",")}`).concat(refs).join("\n") + "\n";
 }
 function saveFileText(name, text){
   try{ if (window.AndroidBle && AndroidBle.saveFile){ AndroidBle.saveFile(name, "text/csv", text); return; } }catch{}
@@ -1121,21 +1133,77 @@ async function runScan(){
 let rescanning=false;
 async function rescan(){
   if (!scanRes.length || !chW || rescanning) return;
+  const ref = scanRef();
   rescanning=true; $("scRe").disabled=true; await pausePolling();
   let cur="";
   for (const x of scanRes){ if (cur!==x.tx){ await setUnit(x.tx, x.rx); cur=x.tx; }
     const r=parseUds(await send("22"+x.did,800), x.did); x.prev=x.bytes; if (r && r.ok) x.bytes=r.data; }
-  await restoreBms(); addSnap();
+  await restoreBms(); addSnap(ref);
   $("scRe").disabled=false; rescanning=false; renderScan(); startPolling();
 }
 setInterval(()=>{ if ($("scAuto").checked && tab==="scan" && !scanning && !finding) rescan(); }, 5000);
 function renderScan(){
+  try{ renderMatch(); }catch(e){ $("mtList").innerHTML='<div class="empty">Eşleştirme hesaplanamadı</div>'; }
   const el=$("scList");
   if (!scanRes.length){ el.innerHTML='<div class="empty">Cevap veren kod yok</div>'; return; }
   el.innerHTML = `<table><tr><th>Ünite</th><th>Kod</th><th>Ham değer</th><th>Önceki</th><th>1 bayt −50</th><th>2 bayt /100 −50</th><th></th></tr>`+
     scanRes.map((x,i)=>{ const ch = x.prev && hexb(x.prev)!==hexb(x.bytes);
       const t1 = x.bytes[x.bytes.length-1]-50, t2 = x.bytes.length>=2 ? u16(x.bytes)/100-50 : null;
       return `<tr class="${ch?"chg":""}"><td>${x.unit}</td><td class="mono">${x.did}</td><td class="mono">${hexb(x.bytes)}</td><td class="mono">${x.prev?hexb(x.prev):""}</td><td>${t1}</td><td>${t2==null?"":t2.toFixed(2)}</td><td><button class="sec mini" data-add="${i}">Panele ekle</button></td></tr>`; }).join("")+`</table>`;
+}
+
+// ---- Olası anlamlar: kod baytları ile bilinen değerlerin birlikte değişimi ----
+function mtPear(x, y){ const n=x.length; let mx=0,my=0; for (let i=0;i<n;i++){ mx+=x[i]; my+=y[i]; } mx/=n; my/=n;
+  let vx=0,vy=0,c=0; for (let i=0;i<n;i++){ const a=x[i]-mx, b=y[i]-my; vx+=a*a; vy+=b*b; c+=a*b; }
+  if (!vx || !vy) return null; return {r:c/Math.sqrt(vx*vy), a:c/vx, b:my-c/vx*mx}; }
+const mtDistinct = a => new Set(a).size;
+function matchScan(s){
+  if (!s) return {n:0, list:[]};
+  const idx = s.snaps.map((x,i)=>x.ref?i:-1).filter(i=>i>=0);
+  if (idx.length < 6) return {n:idx.length, list:[]};
+  const out=[];
+  for (const row of s.rows){
+    const vs = idx.map(i=>unhex(row.v[i])); const L = Math.min(...vs.filter(Boolean).map(v=>v.length)); if (!isFinite(L) || !L) continue;
+    const interps=[];
+    for (let st=0; st<L; st++){ interps.push([st,1,false],[st,1,true]); if (st+1<L) interps.push([st,2,false],[st,2,true]); }
+    let best=null;
+    for (const [st,len,sg] of interps){
+      const xv = vs.map(v=>v ? readBytesVal(v, st, len, sg) : null);
+      if (mtDistinct(xv.filter(v=>v!=null)) < 3) continue;
+      for (const k in MT_SIG){
+        const X=[], Y=[]; idx.forEach((si,j)=>{ const y=s.snaps[si].ref[k]; if (xv[j]!=null && y!=null){ X.push(xv[j]); Y.push(y); } });
+        if (X.length<6 || mtDistinct(Y)<3) continue;
+        const f=mtPear(X,Y); if (!f || Math.abs(f.r)<0.8) continue;
+        // ardışık farklar: ikisi de yalnızca zamanla artıyorsa bu düşük çıkar
+        let fd=null; if (X.length>=8){ const dx=[],dy=[]; for (let i=1;i<X.length;i++){ dx.push(X[i]-X[i-1]); dy.push(Y[i]-Y[i-1]); } fd=mtPear(dx,dy); }
+        const score = Math.min(Math.abs(f.r), fd ? Math.abs(fd.r) : Math.abs(f.r)-0.1);
+        if (!best || score>best.score) best={did:row.did, st, len, sg, k, r:f.r, rd:fd?fd.r:null, a:f.a, b:f.b, n:X.length, score, bytes:vs[vs.length-1]};
+      }
+    }
+    if (best) out.push(best);
+  }
+  out.sort((a,b)=>b.score-a.score);
+  return {n:idx.length, list:out};
+}
+const mtNum = v => { if (!isFinite(v)) return "–"; const a=Math.abs(v); return (a>=100 ? v.toFixed(1) : a>=1 ? v.toFixed(3) : (+v.toPrecision(3)).toString()).replace(".",","); };
+let mtRes = [];
+function renderMatch(){
+  const el=$("mtList"); const m = matchScan(curScan); mtRes = m.list;
+  if (!curScan){ el.innerHTML='<div class="empty">Önce bir tarama yapın ya da kayıtlı taramayı seçin</div>'; return; }
+  if (m.n < 6){ el.innerHTML=`<div class="empty">Bilinen değerlerle birlikte ${m.n} okuma var; en az 6 gerekiyor. Canlı okuma açıkken "Tekrar oku"yu kullanın.</div>`; return; }
+  if (!m.list.length){ el.innerHTML=`<div class="empty">${m.n} okumada belirgin bir eşleşme çıkmadı. Daha farklı durumlarda (sürüş, şarj, klima) tekrar okuyun.</div>`; return; }
+  const q = x => x.score>=0.85 ? "güçlü" : x.score>=0.6 ? "orta" : "zayıf";
+  el.innerHTML = `<table><tr><th>Kod</th><th>Baytlar</th><th>Benzediği</th><th>Uyum</th><th>Formül</th><th></th></tr>`+
+    m.list.map((x,i)=>`<tr><td class="mono">${x.did}</td><td class="mono">${x.st}${x.len>1?"–"+(x.st+x.len-1):""}${x.sg?" işaretli":""}</td><td>${MT_SIG[x.k][0]}</td><td>${q(x)} <small style="color:var(--mut)">r ${mtNum(x.r)}${x.rd!=null?", değişim "+mtNum(x.rd):""}, ${x.n} okuma</small></td><td class="mono">ham × ${mtNum(x.a)} ${x.b<0?"−":"+"} ${mtNum(Math.abs(x.b))} ${MT_SIG[x.k][1]}</td><td><button class="sec mini" data-mt="${i}">Panele ekle</button></td></tr>`).join("")+`</table>`+
+    `<p class="note">"Değişim" uyumu, iki değerin okumadan okumaya birlikte inip çıkıp çıkmadığını gösterir. Yalnızca genel uyum yüksekse ikisi de zamanla aynı yöne gidiyor olabilir; bu bir anlam kanıtı değildir.</p>`;
+}
+function openMatch(x){
+  const r = scanRes.find(y=>y.did===x.did) || {tx:curScan.tx, rx:curScan.rx, unit:curScan.unit, did:x.did, bytes:x.bytes};
+  openAdd(r);
+  $("addName").value = MT_SIG[x.k][0]+" (eşleşen "+x.did+")"; $("addUnit").value = MT_SIG[x.k][1];
+  $("addStart").value=String(x.st); $("addLen").value=String(x.len); $("addSigned").checked=x.sg;
+  $("addScale").value = String(+x.a.toPrecision(4)).replace(".",","); $("addOffset").value = String(+x.b.toPrecision(4)).replace(".",",");
+  addPreview();
 }
 
 // ---- Panele ek değer ekleme (panel.html "extras") ----
@@ -1324,7 +1392,7 @@ function renderCap(){
 // =====================================================================
 //  Yolculuklar: otomatik yolculuklar, Trip A/B ve eski kayıtlar tek günlükte
 // =====================================================================
-let jrPeriod = store.get("jrPeriod", 7), jrKind = "all", jrOpen = null, jrEditing = false;
+let jrPeriod = store.get("jrPeriod", 7), jrKind = "auto", jrOpen = null, jrEditing = false;
 const jrNames = () => store.get("tripNames", {});
 const JR_DAYS = ["Pazar","Pazartesi","Salı","Çarşamba","Perşembe","Cuma","Cumartesi"];
 const jrTime = s => s ? s.slice(11,16) : "";
@@ -1863,6 +1931,7 @@ $("scUnit").onchange = fillPresets;
 $("scPresets").onclick = e => { const b=e.target.closest("[data-range]"); if (!b) return; const [f,t]=b.dataset.range.split("-"); $("scFrom").value=f; $("scTo").value=t; };
 $("ufList").onclick = e => { const b=e.target.closest("[data-unit]"); if (!b) return; $("scUnit").value=b.dataset.unit; fillPresets(); const p=(UNIT_PRESETS[b.dataset.unit]||["0000-00FF"])[0].split("-"); $("scFrom").value=p[0]; $("scTo").value=p[1]; $("scUnit").scrollIntoView({behavior:"smooth"}); };
 $("scList").addEventListener("click", e => { const b=e.target.closest("[data-add]"); if (b) openAdd(scanRes[+b.dataset.add]); });
+$("mtList").addEventListener("click", e => { const b=e.target.closest("[data-mt]"); if (b && mtRes[+b.dataset.mt]) openMatch(mtRes[+b.dataset.mt]); });
 for (const id of ["addStart","addLen","addSigned","addScale","addOffset","addUnit"]) $(id).addEventListener("input", addPreview);
 $("addCancel").onclick = () => { $("addBox").style.display="none"; addSel=null; };
 $("addOk").onclick = () => { if (!addSel) return; const name=$("addName").value.trim() || `${addSel.unit} ${addSel.did}`;
