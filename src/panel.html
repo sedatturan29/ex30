@@ -537,7 +537,26 @@ const tirePsi = w => aaosTire(w) ?? (defined("p_"+w) ? vals["p_"+w] : null);
 function stat(a, k, v){ if (v==null || !isFinite(v)) return; const s = a.st[k] || (a.st[k] = {f:v, l:v, min:v, max:v, sum:0, n:0});
   s.l=v; if (v<s.min) s.min=v; if (v>s.max) s.max=v; s.sum+=v; s.n++; }
 // Otomatik yolculuk + istatistikler (saniyede bir)
+// ---- Şarj algılama: şarj sürerken yolculuk verilerine dokunulmaz ----
+// Araç durur + bataryaya 5 sn boyunca güç girerse (ya da araç "şarj oluyor" derse) şarj başlar; otomatik yolculuk
+// hemen, aracın durduğu anla kapanır; Trip A/B şarj boyunca donar. 30 sn akım kesilince ya da araç hareket edince biter.
+const CHG = {on:false, since:0, cand:0, idle:0};
+function chargeState(now, P, vs){
+  const cs = aaos("EV_CHARGE_STATE"), still = vs==null || vs<=1;
+  const filling = still && ((P!=null && P < -2.5) || cs===1);
+  if (!CHG.on){
+    if (filling){ if (!CHG.cand) CHG.cand=now; if (now-CHG.cand>=5000){ CHG.on=true; CHG.since=CHG.cand; CHG.idle=0; log("Şarj algılandı: yolculuk verileri donduruldu"); if (trips.auto) endAuto(); } }
+    else CHG.cand=0;
+  } else {
+    if (!still){ CHG.on=false; CHG.cand=0; log("Araç hareket etti: şarj bitti"); }
+    else if (!filling){ if (!CHG.idle) CHG.idle=now; if (now-CHG.idle>=30000){ CHG.on=false; CHG.cand=0; log("Şarj bitti"); } }
+    else CHG.idle=0;
+  }
+  return CHG.on;
+}
+window.ex30Charging = () => CHG.on;
 function tripTick(now, vs){
+  if (CHG.on) return;   // şarj boyunca yolculuklar donar
   const gps = (geo.t && now-geo.t<5000) ? geo.spd : null;
   const moving = vs!=null ? vs>0.5 : (gps!=null && gps>5);
   if (moving){
@@ -616,7 +635,7 @@ function sample(fromLoop){
   const vs = carSpeed().v;
   if (lastS){
     const dth = Math.min(now-lastS.t, 15000)/3600e3;
-    for (const a of accs()){
+    if (!chargeState(now, P, vs)) for (const a of accs()){
       // Araç dururken bataryaya giren enerji rejen değil şarjdır: yolculuk enerjisine sayılmaz
       if (P!=null && lastS.P!=null){ const Pm=(P+lastS.P)/2, still = vs!=null && vs<=1 && (lastS.vs??0)<=1;
         a.eOut+=Math.max(Pm,0)*dth; if (!still) a.eIn+=Math.max(-Pm,0)*dth; }
@@ -1141,7 +1160,7 @@ const RP_CAR = {a_kw:["EV_BATTERY_INSTANTANEOUS_CHARGE_RATE",1e6], a_kwh:["EV_BA
 const RP_SKIP = new Set(["kw","gps","lat","lon","alt","auto","torqueCalc","slip","acc_g","brk_kw","inst"]);   // panelin kendi hesapladıkları
 window.ex30ReplayCols = () => LOG_COLS.map(c=>c.slice());
 window.ex30ReplayBegin = () => {
-  REPLAY.on = true; running = true;
+  REPLAY.on = true; running = true; Object.assign(CHG, {on:false, since:0, cand:0, idle:0});
   // gerçek saatle tutulmuş kısıtlayıcılar sanal saatte kilitlenmesin
   lastR=0; lastFeed=0; lastSampleT=0; lastCarT=0;
   for (const k in vals) vals[k]=null; for (const k in valT) delete valT[k]; for (const k in carv) delete carv[k];
