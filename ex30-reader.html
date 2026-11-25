@@ -364,7 +364,22 @@
       <div class="legend"><span><i style="background:var(--ok)"></i>Güç (kW, sol eksen)</span><span><i style="background:var(--hot)"></i>Ort. sıcaklık (°C, sağ eksen)</span></div>
       <div class="row" style="margin-top:8px"><label>Göster: <select id="chgPick"></select></label></div>
     </div>
-    <div class="card"><h2>Geçmiş şarjlar</h2><div class="tbl" id="chgList"></div></div>
+    <div class="card" id="effCard">
+      <h2>Şarj verimi</h2>
+      <p class="note" id="effFor"></p>
+      <div class="row" id="effForm">
+        <label>İstasyonun verdiği <input id="chgGrid" type="number" step="0.01" min="0" inputmode="decimal" style="width:110px"> kWh</label>
+        <button id="chgGridSave">Kaydet</button>
+        <span class="note" id="effMsg" style="margin:0"></span>
+      </div>
+      <div class="grid" style="margin-top:12px">
+        <div class="tile"><div class="k">Verim</div><div class="v" id="e_eff">–<small>%</small></div></div>
+        <div class="tile"><div class="k">Kayıp</div><div class="v" id="e_loss">–<small>kWh</small></div></div>
+        <div class="tile"><div class="k">Bataryaya giren</div><div class="v" id="e_in">–<small>kWh</small></div></div>
+      </div>
+      <p class="note" id="effNote">Faturada ya da istasyon uygulamasında yazan kWh'ı girin. Kayıp; kablo, araçtaki dönüşüm, şarj sırasında batarya ısıtma/soğutma, 12 V sistem ve batarya içindeki ısınmanın toplamıdır.</p>
+    </div>
+    <div class="card"><h2>Geçmiş şarjlar</h2><div class="tbl" id="chgList"></div><p class="note" id="chgAvgEff"></p></div>
   </section>
 
   <!-- ============ KAPASİTE ============ -->
@@ -1257,9 +1272,44 @@ function renderCharge(){
   if ([...pick.options].some(o=>o.value===prev)) pick.value=prev;
   const shown = pick.value==="active" ? ss : list.find(s=>s.id===pick.value);
   chargeChart(shown);
-  $("chgList").innerHTML = list.length ? `<table><tr><th>Tarih</th><th>Şarj %</th><th>Giren</th><th>En yüksek</th><th>Sıcaklık</th><th>Süre</th><th></th></tr>`+
-    list.map(s=>{ const m=summarize(s); return `<tr><td>${dt(s.start)}</td><td>${fmt(m.socA,0)}→${fmt(m.socB,0)}</td><td>${fmt(s.eIn,1)} kWh</td><td>${fmt(m.peakIn,0)} kW</td><td>${fmt(m.tA,0)}→${fmt(m.tB,0)}°C</td><td>${dur(m.dur)}</td><td><button class="sec mini" data-csv="${s.id}">CSV</button> <button class="sec mini" data-del="${s.id}">Sil</button></td></tr>`; }).join("")+`</table>`
+  renderEff(shown, list);
+  $("chgList").innerHTML = list.length ? `<table><tr><th>Tarih</th><th>Şarj %</th><th>Giren</th><th>İstasyon</th><th>Verim</th><th>En yüksek</th><th>Sıcaklık</th><th>Süre</th><th></th></tr>`+
+    list.map(s=>{ const m=summarize(s), e=chgEff(s); return `<tr><td>${dt(s.start)}</td><td>${fmt(m.socA,0)}→${fmt(m.socB,0)}</td><td>${fmt(s.eIn,1)} kWh</td><td>${e?fmt(e.grid,1)+" kWh":"–"}</td><td>${e?"%"+fmt(e.eff,1):"–"}</td><td>${fmt(m.peakIn,0)} kW</td><td>${fmt(m.tA,0)}→${fmt(m.tB,0)}°C</td><td>${dur(m.dur)}</td><td><button class="sec mini" data-csv="${s.id}">CSV</button> <button class="sec mini" data-del="${s.id}">Sil</button></td></tr>`; }).join("")+`</table>`
     : `<div class="empty">Henüz şarj kaydı yok</div>`;
+  const effs = list.map(chgEff).filter(Boolean);
+  if (effs.length){ const g=effs.reduce((a,e)=>a+e.grid,0), b=effs.reduce((a,e)=>a+e.batt,0);
+    $("chgAvgEff").textContent = `İstasyon değeri girilen ${effs.length} şarjda ortalama verim %${fmt(b/g*100,1)}, toplam kayıp ${fmt(g-b,1)} kWh.`; }
+  else $("chgAvgEff").textContent = "";
+}
+// istasyonun verdiği kWh ile verim: bataryaya giren / istasyon
+function chgEff(s){ const g=s && s.meta && s.meta.gridKwh; if (!(g>0) || !(s.eIn>0)) return null;
+  return {grid:g, batt:s.eIn, eff:s.eIn/g*100, loss:g-s.eIn}; }
+let effShownId = null;
+function renderEff(shown, list){
+  const card=$("effCard");
+  if (!list.length && !shown){ card.style.display="none"; return; } card.style.display="";
+  const done = shown && shown.end;
+  $("effForm").style.display = done ? "" : "none";
+  if (!done){
+    $("effFor").textContent = shown ? "Şarj sürüyor. Bittikten sonra istasyonun verdiği kWh'ı buraya girebilirsiniz." : "Yukarıdan bir şarj seçin.";
+    setV("e_eff", null, "%"); setV("e_loss", null, "kWh"); setV("e_in", shown?shown.eIn:null, "kWh", 2); effShownId=null; return;
+  }
+  $("effFor").textContent = `${dt(shown.start)} şarjı`;
+  if (effShownId !== shown.id){ effShownId = shown.id; $("effMsg").textContent = ""; $("chgGrid").value = shown.meta.gridKwh ?? ""; }
+  const e = chgEff(shown);
+  setV("e_in", shown.eIn, "kWh", 2);
+  setV("e_eff", e?e.eff:null, "%", 1); setV("e_loss", e?e.loss:null, "kWh", 2);
+}
+const toast = t => { $("effMsg").textContent = t; };
+function saveGrid(){
+  const pick=$("chgPick"), s=sessions.find(x=>x.id===pick.value && x.type==="charge"); if (!s || !s.end) return;
+  const raw=($("chgGrid").value||"").replace(",","."), v=raw==="" ? null : parseFloat(raw);
+  if (v!=null && !(v>0)){ toast("Geçerli bir kWh değeri girin"); return; }
+  if (v!=null && v < s.eIn){ toast(`İstasyon değeri bataryaya girenden (${fmt(s.eIn,1)} kWh) az olamaz; faturayı kontrol edin`); return; }
+  if (v!=null && v > s.eIn*1.5){ toast(`Bu değer bataryaya girenin 1,5 katından fazla; faturayı kontrol edin`); return; }
+  if (v==null) delete s.meta.gridKwh; else s.meta.gridKwh = Math.round(v*100)/100;
+  saveSessions(true); renderCharge();
+  const e=chgEff(s); toast(e ? `Verim %${fmt(e.eff,1)}, kayıp ${fmt(e.loss,2)} kWh` : "İstasyon değeri silindi");
 }
 
 function renderCap(){
@@ -1803,6 +1853,8 @@ $("chgAuto").checked = cfg.chgAuto;
 $("chgAuto").onchange = () => { cfg.chgAuto=$("chgAuto").checked; saveCfg(); };
 $("chgBtn").onclick = () => active.charge ? stopSession("charge") : startSession("charge", {auto:false});
 $("chgPick").onchange = () => renderCharge();
+$("chgGridSave").onclick = saveGrid;
+$("chgGrid").onkeydown = e => { if (e.key==="Enter") saveGrid(); };
 $("parkBtn").onclick = () => active.park ? stopSession("park") : startSession("park");
 $("heatBtn").onclick = () => { if (active.heat){ stopSession("heat"); return; }
   const out=parseFloat($("heatOut").value); startSession("heat", {method:$("heatMethod").value, out: isFinite(out)?out:null}); };
