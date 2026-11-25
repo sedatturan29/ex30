@@ -429,7 +429,7 @@
       <div class="row">
         <label>Model <select id="capModel">
           <option value="49">Tek motor, 51 kWh LFP</option>
-          <option value="64">Extended Range / Twin, 69 kWh NMC</option>
+          <option value="64">Extended Range / Twin, 69 kWh brüt (64 kullanılabilir) NMC</option>
           <option value="custom">Özel</option>
         </select></label>
         <label>Yeniyken kullanılabilir <input id="capNew" type="number" step="0.1" style="width:90px"> kWh</label>
@@ -1375,11 +1375,12 @@ function chargeChart(ss){
 // ---- Nominal şarj eğrisi (EX30 Extended Range 69 kWh, evkx.net ölçümü; %58 üstü 10–80 % = 29,5 dk'ya uyacak şekilde tahmini) ----
 const NOM_CURVE = [[33,157],[38,143],[41,136],[43,129],[47,115],[52,100],[57,87],[62,75],[67,65],[72,55],[77,47],[80,42],[90,30],[100,12]];
 const nomKw = soc => { if (soc==null || cfg.capModel!=="64") return null; for (const [lim,k] of NOM_CURVE) if (soc<=lim) return k; return null; };
-// Batarya ortalama sıcaklığına göre alınabilen pay: 24.11 şarjından (23 °C %52, 24,7 %66, 26 %87, 28,3 %94, 29 °C ve üstü %100). 23 °C altı ölçülmedi, tahmini.
-const TEMP_FRAC = [[10,0.25],[15,0.32],[20,0.42],[23,0.52],[24.7,0.66],[26,0.87],[28.3,0.94],[29,1]];
+// Batarya ortalama sıcaklığına göre en fazla alınabilen güç (kW). Bu aracın iki şarjından:
+// 25.11: 11–15 °C ≈ 51 kW, 17,8 → 57, 19,5 → 64, 21,3 → 71 · 24.11: 23 → 82, 24,3 → 97, 24,7 → 103, 25,9 → 124, 28,3 → 128 (nominal 136), 29 °C ve üstü nominal. 11 °C altı ölçülmedi, tahmini.
+const TEMP_CAP = [[0,25],[5,35],[11,51],[15,52],[17.8,57],[19.5,64],[21.3,71],[23,82],[24.3,97],[24.7,103],[25.9,124],[28.3,135],[29,160]];
 const NOM_T = 29;
-function tempFrac(T){ if (T==null) return null; if (T>=NOM_T) return 1; if (T<=TEMP_FRAC[0][0]) return TEMP_FRAC[0][1];
-  for (let i=1;i<TEMP_FRAC.length;i++){ const [t1,f1]=TEMP_FRAC[i], [t0,f0]=TEMP_FRAC[i-1]; if (T<=t1) return f0+(f1-f0)*(T-t0)/(t1-t0); } return 1; }
+function tempCap(T){ if (T==null) return null; if (T>=NOM_T) return Infinity; if (T<=TEMP_CAP[0][0]) return TEMP_CAP[0][1];
+  for (let i=1;i<TEMP_CAP.length;i++){ const [t1,k1]=TEMP_CAP[i], [t0,k0]=TEMP_CAP[i-1]; if (T<=t1) return k0+(k1-k0)*(T-t0)/(t1-t0); } return Infinity; }
 // Batarya sıcaklığı ve ısınma hızı: 10 sn'de bir örnek (OBD yoksa aracın kendi sıcaklığı)
 const tRing = [];
 function liveBat(){ const l=hist[hist.length-1]; let T=l && Date.now()-(l.t||0)<60000 ? l.avg : null, soc=l ? l.soc : null;
@@ -1408,16 +1409,17 @@ function renderNom(ss){
       R("Şu an", `<span class="big ${f<0.95?"short":"good"}">${d>2 ? "−"+fmt(d,0)+" kW" : "nominalde"}</span><i>${fmt(kw,0)} / ${fmt(nk,0)} kW, %${fmt(f*100,0)}</i>`); }
     const lost = chargeLoss(ss); if (lost!=null) R("Kaybedilen süre", `${fmtMin(lost)}<i>bu şarjda, nominal eğriye göre</i>`);
     if (T!=null) R("Batarya", T>=NOM_T ? `${fmt(T,1)} °C<i>nominal sıcaklıkta</i>` : `${fmt(T,1)} °C<i>nominal için ${NOM_T} °C · ${toNom!=null ? "yaklaşık "+fmtMin(toNom)+" sonra" : rate!=null ? "ısınmıyor" : "ısınma hızı ölçülüyor"}</i>`, T>=NOM_T?"good":"");
-    $("nomNote").textContent = "Nominal: EX30 Extended Range için yayımlanan şarj eğrisi (%58 üstü tahmini). Sıcaklık eşiği bu aracın 24.11 şarjından çıkarıldı: batarya ortalaması 29 °C'nin altındayken güç sınırlanıyor.";
+    const capNow=tempCap(T); if (T!=null && capNow!==Infinity && capNow<(nk||0)) R("Sıcaklık sınırı", `en fazla ~${fmt(capNow,0)} kW<i>${fmt(T,1)} °C bataryada</i>`, "short");
+    $("nomNote").textContent = "Nominal: EX30 Extended Range (69 kWh brüt, ~64 kWh kullanılabilir) için yayımlanan şarj eğrisi (%58 üstü tahmini). Sıcaklık sınırı bu aracın 24 ve 25 Kasım şarjlarından çıkarıldı: batarya ortalaması 29 °C'nin altındayken güç kısılıyor.";
   } else {
     $("nomTitle").textContent = "Şarja hazırlık";
     if (T==null){ $("nomRows").innerHTML=""; $("nomNote").textContent="Batarya sıcaklığı bekleniyor (OBD ya da aracın kendi verisi)."; return; }
-    const f=tempFrac(T), nk=nomKw(soc), exp = nk!=null && f!=null ? nk*f : null;
+    const cap=tempCap(T), nk=nomKw(soc), exp = nk!=null && cap!=null ? Math.min(nk, cap) : null;
     R("Batarya", `<span class="big ${T>=NOM_T?"good":"short"}">${fmt(T,1)} °C</span><i>nominal için ${NOM_T} °C</i>`);
     R("Isınma", rate==null ? "ölçülüyor<i>birkaç dakika sürer</i>" : `${rate>=0?"+":""}${fmt(rate,2)} °C/dk<i>${Math.abs(rate)<0.05 ? "sabit" : rate>0 ? "ısınıyor" : "soğuyor"}</i>`);
     R("Nominale", T>=NOM_T ? "hazır" : toNom!=null ? `yaklaşık ${fmtMin(toNom)}<i>bu ısınma hızıyla</i>` : `–<i>${rate!=null?"batarya ısınmıyor; haritadan şarj istasyonu seçince ön ısıtma başlar":"ısınma hızı ölçülüyor"}</i>`, T>=NOM_T?"good":"");
-    if (exp!=null) R("Şimdi takarsan", `${fmt(exp,0)} kW<i>%${fmt(soc,0)} şarjda nominal ${fmt(nk,0)} kW, sıcaklık payı %${fmt(f*100,0)}</i>`);
-    $("nomNote").textContent = "Tahmin bu aracın 24.11 şarjındaki sıcaklık–güç ilişkisinden yapılıyor (23 °C altı ölçülmedi). Isınma hızı son 5 dakikadaki batarya sıcaklığından hesaplanır; sürüşte ön ısıtmayla genelde dakikada 0,3–0,6 °C artar.";
+    if (exp!=null) R("Şimdi takarsan", `${fmt(exp,0)} kW<i>%${fmt(soc,0)} şarjda nominal ${fmt(nk,0)} kW${exp<nk?`, sıcaklık en fazla ${fmt(cap,0)} kW'a izin veriyor`:""}</i>`, exp<nk*0.95?"short":"good");
+    $("nomNote").textContent = "Tahmin bu aracın 24 ve 25 Kasım şarjlarındaki sıcaklık–güç ilişkisinden yapılıyor (11 °C altı ölçülmedi). Isınma hızı son 5 dakikadaki batarya sıcaklığından hesaplanır. Şarj sırasında ısıtıcı bataryayı dakikada yaklaşık 0,9 °C ısıttı; ön ısıtma için Google Haritalar'da şarj istasyonunu hedef seçin.";
   }
   $("nomRows").innerHTML = rows.join("");
 }
