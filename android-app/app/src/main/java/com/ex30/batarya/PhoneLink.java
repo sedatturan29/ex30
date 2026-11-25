@@ -158,12 +158,12 @@ final class PhoneLink {
         List<BluetoothDevice> first = new ArrayList<>(), car = new ArrayList<>();
         for (BluetoothDevice d : a.getBondedDevices()) {
             if (d.getType() == BluetoothDevice.DEVICE_TYPE_LE) continue;   // OBD adaptörü gibi yalnız BLE olanlar
-            boolean conn = isConnected(d);
+            Boolean conn = isConnected(d);
             BluetoothClass c = d.getBluetoothClass();
             int dc = c == null ? 0 : c.getDeviceClass();
             boolean isCarClass = dc == BluetoothClass.Device.AUDIO_VIDEO_CAR_AUDIO || dc == BluetoothClass.Device.AUDIO_VIDEO_HANDSFREE;
-            if (d.getAddress().equals(last)) { if (conn != Boolean.FALSE) first.add(0, d); }
-            else if (conn == Boolean.TRUE || (conn == null && isCarClass)) car.add(d);
+            if (d.getAddress().equals(last)) { if (!Boolean.FALSE.equals(conn)) first.add(0, d); }
+            else if (Boolean.TRUE.equals(conn) || (conn == null && isCarClass)) car.add(d);
         }
         first.addAll(car);
         return first;
