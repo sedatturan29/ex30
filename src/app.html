@@ -91,6 +91,19 @@
   body.mirror main, body.mirror .wrap{padding-top:0 !important}
   /* ---- Performans ---- */
 
+
+  /* ======== Canlı: eğilim grafikleri ve okuma durumu ======== */
+  #tab-live{--lv-a:#D6C45C;--lv-m:#EC5A4F;--lv-c:#8DB5D6;--lv-p:#D6C45C;--lv-s:#8E999F}
+  .lv-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-top:1px solid var(--dv-line);border-bottom:1px solid var(--dv-line);margin-bottom:10px}
+  .lv-strip div{padding:12px 0 10px;min-width:0}
+  .lv-strip div + div{padding-left:12px;border-left:1px solid var(--dv-line)}
+  .lv-strip b{display:block;font-weight:700;font-size:clamp(28px,8vw,46px);line-height:1}
+  .lv-strip span{font-size:13px;color:var(--dv-mut)}
+  .lv-card h2{font-family:'EX30 Gauge',system-ui,sans-serif;font-weight:700;font-size:17px;color:var(--dv-fg)}
+  .lv-q{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 14px;font-size:15px}
+  .lv-q span{color:var(--dv-mut)} .lv-q b{font-weight:700;text-align:right}
+  .lv-q b.ok{color:var(--dv-ok)} .lv-q b.old{color:var(--dv-warn)} .lv-q b.no{color:#5D6870}
+  @media (max-width:420px){ .lv-strip{grid-template-columns:repeat(2,minmax(0,1fr))} .lv-strip div:nth-child(3){padding-left:0;border-left:0} .lv-strip div:nth-child(n+3){border-top:1px solid var(--dv-line)} }
   /* ======== Yolculuklar (günlük) ======== */
   .jr{max-width:760px;margin:0 auto}
   .jr-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
@@ -133,7 +146,7 @@
   .jr-empty{padding:28px 0;color:var(--dv-mut);font-size:15px;line-height:1.5}
   @media (max-width:420px){ .jr-sum{grid-template-columns:repeat(2,minmax(0,1fr))} .jr-sum div:nth-child(3){padding-left:0;border-left:0} .jr-sum div:nth-child(n+3){border-top:1px solid var(--dv-line)} }
   /* ======== Performans (pist modu): Sürüş ekranıyla aynı renk ve yazı dili ======== */
-  #tab-drive, #tab-perf, #tab-trip{--dv-bg:#12171B;--dv-line:#232B32;--dv-fg:#ECEFEC;--dv-mut:#8E999F;--dv-draw:#D6C45C;--dv-regen:#8DB5D6;--dv-warn:#EFA43A;--dv-hot:#EC5A4F;--dv-ok:#6F9484;
+  #tab-drive, #tab-perf, #tab-trip, #tab-live{--dv-bg:#12171B;--dv-line:#232B32;--dv-fg:#ECEFEC;--dv-mut:#8E999F;--dv-draw:#D6C45C;--dv-regen:#8DB5D6;--dv-warn:#EFA43A;--dv-hot:#EC5A4F;--dv-ok:#6F9484;
     font-family:'EX30 Gauge',system-ui,sans-serif;font-variant-numeric:tabular-nums lining-nums;color:var(--dv-fg)}
   .pv{display:grid;grid-template-columns:minmax(0,25fr) minmax(0,43fr) minmax(0,32fr);gap:1px;background:var(--dv-line);
     height:calc(100vh - var(--dv-top,150px));min-height:440px;border-radius:14px;overflow:hidden;outline:1px solid var(--dv-line)}
@@ -279,21 +292,26 @@
   <section id="tab-panel"><iframe id="panelFrame" title="Canlı panel" allow="bluetooth; geolocation; clipboard-write" style="display:block;width:100%;border:0;background:var(--bg)"></iframe></section>
 
   <section id="tab-live">
-    <div class="grid">
-      <div class="tile big"><div class="k">Ortalama batarya sıcaklığı</div><div class="v" id="v_avg">–<small>°C</small></div><div class="r" id="r_avg"></div></div>
-      <div class="tile"><div class="k">Maks. hücre sıcaklığı</div><div class="v" id="v_max">–<small>°C</small></div><div class="r" id="r_max"></div></div>
-      <div class="tile"><div class="k">Soğutma sıvısı (giriş)</div><div class="v" id="v_cool">–<small>°C</small></div><div class="r" id="r_cool"></div></div>
-      <div class="tile"><div class="k">Sıcaklık değişimi</div><div class="v" id="v_rate">–<small>°C/dk</small></div><div class="r"></div></div>
-      <div class="tile"><div class="k">Şarj (ekrandaki)</div><div class="v" id="v_soc">–<small>%</small></div><div class="r" id="r_soc"></div></div>
-      <div class="tile"><div class="k">Güç (+ çekiş, − şarj/rejen)</div><div class="v" id="v_pow">–<small>kW</small></div><div class="r"></div></div>
-      <div class="tile"><div class="k">Voltaj</div><div class="v" id="v_volt">–<small>V</small></div><div class="r" id="r_volt"></div></div>
-      <div class="tile"><div class="k">Akım</div><div class="v" id="v_cur">–<small>A</small></div><div class="r" id="r_cur"></div></div>
+    <div class="lv-strip">
+      <div><b id="v_avg">–</b><span>Batarya ort. °C</span></div>
+      <div><b id="v_max">–</b><span>En sıcak hücre °C</span></div>
+      <div><b id="v_cool">–</b><span>Soğutma girişi °C</span></div>
+      <div><b id="v_rate">–</b><span>Değişim °C/dk</span></div>
     </div>
     <div class="state" id="liveState"><span class="dot"></span><span id="liveStateTxt">Veri bekleniyor</span></div>
-    <div class="card">
-      <h2>Son 30 dakika</h2>
+    <div class="card lv-card">
+      <h2>Batarya sıcaklığı, son 30 dakika</h2>
       <canvas id="cvLive"></canvas>
-      <div class="legend"><span><i style="background:var(--hot)"></i>Ortalama</span><span><i style="background:var(--warn)"></i>Maks.</span><span><i style="background:var(--acc)"></i>Soğutma sıvısı</span></div>
+      <div class="legend"><span><i style="background:var(--lv-a)"></i>Ortalama</span><span><i style="background:var(--lv-m)"></i>En sıcak hücre</span><span><i style="background:var(--lv-c)"></i>Soğutma girişi</span></div>
+    </div>
+    <div class="card lv-card">
+      <h2>Güç ve şarj, son 30 dakika</h2>
+      <canvas id="cvLive2"></canvas>
+      <div class="legend"><span><i style="background:var(--lv-p)"></i>Güç kW (çekiş +, rejen/şarj −)</span><span><i style="background:var(--lv-s)"></i>Şarj % (sağ eksen)</span></div>
+    </div>
+    <div class="card lv-card">
+      <h2>Okuma durumu</h2>
+      <div class="lv-q" id="lvQ"></div>
     </div>
     <div class="card" id="setCard">
       <h2>Ayarlar</h2>
@@ -308,13 +326,14 @@
     </div>
     <div class="card">
       <details>
-        <summary>Terminal (ham komut)</summary>
+        <summary>Terminal ve işlem günlüğü</summary>
         <div class="row" style="margin:10px 0">
           <input id="cmd" placeholder="ör. 22491B veya ATRV" style="flex:1;min-width:160px">
           <button class="sec" id="btnSend" disabled>Gönder</button>
         </div>
+        <div id="log" class="log"></div>
       </details>
-      <div id="log" class="log"></div>
+
     </div>
   </section>
 
@@ -1195,21 +1214,30 @@ function publishCar(connected){
 }
 function renderLive(){
   const last = hist[hist.length-1] || {};
-  if (chW && speed.samples.length>1){
+  if (chW && speed.samples.length>1 && !panelWin){
     const hz = (speed.samples.length-1) / ((speed.samples[speed.samples.length-1]-speed.samples[0])/1000 || 1);
     const ms = speed.reqMs.reduce((a,b)=>a+b,0)/(speed.reqMs.length||1);
-    $("rateInfo").textContent = `Gerçek hız: ${fmt(hz,1)} ölçüm/sn · istek başına ${fmt(ms,0)} ms · tek-cevap modu ${reqSuffix?"açık":"kapalı"}`;
-  } else $("rateInfo").textContent = "";
-  for (const id of ["avg","max","soc","volt","cur"]) { setV("v_"+id, id==="cur"?last.cur:vals[id], {avg:"°C",max:"°C",soc:"%",volt:"V",cur:"A"}[id]); $("r_"+id).textContent = raw[id]?("ham: "+raw[id]):""; }
-  setV("v_cool", vals.cool, "°C", 0); $("r_cool").textContent = raw.cool?("ham: "+raw.cool):"";
-  setV("v_pow", last.P, "kW");
-  const rt=rate(); $("v_rate").innerHTML=(rt==null?"–":(rt>0?"+":"")+fmt(rt,2))+"<small>°C/dk</small>";
+    $("rateInfo").textContent = `Gerçek hız: ${fmt(hz,1)} ölçüm/sn, istek başına ${fmt(ms,0)} ms`;
+  } else $("rateInfo").textContent = panelWin ? "Okumayı Panel yürütüyor; okuma aralığı ayarı yalnızca panel yüklü değilken geçerli." : "";
+  const n1=(v,d=1)=> v==null||!isFinite(v) ? "–" : fmt(v,d);
+  $("v_avg").textContent=n1(vals.avg); $("v_max").textContent=n1(vals.max); $("v_cool").textContent=n1(vals.cool,0);
+  const rt=rate(); $("v_rate").textContent = rt==null ? "–" : (rt>0?"+":"")+fmt(rt,2);
   const st=thermalState(rt);
-  setState("liveState", st.cls, st.txt + (st.cls!=null && vals.avg!=null ? " · DC şarj için ideal yaklaşık 20–25°C" : ""));
-  const now=Date.now();
-  chart($("cvLive"), {xMin:now-30*60e3, xMax:now, xFmt:x=>{ const m=Math.round((now-x)/60e3); return m?"-"+m+" dk":"şimdi"; },
-    yFmt:[v=>v.toFixed(0)+"°"],
-    series:[["avg",C.hot],["max",C.warn],["cool",C.acc]].map(([k,c])=>({color:c, pts:hist.map(h=>[h.t,h[k]])}))});
+  setState("liveState", st.cls, st.txt + (st.cls!=null && vals.avg!=null ? ". DC şarj için ideal yaklaşık 20–25 °C" : ""));
+  const now=Date.now(), xf=x=>{ const m=Math.round((now-x)/60e3); return m?"-"+m+" dk":"şimdi"; };
+  const css=getComputedStyle($("tab-live")), col=k=>css.getPropertyValue(k).trim();
+  chart($("cvLive"), {xMin:now-30*60e3, xMax:now, xFmt:xf, yFmt:[v=>v.toFixed(0)+"°"],
+    series:[["avg","--lv-a"],["max","--lv-m"],["cool","--lv-c"]].map(([k,c])=>({color:col(c), pts:hist.map(h=>[h.t,h[k]])}))});
+  chart($("cvLive2"), {xMin:now-30*60e3, xMax:now, xFmt:xf, zero:[true], minSpan:[20,4], yFmt:[v=>v.toFixed(0), v=>"%"+v.toFixed(0)],
+    series:[{color:col("--lv-p"), pts:hist.map(h=>[h.t,h.P])}, {color:col("--lv-s"), axis:1, pts:hist.map(h=>[h.t,h.soc])}]});
+  // okuma durumu
+  let H=null; try{ H = panelWin && panelWin.ex30Health ? panelWin.ex30Health() : null; }catch{}
+  const age = ms => ms==null ? ["cevap yok","no"] : ms<3000 ? ["canlı","ok"] : ms<60000 ? [Math.round(ms/1000)+" sn önce","old"] : [Math.round(ms/60000)+" dk önce","old"];
+  let q = `<span>Okuma hızı</span><b>${H && H.running && H.hz ? fmt(H.hz,1)+" tur/sn" : chW ? "başlıyor" : "bağlı değil"}</b>`;
+  if (H){ for (const [n,ms] of H.units){ const [t,c]=age(ms); q += `<span>${n}</span><b class="${c}">${t}</b>`; }
+    const mu=Object.entries(H.multi||{}); if (mu.length) q += `<span>Çoklu okuma</span><b>${mu.map(([k,v])=>k+" "+v).join(", ")}</b>`;
+    if (H.car) q += `<span>Aracın kendi verileri</span><b class="ok">${H.car} değer</b>`; }
+  $("lvQ").innerHTML = q;
 }
 
 function chargeChart(ss){

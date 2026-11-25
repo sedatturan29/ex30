@@ -78,6 +78,33 @@
   textarea{height:80px;font-family:ui-monospace,monospace}
   .note{font-size:12px;color:var(--mut)}
   .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+  /* ======== EX30 görsel dili (Sürüş, Performans, Yolculuklar ile aynı) ======== */
+  /*@FONTS@*/
+  :root{--bg:#0E1215;--card:#12171B;--line:#232B32;--fg:#ECEFEC;--mut:#8E999F;--hot:#EC5A4F;--ok:#6F9484;--warn:#EFA43A;--bad:#EC5A4F;--draw:#D6C45C;--regen:#8DB5D6;--acc:#ECEFEC}
+  body{font-family:'EX30 Gauge',system-ui,sans-serif;font-variant-numeric:tabular-nums lining-nums}
+  button{background:var(--fg);color:#12171B} button.sec{background:#1F272D;color:var(--fg)}
+  .seg button.act{background:var(--fg);color:#12171B}
+  /* İnce çizgili tek yüzey: her kutunun çizgisi aradaki 1 px boşluğa düşer; bölüm başlıkları sırayı bozmasın diye sıkıştırma kapalı */
+  main{gap:1px;background:transparent;padding:0;margin:12px;max-width:none;grid-auto-flow:row}
+  .t{background:var(--card);border:0;border-radius:0;outline:1px solid var(--line);padding:12px 14px;min-height:96px}
+  .t .k{font-size:14px;font-weight:500}
+  .t .v{font-size:38px;line-height:1;margin-top:6px}
+  .t .v small{font-size:15px;margin-left:4px}
+  .t .s{font-size:13px;margin-top:6px}
+  .t.big .v{font-size:58px}
+  .t .src{background:none;padding:0;font-size:11px;color:#5D6870}
+  .pos{color:var(--draw)} .neg{color:var(--regen)}
+  .t.na .v{color:#3A444C}
+  .sec-h{grid-column:1/-1;background:var(--bg);padding:20px 2px 8px;font-weight:700;font-size:16px;color:var(--fg)}
+  #t-trip .v{font-size:52px}
+  .tripinfo{font-size:14px;gap:5px 14px;margin-top:10px}
+  .tripinfo i{font-style:normal;color:var(--mut)}
+  .tires.empty{grid-row:auto} .tires.empty .tiresvg,.tires.empty .legend{display:none}
+  @media (max-width:759px){ .t.big{grid-column:span 1} #t-spd,#t-avgspd{grid-column:1/-1} }
+  @media (max-width:420px){ main{margin:10px} .t .v{font-size:32px} .t.big .v{font-size:46px} #t-trip .v{font-size:44px} }
+  @media (orientation:landscape) and (max-height:520px){ .sec-h{display:none} main{margin:0;grid-auto-flow:dense} .t .v{font-size:26px} .t.big .v{font-size:38px} #t-trip .v{font-size:34px} .t{padding:8px 10px} }
+  @media (min-width:1600px){ .sec-h{display:none} main{margin:0;grid-auto-flow:dense} }
   #log{font:11px/1.4 ui-monospace,monospace;background:#07090c;border-radius:8px;padding:8px;height:110px;overflow:auto;white-space:pre-wrap;color:#9aa6b8;margin-top:8px}
 </style>
 </head>
@@ -91,27 +118,31 @@
 </header>
 <main id="grid">
   <div class="t big w2" id="t-avg"><div class="k">Ortalama batarya sıcaklığı <span class="src">BMS</span></div><div class="v">–<small>°C</small></div><div class="s"></div></div>
-  <div class="t big w2" id="t-kw"><div class="k">Anlık güç (+ çekiş, − şarj/rejen) <span class="src">BMS</span></div><div class="v">–<small>kW</small></div><div class="s"></div></div>
+  <div class="t big w2" id="t-kw"><div class="k">Anlık güç <span class="src">BMS</span></div><div class="v">–<small>kW</small></div><div class="s"></div></div>
   <div class="t big w2" id="t-spd"><div class="k">Hız <span class="src" id="spdSrc">GPS</span></div><div class="v">–<small>km/s</small></div><div class="s"></div></div>
-  <div class="t" id="t-cin"><div class="k">Soğutma sıvısı giriş <span class="src">BMS</span></div><div class="v">–<small>°C</small></div><div class="s"></div></div>
-  <div class="t" id="t-cout"><div class="k">Güç aktarma soğutma sıvısı <span class="src">tanımsız</span></div><div class="v">–<small>°C</small></div><div class="s"></div></div>
-  <div class="t" id="t-motor"><div class="k">Motor sıcaklığı <span class="src">tanımsız</span></div><div class="v">–<small>°C</small></div><div class="s"></div></div>
-  <div class="t" id="t-rpm"><div class="k">Motor devri <span class="src">tanımsız</span></div><div class="v">–<small>d/dk</small></div><div class="s"></div></div>
-  <div class="t" id="t-torque"><div class="k">Motor torku <span class="src">tanımsız</span></div><div class="v">–<small>Nm</small></div><div class="s"></div></div>
-  <div class="t" id="t-volt"><div class="k">Voltaj <span class="src">BMS</span></div><div class="v">–<small>V</small></div><div class="s"></div></div>
-  <div class="t" id="t-amp"><div class="k">Akım <span class="src">BMS</span></div><div class="v">–<small>A</small></div><div class="s"></div></div>
-  <div class="t" id="t-soc"><div class="k">Şarj <span class="src">BMS</span></div><div class="v">–<small>%</small></div><div class="s"></div></div>
-  <div class="t" id="t-cells"><div class="k">Hücre dengesi <span class="src">BMS</span></div><div class="v">–<small>mV</small></div><div class="s"></div></div>
-  <div class="t" id="t-brake"><div class="k">Fren basıncı <span class="src">Şasi</span></div><div class="v">–<small>bar</small></div><div class="s"></div></div>
-  <div class="t" id="t-wheels"><div class="k">Patinaj (teker hızları) <span class="src">Şasi</span></div><div class="v">–<small>km/s</small></div><div class="s"></div></div>
-  <div class="t" id="t-v12"><div class="k">12 V akü <span class="src">Adaptör</span></div><div class="v">–<small>V</small></div><div class="s"></div></div>
-  <div class="t" id="t-avgspd"><div class="k">Ortalama hız (yolculuk) <span class="src" id="avgSrc">GPS</span></div><div class="v">–<small>km/s</small></div><div class="s"></div></div>
+  <div class="sec-h">Yolculuk</div>
   <div class="t w2 r2" id="t-trip"><div class="k tripk"><span class="seg" id="tripSeg"></span>
       <span><button class="sec mini" id="btnTripPause">Durdur</button> <button class="sec mini" id="btnTripReset">Sıfırla</button> <button class="sec mini" id="btnTripDel">Kaldır</button> <button class="sec mini" id="btnTripHist">Tüm yolculuklar</button></span></div>
     <div id="tripAddBox" class="row" style="display:none;margin-top:6px;gap:6px"><input id="tripName" maxlength="20" placeholder="Ad (ör. İş yolu)" style="flex:1;min-width:0;background:#0f1218;color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px 8px"><button class="mini" id="btnTripAddOk">Ekle</button><button class="sec mini" id="btnTripAddNo">Vazgeç</button></div>
     <div class="v">–<small>kWh/100km</small></div>
     <div class="tripinfo" id="tripInfo"></div>
     <div class="s"></div></div>
+  <div class="t" id="t-avgspd"><div class="k">Ortalama hız (yolculuk) <span class="src" id="avgSrc">GPS</span></div><div class="v">–<small>km/s</small></div><div class="s"></div></div>
+  <div class="sec-h">Batarya</div>
+  <div class="t" id="t-soc"><div class="k">Şarj <span class="src">BMS</span></div><div class="v">–<small>%</small></div><div class="s"></div></div>
+  <div class="t" id="t-cin"><div class="k">Soğutma sıvısı giriş <span class="src">BMS</span></div><div class="v">–<small>°C</small></div><div class="s"></div></div>
+  <div class="t" id="t-volt"><div class="k">Voltaj <span class="src">BMS</span></div><div class="v">–<small>V</small></div><div class="s"></div></div>
+  <div class="t" id="t-amp"><div class="k">Akım <span class="src">BMS</span></div><div class="v">–<small>A</small></div><div class="s"></div></div>
+  <div class="t" id="t-cells"><div class="k">Hücre dengesi <span class="src">BMS</span></div><div class="v">–<small>mV</small></div><div class="s"></div></div>
+  <div class="t" id="t-v12"><div class="k">12 V akü <span class="src">Adaptör</span></div><div class="v">–<small>V</small></div><div class="s"></div></div>
+  <div class="sec-h">Motor ve aktarma</div>
+  <div class="t" id="t-motor"><div class="k">Motor sıcaklığı <span class="src">tanımsız</span></div><div class="v">–<small>°C</small></div><div class="s"></div></div>
+  <div class="t" id="t-cout"><div class="k">Güç aktarma soğutma sıvısı <span class="src">tanımsız</span></div><div class="v">–<small>°C</small></div><div class="s"></div></div>
+  <div class="t" id="t-rpm"><div class="k">Motor devri <span class="src">tanımsız</span></div><div class="v">–<small>d/dk</small></div><div class="s"></div></div>
+  <div class="t" id="t-torque"><div class="k">Motor torku <span class="src">tanımsız</span></div><div class="v">–<small>Nm</small></div><div class="s"></div></div>
+  <div class="sec-h">Şasi</div>
+  <div class="t" id="t-brake"><div class="k">Fren basıncı <span class="src">Şasi</span></div><div class="v">–<small>bar</small></div><div class="s"></div></div>
+  <div class="t" id="t-wheels"><div class="k">Patinaj (teker hızları) <span class="src">Şasi</span></div><div class="v">–<small>km/s</small></div><div class="s"></div></div>
   <div class="t tires" id="t-tires"><div class="k">Lastik basıncı ve sıcaklığı <span class="src" id="tireSrc">tanımsız</span></div>
     <svg class="tiresvg" viewBox="0 0 440 300" role="img" aria-label="Dört lastiğin basıncı">
       <rect x="160" y="16" width="120" height="268" rx="38" fill="#0f1218" stroke="#2b3240" stroke-width="2"/>
@@ -135,6 +166,7 @@
     <div class="legend" id="tireLegend"></div>
     <div class="s" id="tireNote"></div>
   </div>
+
 </main>
 
 <dialog id="dlgTrips">
@@ -651,6 +683,12 @@ function instCons(){
 function tile(id, v, unit, d=1, sub, cls){ const el=$("t-"+id); if(!el) return; el.querySelector(".v").innerHTML=`<span class="${cls||""}">${fmt(v,d)}</span><small>${unit}</small>`; if (sub!=null) el.querySelector(".s").textContent=sub; }
 let lastR=0;
 // Performans ekranı (ana sayfa) buradan okur
+// Canlı sekmesindeki okuma durumu: her ünitenin son cevaptan bu yana geçen süresi
+window.ex30Health = () => { const now=Date.now(), age=k=> valT[k] ? now-valT[k] : null;
+  return {running, hz: speed.cyc.length>2 ? (speed.cyc.length-1)*1000/(speed.cyc.at(-1)-speed.cyc[0]) : null, multi: window.ex30Multi ? window.ex30Multi() : {},
+    units: [["Batarya (BMS)", age("avg") ?? age("volt")], ["Isı yönetimi (VCU)", age("cout")], ["Arka motor", age("rpm") ?? age("motor")], ["Şasi (hız, fren)", age("vspd") ?? age("brake")], ["12 V akü (adaptör)", age("v12")]],
+    car: Object.keys(carv).length };
+};
 window.ex30Snap = () => { const n=v=>(v==null||!isFinite(v))?null:+v;
   const tq = (vals.torque===0 && vals.torqueCalc!=null && vals.torqueCalc<0) ? vals.torqueCalc : vals.torque;
   const tc = w => { const s=pcfg.sources["t_"+w]; return s && s.did ? n(vals["t_"+w]) : null; };
@@ -710,7 +748,7 @@ function render(){
   tile("cin", vals.cin, "°C", 0);
   tile("soc", vals.soc, "%", 1, [vals.socd!=null ? "göstergede %"+fmt(vals.socd,0) : "", aaos("EV_BATTERY_LEVEL")!=null ? "kalan "+fmt(aaos("EV_BATTERY_LEVEL")/1000,1)+(aaos("EV_CURRENT_BATTERY_CAPACITY")!=null?" / "+fmt(aaos("EV_CURRENT_BATTERY_CAPACITY")/1000,1):"")+" kWh" : vals.erem!=null ? "kalan ≈ "+fmt(vals.erem,1)+" kWh" : ""].filter(Boolean).join(" · "));
   tile("cells", vals.cmax!=null&&vals.cmin!=null ? (vals.cmax-vals.cmin)*1000 : null, "mV fark", 0, vals.cmax!=null ? "maks "+fmt(vals.cmax,3)+" V · min "+fmt(vals.cmin,3)+" V" : "");
-  tile("brake", vals.brake, "bar", 1, vals.brake==null ? "" : [vals.brk0,vals.brk1,vals.brk2,vals.brk3].map(x=>fmt(x,0)).join(" · "));
+  { const b=[vals.brk0,vals.brk1,vals.brk2,vals.brk3]; tile("brake", vals.brake, "bar", 1, b.some(x=>x!=null) ? "dört devre: "+b.map(x=>fmt(x,0)).join(" / ") : ""); }
   { const w=[vals.w_fl,vals.w_fr,vals.w_rl,vals.w_rr], ok=w.filter(x=>x!=null);
     const fresh = ["w_fl","w_fr","w_rl","w_rr"].every(k=>valT[k] && Date.now()-valT[k]<2500);
     tile("wheels", fresh && ok.length===4 ? (w[2]+w[3]-w[0]-w[1])/2 : null, "km/s arka−ön", 1, ok.length ? "ön "+fmt(w[0],0)+" / "+fmt(w[1],0)+" · arka "+fmt(w[2],0)+" / "+fmt(w[3],0) : ""); }
@@ -752,6 +790,7 @@ function render(){
     $("tx-"+w).textContent = `psi · ${fmt(p==null?null:p/14.5038,2)} bar${t!=null?` · ${fmt(t,0)} °C`:""}`;
   }
   $("tireSrc").textContent = fromCar ? "Araç" : anyTire ? (cand ? "aday" : "tanımlı") : "tanımsız"; $("t-tires").classList.toggle("na", !anyTire);
+  $("t-tires").classList.toggle("empty", !anyTire && !fromCar);
   $("tireNote").textContent = fromCar ? "Kaynak: aracın kendi lastik basıncı verisi." : !anyTire ? "OBD'de lastik basıncı kodu henüz bulunamadı. Orta ekranda araç bu veriyi verirse burada görünür." : cand ? "Kaynak doğrulanmadı: araç ekranındaki basınçla karşılaştırın." : "";
   if (speed.cyc.length>1){ const hz=(speed.cyc.length-1)/((speed.cyc.at(-1)-speed.cyc[0])/1000||1), ms=speed.req.reduce((a,b)=>a+b,0)/(speed.req.length||1);
     $("rateInfo").textContent=`${fmt(hz,1)} tur/sn · istek ${fmt(ms,0)} ms · tek-cevap ${suffix?"açık":"kapalı"} · çoklu okuma ${Object.entries(window.ex30Multi()).map(([k,v])=>k+" "+v).join(", ")||"–"}`; }
@@ -772,7 +811,7 @@ function renderTrip(now, pct){
     const last = [...tripHist].reverse().find(h=>h.tur==="Otomatik");
     tile("avgspd", null, "km/s", 0, "Araç hareket edince başlar");
     tile("trip", null, "kWh/100km", 1, "");
-    $("tripInfo").innerHTML = `<b>Durum</b><span>Araç hareket edince başlar, 5 dk durunca biter</span>` + (last ? `<b>Son</b><span>${last.baslangic} · ${fmt(last.km_arac||last.km_gps,1)} km · ${fmt(last.tuketim_kWh100,1)} kWh/100km</span>` : "");
+    $("tripInfo").innerHTML = `<b>Durum</b><span>Araç hareket edince başlar, 5 dk durunca biter</span>` + (last ? `<b>Son</b><span>${fmt(last.tuketim_kWh100,1)} kWh/100 km <i>${fmt(last.km_arac||last.km_gps,1)} km, ${last.baslangic.slice(11,16)}–${(last.bitis||"").slice(11,16)}</i></span>` : "");
     return;
   }
   const avgS = tripAvgSpeed(a);
@@ -786,16 +825,18 @@ function renderTrip(now, pct){
   const odoKm = (a.odoStart!=null && a.odoEnd!=null) ? a.odoEnd-a.odoStart : null;
   const altNow = (geo.alt!=null && now-geo.altT<15000) ? geo.alt : a.altEnd;
   const dur = Math.round((a.movingMsCar>60e3?a.movingMsCar:a.movingMs)/60000);
+  const tp=["p_fl","p_fr","p_rl","p_rr"].map(P), hasTp=tp.some(x=>x!=="–");
   $("tripInfo").innerHTML =
-    `<b>Mesafe</b><span>araç ${fmt(a.kmCar,1)} · GPS ${fmt(a.km,1)}${pct(a.kmCar,a.km>0.1?a.km:null)} · sayaç ${odoKm==null?"–":odoKm} km</span>`+
-    (a.paused ? `<b>Durum</b><span style="color:var(--warn)">Durduruldu — "Devam et" ile kaldığı yerden sürer</span>` : "")+
-    `<b>Sürüş süresi</b><span>${dur>=60?Math.floor(dur/60)+" sa "+(dur%60)+" dk":dur+" dk"} · başlangıç ${localStamp(a.start).slice(0,16)}</span>`+
-    `<b>Enerji</b><span>harcanan ${fmt(a.eOut,2)} · rejen ${fmt(a.eIn,2)} kWh · şarj ${fmt(a.socStart,1)} → ${fmt(a.socEnd,1)} %</span>`+
-    `<b>İrtifa</b><span>${fmt(a.altStart,0)} → ${fmt(altNow,0)} m · ↑ ${fmt(a.up,0)} m · ↓ ${fmt(a.down,0)} m</span>`+
+    (a.paused ? `<b>Durum</b><span style="color:var(--warn)">Durduruldu, "Devam et" ile kaldığı yerden sürer</span>` : "")+
+    `<b>Mesafe</b><span>${fmt(tripKm(a),1)} km <i>${a.kmCar>0.05 && a.km>0.05 ? `(GPS ${fmt(a.km,1)}${pct(a.kmCar,a.km)})` : ""}${odoKm!=null ? ` sayaç ${odoKm} km` : ""}</i></span>`+
+    `<b>Sürüş süresi</b><span>${dur>=60?Math.floor(dur/60)+" sa "+(dur%60)+" dk":dur+" dk"} <i>${localStamp(a.start).slice(11,16)}'den beri</i></span>`+
+    `<b>Enerji</b><span>${fmt(a.eOut-a.eIn,2)} kWh net <i>(harcanan ${fmt(a.eOut,2)}, rejen ${fmt(a.eIn,2)})</i></span>`+
+    (a.socStart!=null ? `<b>Şarj</b><span>%${fmt(a.socStart,1)} → %${fmt(a.socEnd,1)}</span>` : "")+
+    (a.up!=null ? `<b>Tırmanış</b><span>↑ ${fmt(a.up,0)} m, ↓ ${fmt(a.down,0)} m</span>` : "")+
     `<b>Batarya</b><span>${T("avg")}</span>`+
-    `<b>Soğutma giriş</b><span>${T("cin",0)}</span>`+
-    `<b>Güç akt. soğutma</b><span>${T("cout")}</span>`+
-    `<b>Lastik ort.</b><span>SÖ ${P("p_fl")} · SağÖ ${P("p_fr")} · SA ${P("p_rl")} · SağA ${P("p_rr")} psi</span>`;
+    (st("cin") ? `<b>Soğutma giriş</b><span>${T("cin",0)}</span>` : "")+
+    (st("cout") ? `<b>Güç akt. soğutma</b><span>${T("cout")}</span>` : "")+
+    (hasTp ? `<b>Lastik ort.</b><span>${tp.join(" / ")} psi <i>(SÖ / SağÖ / SA / SağA)</i></span>` : "");
 }
 function renderTripHist(){
   const cols=[["tur","Tür"],["baslangic","Başlangıç"],["surus_dk","Sürüş dk"],["km_arac","km"],["tuketim_kWh100","kWh/100"],["ort_hiz_kmsa","Ort. hız"],["irtifa_bas_m","İrtifa"],["tirmanis_m","↑ m"],["inis_m","↓ m"],["bat_bas_C","Batarya °C"],["sogutma_bas_C","Soğutma °C"],["basinc_ort_sol_on_psi","Lastik ort. psi"]];

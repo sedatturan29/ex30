@@ -30,6 +30,7 @@ marker = "</body>"
 i = app.rfind(marker)
 if i < 0:
     sys.exit("app.html içinde </body> yok")
+panel = panel.replace("/*@FONTS@*/", "\n".join(faces))
 out = app[:i] + '<template id="panelSrc">\n' + panel + "\n</template>\n" + app[i:]
 (root / "ex30-reader.html").write_text(out, encoding="utf-8")
 print(f"ex30-reader.html yazıldı ({len(out)//1024} KB)")
