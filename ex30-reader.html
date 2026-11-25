@@ -3,28 +3,31 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#0e1116">
+<meta name="theme-color" content="#0E1215">
 <title>EX30 Reader</title>
 <style>
-  :root{--bg:#0e1116;--card:#171b22;--line:#252b35;--fg:#e8ecf2;--mut:#8a94a6;--acc:#4ea1ff;--hot:#ff7a45;--ok:#3ccf8e;--warn:#f5c04a;--bad:#ff5d5d}
+  :root{--bg:#0E1215;--card:#12171B;--line:#232B32;--fg:#ECEFEC;--mut:#8E999F;--acc:#ECEFEC;--hot:#EC5A4F;--ok:#6F9484;--warn:#EFA43A;--bad:#EC5A4F}
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+  body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.4 'EX30 Gauge',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-variant-numeric:tabular-nums lining-nums;-webkit-tap-highlight-color:transparent}
   header{position:sticky;top:0;background:var(--bg);z-index:3;border-bottom:1px solid var(--line)}
   .bar{display:flex;align-items:center;gap:10px;padding:12px 14px 8px}
-  .bar h1{font-size:17px;margin:0;flex:1;font-weight:600}
+  .bar h1{font-size:19px;margin:0;flex:1;font-weight:700;letter-spacing:.01em}
   #btnSet{padding:8px 12px}
-  #btnSet.act{background:var(--acc);color:#fff;border-color:var(--acc)}
+  #btnSet.act{background:var(--fg);color:#12171B}
   #btnSet{font-size:16px} #btnSet .lbl{font-size:14px} @media (max-width:420px){ #btnSet .lbl{display:none} }
   nav{display:flex;gap:6px;overflow-x:auto;padding:0 14px 10px;scrollbar-width:none}
   nav::-webkit-scrollbar{display:none}
-  nav button{background:var(--card);color:var(--mut);border:1px solid var(--line);padding:7px 12px;font-weight:500;white-space:nowrap;position:relative}
-  nav button.act{background:var(--acc);color:#fff;border-color:var(--acc)}
+  /* sekmeler: alt çizgili sade sıra; seçili sekme beyaz ve altında sarı çizgi */
+  nav{gap:2px;padding:0 8px}
+  nav button{background:transparent;color:var(--mut);border:0;border-radius:0;padding:10px 10px 11px;font-weight:500;font-size:16px;white-space:nowrap;position:relative}
+  nav button.act{color:var(--fg);font-weight:700;box-shadow:inset 0 -3px 0 #D6C45C}
   nav button .rec{display:none;position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:var(--bad)}
   nav button.recording .rec{display:block}
   .pill{font-size:12px;padding:4px 10px;border-radius:99px;background:var(--line);color:var(--mut);white-space:nowrap}
   .pill.on{background:#123524;color:var(--ok)} .pill.err{background:#3a1717;color:var(--bad)} .pill.busy{background:#3a3117;color:var(--warn)}
-  button{font:inherit;border:0;border-radius:10px;padding:10px 14px;background:var(--acc);color:#fff;font-weight:600;cursor:pointer}
-  button.sec{background:var(--line);color:var(--fg)} button.stop{background:var(--bad)} button:disabled{opacity:.45}
+  button{font:inherit;border:0;border-radius:10px;padding:10px 14px;background:var(--fg);color:#12171B;font-weight:700;cursor:pointer}
+  button.sec{background:#1F272D;color:var(--fg);font-weight:500} button.stop{background:var(--bad);color:#fff} button:disabled{opacity:.45}
+  button:focus-visible,nav button:focus-visible{outline:2px solid #D6C45C;outline-offset:2px}
   button.mini{padding:5px 9px;font-size:12px;font-weight:500}
   main{padding:14px;max-width:1100px;margin:0 auto}
   section{display:none} section.act{display:block}
@@ -95,6 +98,20 @@
   /* ---- Performans ---- */
 
 
+
+  /* ======== Test modu oynatıcısı ======== */
+  .rp{padding:8px 14px 10px;border-top:1px solid var(--line);background:#161D22;box-shadow:inset 3px 0 0 #D6C45C}
+  .rp-top{display:flex;align-items:baseline;gap:10px;min-width:0}
+  .rp-top b{color:#D6C45C;font-size:15px;white-space:nowrap}
+  .rp-top #rpName{flex:1;min-width:0;font-size:13px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rp-time{font-weight:700;font-size:17px;white-space:nowrap}
+  .rp-ctl{display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap}
+  .rp-btn{width:44px;height:36px;padding:0;font-size:18px;border-radius:10px}
+  #rpRate{background:#1F272D;color:var(--fg);border:0;border-radius:8px;padding:6px 8px;font:inherit;font-size:14px}
+  #rpSeek{width:100%;margin:8px 0 0;accent-color:#D6C45C}
+  body.mirror .rp{display:none !important}
+  .filebtn{display:inline-block;background:var(--fg);color:#12171B;font-weight:700;border-radius:10px;padding:10px 14px;cursor:pointer}
+  .filebtn input{display:none}
   /* ======== Canlı: eğilim grafikleri ve okuma durumu ======== */
   #tab-live{--lv-a:#D6C45C;--lv-m:#EC5A4F;--lv-c:#8DB5D6;--lv-p:#D6C45C;--lv-s:#8E999F}
   .lv-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-top:1px solid var(--dv-line);border-bottom:1px solid var(--dv-line);margin-bottom:10px}
@@ -202,7 +219,7 @@
   .state.heat .dot{background:var(--hot);box-shadow:0 0 12px var(--hot)} .state.cool .dot{background:var(--acc);box-shadow:0 0 12px var(--acc)}
   .state.good .dot{background:var(--ok);box-shadow:0 0 12px var(--ok)}
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-top:12px}
-  .card h2{font-size:14px;margin:0 0 8px;color:var(--mut);font-weight:600}
+  .card h2{font-size:17px;margin:0 0 10px;color:var(--fg);font-weight:700}
   canvas{width:100%;height:220px;display:block}
   .legend{display:flex;gap:14px;font-size:12px;color:var(--mut);margin-top:6px;flex-wrap:wrap}
   .legend i{display:inline-block;width:10px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle}
@@ -212,7 +229,7 @@
   input[type=checkbox]{width:18px;height:18px;vertical-align:middle;accent-color:var(--acc)}
   .log{font:12px/1.45 ui-monospace,monospace;background:#0a0c10;border-radius:10px;padding:10px;height:180px;overflow:auto;white-space:pre-wrap;color:#b7c0cf}
   details summary{cursor:pointer;color:var(--mut);font-size:14px}
-  .note{font-size:12px;color:var(--mut);margin:8px 0 0}
+  .note{font-size:14px;color:var(--mut);margin:8px 0 0;line-height:1.45}
   .banner{display:none;margin:0 0 12px;padding:12px 14px;border-radius:12px;background:#3a1717;color:#ffd0d0;font-size:14px}
   table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
   th,td{padding:7px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
@@ -252,7 +269,6 @@
   </div>
   <nav id="tabs">
     <button data-tab="conn" class="act">Bağlantı</button>
-    <button data-tab="live">Canlı</button>
     <button data-tab="panel">Panel</button>
     <button data-tab="drive">Sürüş</button>
     <button data-tab="perf">Performans</button>
@@ -263,6 +279,16 @@
     <button data-tab="heat">Isıtma testi<span class="rec"></span></button>
     <button data-tab="scan">Tarayıcı</button>
   </nav>
+  <div id="rpBar" class="rp" hidden>
+    <div class="rp-top"><b>Test modu</b><span id="rpName"></span><span id="rpTime" class="rp-time">–</span><button class="sec mini" id="rpExit">Testten çık</button></div>
+    <div class="rp-ctl">
+      <button class="rp-btn" id="rpPlay" aria-label="Oynat">▶</button>
+      <button class="sec mini" data-rj="-60000">−1 dk</button><button class="sec mini" data-rj="-10000">−10 sn</button>
+      <button class="sec mini" data-rj="10000">+10 sn</button><button class="sec mini" data-rj="60000">+1 dk</button>
+      <select id="rpRate" aria-label="Hız"><option value="0.5">0,5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="5">5×</option><option value="10">10×</option><option value="30">30×</option><option value="60">60×</option></select>
+    </div>
+    <input type="range" id="rpSeek" min="0" max="1000" value="0" aria-label="Kayıtta konum">
+  </div>
 </header>
 <main>
   <div id="banner" class="banner"></div>
@@ -280,52 +306,20 @@
       <div class="row" style="margin-top:8px"><button class="sec" id="cnAll">Listede yoksa: tüm cihazları göster</button></div>
       <div id="stepChecks" style="margin-top:10px"></div>
     </div>
+    <div class="card" id="rpCard">
+      <h2>Test modu: kaydı tekrar oynat</h2>
+      <p class="note" style="margin-top:0">İndirdiğin bir EX30 Reader kaydını (CSV) seç; Sürüş, Panel, Performans, Yolculuklar ve Şarj ekranları o anki gibi çalışır. Test sırasında hiçbir şey kaydedilmez ve Telegram'a gönderilmez; çıkınca uygulama kaldığı yerden devam eder.</p>
+      <label class="filebtn">Kayıt dosyası seç<input type="file" id="rpFile" accept=".csv,text/csv,text/plain"></label>
+      <p class="note" id="rpMsg"></p>
+    </div>
     <div class="card" id="autoCard" style="display:none">
       <h2>Arabaya binince otomatik başlat</h2>
       <p class="note" style="margin:0 0 10px">Açıksa araç açılıp adaptör uyanınca telefon kendiliğinden bağlanır ve kayda başlar; uygulamayı açmanız gerekmez. Araç kapanınca bağlantı kendiliğinden biter. Önce yukarıdan bir kez <b>IOS-Vlink</b> ile bağlanın, sonra araç açıkken bu düğmeye basın.</p>
       <div class="row"><button id="asBtn">Otomatik başlatmayı aç</button><span class="note" id="asState" style="margin:0"></span></div>
     </div>
-    <div class="card">
-      <h2>Sorun mu var?</h2>
-      <p class="note" style="margin-top:0">Aşağıdaki düğme bu ekrandaki tüm kontrolleri ve kaydı panoya kopyalar; bana yapıştırın.</p>
-      <div class="row" style="margin-top:8px"><button class="sec" id="cnCopy">Hata raporunu kopyala</button></div>
-    </div>
-  </section>
-
-  <section id="tab-panel"><iframe id="panelFrame" title="Canlı panel" allow="bluetooth; geolocation; clipboard-write" style="display:block;width:100%;border:0;background:var(--bg)"></iframe></section>
-
-  <section id="tab-live">
-    <div class="lv-strip">
-      <div><b id="v_avg">–</b><span>Batarya ort. °C</span></div>
-      <div><b id="v_max">–</b><span>En sıcak hücre °C</span></div>
-      <div><b id="v_cool">–</b><span>Soğutma girişi °C</span></div>
-      <div><b id="v_rate">–</b><span>Değişim °C/dk</span></div>
-    </div>
-    <div class="state" id="liveState"><span class="dot"></span><span id="liveStateTxt">Veri bekleniyor</span></div>
-    <div class="card lv-card">
-      <h2>Batarya sıcaklığı, son 30 dakika</h2>
-      <canvas id="cvLive"></canvas>
-      <div class="legend"><span><i style="background:var(--lv-a)"></i>Ortalama</span><span><i style="background:var(--lv-m)"></i>En sıcak hücre</span><span><i style="background:var(--lv-c)"></i>Soğutma girişi</span></div>
-    </div>
-    <div class="card lv-card">
-      <h2>Güç ve şarj, son 30 dakika</h2>
-      <canvas id="cvLive2"></canvas>
-      <div class="legend"><span><i style="background:var(--lv-p)"></i>Güç kW (çekiş +, rejen/şarj −)</span><span><i style="background:var(--lv-s)"></i>Şarj % (sağ eksen)</span></div>
-    </div>
     <div class="card lv-card">
       <h2>Okuma durumu</h2>
       <div class="lv-q" id="lvQ"></div>
-    </div>
-    <div class="card" id="setCard">
-      <h2>Ayarlar</h2>
-      <div class="row">
-        <label>Okuma aralığı
-          <select id="interval"><option value="0">En hızlı (bekleme yok)</option><option value="1000">1 sn</option><option value="2000">2 sn</option><option value="5000" selected>5 sn</option><option value="10000">10 sn</option></select>
-        </label>
-        <label><input type="checkbox" id="flipSign"> Akım yönünü ters çevir</label>
-      </div>
-      <p class="note" id="rateInfo" style="color:var(--fg)"></p>
-      <p class="note">"En hızlı" modda akım ve voltaj her turda, sıcaklıklar 3 turda bir, şarj % 10 turda bir okunur. Güç şarj sırasında eksi görünmeli. İlk şarj kaydında yön otomatik düzeltilir; yanlışsa kutuyu işaretleyin. Sıcaklık formülleri topluluk verisinden çıkarıldı: araç saatlerce park halindeyken batarya sıcaklığı dış sıcaklığa yakın olmalı.</p>
     </div>
     <div class="card">
       <details>
@@ -338,7 +332,16 @@
       </details>
 
     </div>
+    <div class="card">
+      <h2>Sorun mu var?</h2>
+      <p class="note" style="margin-top:0">Aşağıdaki düğme bu ekrandaki tüm kontrolleri ve kaydı panoya kopyalar; bana yapıştırın.</p>
+      <div class="row" style="margin-top:8px"><button class="sec" id="cnCopy">Hata raporunu kopyala</button></div>
+    </div>
   </section>
+
+  <section id="tab-panel"><iframe id="panelFrame" title="Canlı panel" allow="bluetooth; geolocation; clipboard-write" style="display:block;width:100%;border:0;background:var(--bg)"></iframe></section>
+
+
 
   <!-- ============ ŞARJ ============ -->
   <section id="tab-charge">
@@ -590,7 +593,7 @@ const hexb = b => b.map(x=>x.toString(16).padStart(2,"0")).join(" ").toUpperCase
 // =====================================================================
 const store = {
   get(k,def){ try{ const v=localStorage.getItem("ex30."+k); return v==null?def:JSON.parse(v); }catch{ return def; } },
-  set(k,v){ if (/mirror/.test(location.hash)) return; try{ localStorage.setItem("ex30."+k, JSON.stringify(v)); }catch{} }
+  set(k,v){ if (/mirror/.test(location.hash) || window.ex30Replay) return; try{ localStorage.setItem("ex30."+k, JSON.stringify(v)); }catch{} }
 };
 const cfg = Object.assign({sign:1, signKnown:false, capModel:"64", capNew:64, chgAuto:true, interval:5000}, store.get("cfg",{}));
 let sessions = store.get("sessions", []);           // tamamlanan kayıtlar
@@ -602,6 +605,7 @@ function saveSessions(now){
     while (sessions.length>60) sessions.shift();
     let json; try{ json = JSON.stringify(sessions); }catch{ return; }
     while (json.length>3.5e6 && sessions.length){ sessions.shift(); json=JSON.stringify(sessions); }
+    if (window.ex30Replay) return;   // test modunda kalıcı kayıt yok
     try{ localStorage.setItem("ex30.sessions", json); }catch{}
   };
   if (now){ clearTimeout(saveTimer); saveTimer=null; doSave(); }
@@ -758,7 +762,7 @@ async function connect(all=false, auto=false){
     btnConn.textContent="Kes"; ensurePanel(); try{ window.AndroidBle && AndroidBle.keepAlive && AndroidBle.keepAlive(true); }catch{} $("btnSend").disabled=false; $("scBtn").disabled=false; $("ufBtn").disabled=false;
     try{ wake = await navigator.wakeLock?.request("screen"); }catch{}
     startPolling();
-    if (carOk && tab==="conn") setTimeout(()=>goTab("live"), 900);
+    if (carOk && tab==="conn") setTimeout(()=>goTab("panel"), 900);
   }catch(err){
     const st = err.step || Object.keys(stepState).find(k=>stepState[k].st==="run") || "pick";
     setStep(st, "bad", err.message);
@@ -804,9 +808,12 @@ async function pollOnce(){
   const now=Date.now(); speed.samples.push(now); while(speed.samples.length && now-speed.samples[0]>10000) speed.samples.shift();
   onSample(makeSample(now));
 }
+// Panel okurken akım yönü bellidir (BMS formülü: çekiş +, şarj −); yön ayarı yalnız eski okuma döngüsü için
+let fedByPanel=false;
 function makeSample(t){
-  const P = (vals.volt!=null && vals.cur!=null) ? vals.volt*vals.cur/1000*cfg.sign : null; // + çekiş, − şarj
-  return {t, avg:vals.avg, max:vals.max, cool:vals.cool, soc:vals.soc, volt:vals.volt, cur:vals.cur!=null?vals.cur*cfg.sign:null, P};
+  const sg = fedByPanel ? 1 : cfg.sign;
+  const P = (vals.volt!=null && vals.cur!=null) ? vals.volt*vals.cur/1000*sg : null; // + çekiş, − şarj
+  return {t, avg:vals.avg, max:vals.max, cool:vals.cool, soc:vals.soc, volt:vals.volt, cur:vals.cur!=null?vals.cur*sg:null, P, spd:vals.spd};
 }
 
 // Her yeni ölçümde tüm aktif kayıtları güncelle
@@ -818,9 +825,11 @@ function onSample(s){
   if (hl && s.t-hl._t0 < 1000) { Object.assign(hl, s, {_t0:hl._t0}); } else hist.push(Object.assign({_t0:s.t}, s));
   const cut=s.t-6*3600e3; while(hist.length && hist[0].t<cut) hist.shift();
   // otomatik şarj algılama
-  if (cfg.chgAuto && cfg.signKnown && !active.charge){
-    chgDetect = (s.P!=null && s.P < -2.5) ? chgDetect+1 : 0;
-    if (chgDetect>=3){ chgDetect=0; startSession("charge", {auto:true}); log("Şarj algılandı, kayıt başladı"); }
+  if (cfg.chgAuto && (cfg.signKnown || fedByPanel) && !active.charge){
+    // araç duruyorken en az 5 sn boyunca batarya dolduruluyorsa şarj (sürüşteki rejen sayılmaz)
+    const still = s.spd==null || s.spd < 1;
+    chgDetect = (s.P!=null && s.P < -2.5 && still) ? chgDetect+1 : 0;
+    if (chgDetect >= (fedByPanel ? 10 : 3)){ chgDetect=0; startSession("charge", {auto:true}); log("Şarj algılandı, kayıt başladı"); }
   }
   for (const type in active){
     const ss = active[type]; if (!ss) continue;
@@ -843,6 +852,7 @@ function onSample(s){
 }
 let lastRender=0, renderTimer=null, lastPublish=0, lastActiveSave=0;
 function throttledRender(){
+  if (window.__rpQuiet) return;
   const now=Date.now();
   if (now-lastRender >= 500){ lastRender=now; renderAll(); return; }
   if (!renderTimer) renderTimer=setTimeout(()=>{ renderTimer=null; lastRender=Date.now(); renderAll(); }, 500-(now-lastRender));
@@ -862,7 +872,7 @@ window.EX30_HOST = {
   suffix: () => reqSuffix,
   connect: () => connect(false),
   disconnect: () => disconnect(),
-  feed(v){ for (const k in v) vals[k] = v[k]; onSample(makeSample(Date.now())); }
+  feed(v){ fedByPanel=true; for (const k in v) vals[k] = v[k]; onSample(makeSample(Date.now())); }
 };
 window.__ex30geo = o => { try{ panelWin && panelWin.__ex30geo && panelWin.__ex30geo(o); }catch{} };
 window.__car = o => { try{ panelWin && panelWin.__car && panelWin.__car(o); }catch{} };
@@ -901,7 +911,7 @@ function chargeTick(ss, s, sdt){
       ss.meta.signChecked = true; cfg.signKnown = true; saveCfg();
       const med = ps.slice().sort((a,b)=>a-b)[Math.floor(ps.length/2)];
       if (med>0){
-        cfg.sign*=-1; saveCfg(); $("flipSign").checked = cfg.sign<0;
+        cfg.sign*=-1; saveCfg();
         for (const x of ss.samples) if (x.P!=null) x.P=-x.P;
         [ss.eIn, ss.eOut] = [ss.eOut, ss.eIn];
         log("Akım yönü düzeltildi (şarj sırasında güç eksi olmalı)");
@@ -911,7 +921,7 @@ function chargeTick(ss, s, sdt){
   // otomatik bitiş: 2 dakika boyunca şarj gücü 0,5 kW altı
   if (ss.meta.auto){
     chgIdle = (s.P==null || s.P > -0.5) ? chgIdle + (sdt||0) : 0;
-    if (chgIdle >= 120000){ chgIdle=0; stopSession("charge"); log("Şarj bitti, kayıt kaydedildi"); }
+    if (chgIdle >= 120000 || (ss.meta.auto && s.spd!=null && s.spd > 5)){ chgIdle=0; stopSession("charge"); log("Şarj bitti, kayıt kaydedildi"); }
   }
 }
 function summarize(ss){
@@ -1183,7 +1193,7 @@ function renderAll(){
   $("chgBtn").textContent = active.charge ? "Şarj kaydını bitir" : "Şarj kaydını başlat"; $("chgBtn").className = active.charge?"stop":"";
   $("parkBtn").textContent = active.park ? "İzlemeyi bitir" : "Park izlemeyi başlat"; $("parkBtn").className = active.park?"stop":"";
   $("heatBtn").textContent = active.heat ? "Testi bitir" : "Testi başlat"; $("heatBtn").className = active.heat?"stop":"";
-  if (tab==="live") renderLive();
+  if (tab==="conn") renderHealth();
   if (tab==="charge") renderCharge();
   if (tab==="cap") renderCap();
   if (tab==="trip") renderTrip();
@@ -1215,24 +1225,7 @@ function publishCar(connected){
       state:st.short, stateCls:st.cls, rec, aa:(panelWin && vals.aa) ? vals.aa : null}));
   }catch(e){}
 }
-function renderLive(){
-  const last = hist[hist.length-1] || {};
-  if (chW && speed.samples.length>1 && !panelWin){
-    const hz = (speed.samples.length-1) / ((speed.samples[speed.samples.length-1]-speed.samples[0])/1000 || 1);
-    const ms = speed.reqMs.reduce((a,b)=>a+b,0)/(speed.reqMs.length||1);
-    $("rateInfo").textContent = `Gerçek hız: ${fmt(hz,1)} ölçüm/sn, istek başına ${fmt(ms,0)} ms`;
-  } else $("rateInfo").textContent = panelWin ? "Okumayı Panel yürütüyor; okuma aralığı ayarı yalnızca panel yüklü değilken geçerli." : "";
-  const n1=(v,d=1)=> v==null||!isFinite(v) ? "–" : fmt(v,d);
-  $("v_avg").textContent=n1(vals.avg); $("v_max").textContent=n1(vals.max); $("v_cool").textContent=n1(vals.cool,0);
-  const rt=rate(); $("v_rate").textContent = rt==null ? "–" : (rt>0?"+":"")+fmt(rt,2);
-  const st=thermalState(rt);
-  setState("liveState", st.cls, st.txt + (st.cls!=null && vals.avg!=null ? ". DC şarj için ideal yaklaşık 20–25 °C" : ""));
-  const now=Date.now(), xf=x=>{ const m=Math.round((now-x)/60e3); return m?"-"+m+" dk":"şimdi"; };
-  const css=getComputedStyle($("tab-live")), col=k=>css.getPropertyValue(k).trim();
-  chart($("cvLive"), {xMin:now-30*60e3, xMax:now, xFmt:xf, yFmt:[v=>v.toFixed(0)+"°"],
-    series:[["avg","--lv-a"],["max","--lv-m"],["cool","--lv-c"]].map(([k,c])=>({color:col(c), pts:hist.map(h=>[h.t,h[k]])}))});
-  chart($("cvLive2"), {xMin:now-30*60e3, xMax:now, xFmt:xf, zero:[true], minSpan:[20,4], yFmt:[v=>v.toFixed(0), v=>"%"+v.toFixed(0)],
-    series:[{color:col("--lv-p"), pts:hist.map(h=>[h.t,h.P])}, {color:col("--lv-s"), axis:1, pts:hist.map(h=>[h.t,h.soc])}]});
+function renderHealth(){
   // okuma durumu
   let H=null; try{ H = panelWin && panelWin.ex30Health ? panelWin.ex30Health() : null; }catch{}
   const age = ms => ms==null ? ["cevap yok","no"] : ms<3000 ? ["canlı","ok"] : ms<60000 ? [Math.round(ms/1000)+" sn önce","old"] : [Math.round(ms/60000)+" dk önce","old"];
@@ -1487,7 +1480,9 @@ function pfUpdatePeaks(s){
   if (!s.t || s.t===pfSeenT) return; pfSeenT=s.t;
   const mx=(k,v)=>{ if (v!=null && isFinite(v) && (pf[k]==null || v>pf[k])) { pf[k]=v; pf[k+"_t"]=s.t; } };
   const mn=(k,v)=>{ if (v!=null && isFinite(v) && (pf[k]==null || v<pf[k])) { pf[k]=v; pf[k+"_t"]=s.t; } };
-  mx("kw", s.kw); mn("regen", s.kw); mx("mech", pfMech(s)); mx("tq", s.tqRaw); mx("cur", s.cur); mn("vmin", s.kw>20?s.volt:null);
+  // rekorlar yalnız sürüşten: şarj gücü "rejen" ya da "akım" rekoru sayılmaz
+  const moving = s.spd!=null && s.spd>1;
+  mx("kw", s.kw>0?s.kw:null); mn("regen", moving && s.kw<0 ? s.kw : null); mx("mech", pfMech(s)); mx("tq", s.tqRaw); mx("cur", s.kw>0?s.cur:null); mn("vmin", s.kw>20?s.volt:null);
   mx("spd", s.spd); mx("rpm", s.rpm); mx("brake", s.brake);
   // 0–100 km/s
   if (s.spd!=null){
@@ -1713,13 +1708,16 @@ function goTab(t){ tab=t;
 // ⚙ aç/kapa: Panel'de panel ayarları penceresi; diğer sekmelerde Canlı'daki ayarlar kartı (ikinci basış geri döner)
 let setFrom=null, setScrollY=0;
 function setBtnState(on){ $("btnSet").classList.toggle("act", !!on); }
+function panelDlg(){ try{ const d=$("panelFrame").contentWindow.document; return {d, dlg:d.getElementById("dlg")}; }catch{ return {}; } }
 $("btnSet").onclick = () => {
-  if (tab==="panel"){ try{ const d=$("panelFrame").contentWindow.document, dlg=d.getElementById("dlg");
-    if (dlg && dlg.open){ dlg.close(); setBtnState(false); } else { d.getElementById("btnSet").click(); setBtnState(true); dlg && dlg.addEventListener("close", ()=>setBtnState(false), {once:true}); } return; }catch{} }
-  if (setFrom){ const back=setFrom; setFrom=null; setBtnState(false); goTab(back.tab); setTimeout(()=>window.scrollTo({top:back.y}), 30); return; }
-  setFrom={tab, y:window.scrollY}; setBtnState(true);
-  if (tab!=="live") goTab("live");
-  setTimeout(()=>$("setCard").scrollIntoView({behavior:"smooth",block:"start"}), 50);
+  const {d, dlg} = panelDlg();
+  if (dlg && dlg.open){ dlg.close(); return; }
+  setFrom = tab!=="panel" ? {tab, y:window.scrollY} : null;
+  goTab("panel");
+  const open = () => { const {d, dlg} = panelDlg(); if (!dlg){ setTimeout(open, 150); return; }
+    d.getElementById("btnSet").click(); setBtnState(true);
+    dlg.addEventListener("close", ()=>{ setBtnState(false); if (setFrom){ const b=setFrom; setFrom=null; goTab(b.tab); setTimeout(()=>window.scrollTo({top:b.y}), 30); } }, {once:true}); };
+  open();
 };
 $("tabs").onclick = e => { const b=e.target.closest("button[data-tab]"); if(b){ setFrom=null; setBtnState(false); goTab(b.dataset.tab); } };
 $("cnFind").onclick = () => connect(false);
@@ -1727,10 +1725,80 @@ $("cnAll").onclick = () => connect(true);
 $("cnCopy").onclick = () => copyText(["EX30 Reader hata raporu "+new Date().toISOString(), "Adres: "+location.protocol+"//"+location.host, "UA: "+navigator.userAgent, "",
   ...envResult.map(r=>`[${r[0]}] ${r[1]}${r[2]?" - "+r[2]:""}`), "",
   ...STEPS.map(([id,t])=>`[${stepState[id]?.st||"-"}] ${t}${stepState[id]?.detail?" - "+stepState[id].detail:""}`), "", $("log").textContent].join("\n"), "Hata raporu");
-$("interval").value = String(cfg.interval);
-$("interval").onchange = () => { cfg.interval=+$("interval").value; saveCfg(); if (chW) startPolling(); };
-$("flipSign").checked = cfg.sign<0;
-$("flipSign").onchange = () => { cfg.sign = $("flipSign").checked ? -1 : 1; cfg.signKnown = true; saveCfg(); log("Akım yönü: "+(cfg.sign<0?"ters":"normal")); };
+
+// =====================================================================
+//  Test modu: CSV kaydını sanal saatle oynatır (oynat/durdur, hız, ileri-geri, konuma atla)
+// =====================================================================
+const RP = {on:false, rows:[], i:0, t0:0, t1:0, vt:0, playing:false, rate:1, quiet:false, lastReal:0, timer:null};
+const realNow = Date.now.bind(Date);
+function rpParse(text, cols){
+  const lines=text.split(/\r?\n/).filter(l=>l.trim()); if (lines.length<3) return {rows:[], known:0};
+  const byName=Object.fromEntries(cols.map(([id,n])=>[n,id])), head=lines[0].split(",").map(h=>h.trim().replace(/^"|"$/g,""));
+  const idx=head.map(h=>byName[h]||null), rows=[];
+  for (let i=1;i<lines.length;i++){
+    const c=lines[i].split(","), m=c[0].match(/^(\d{4})-(\d\d)-(\d\d)[ T](\d\d):(\d\d):(\d\d)(?:\.(\d+))?/); if (!m) continue;
+    const t=new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +m[6], +((m[7]||"0")+"00").slice(0,3)).getTime(), v={};
+    for (let j=1;j<c.length;j++){ const id=idx[j]; if (!id || c[j]==="") continue; const x=+c[j]; if (isFinite(x)) v[id]=x; }
+    rows.push({t, v});
+  }
+  rows.sort((a,b)=>a.t-b.t);
+  return {rows, known: idx.filter(Boolean).length};
+}
+const rpWaitPanel = () => new Promise(res=>{ ensurePanel(); const w=()=>{ try{ if (panelWin && panelWin.ex30ReplayBegin) return res(); }catch{} setTimeout(w,100); }; w(); });
+function rpResetApp(){
+  hist.length=0; for (const k in active) active[k]=null; chgDetect=0; chgIdle=0; prevSampleT=0;
+  lastRender=0; lastPublish=0; lastActiveSave=0; if (renderTimer){ clearTimeout(renderTimer); renderTimer=null; }
+  for (const k in pf) pf[k]=null; pf.since=RP.vt; pfTrail=[]; pfHist.length=0; pfAx=null;
+}
+function rpQuiet(q){ RP.quiet=q; window.__rpQuiet=q; try{ panelWin.ex30ReplayQuiet(q); }catch{} }
+function rpAdvance(target){
+  while (RP.i < RP.rows.length && RP.rows[RP.i].t <= target){ const r=RP.rows[RP.i++]; RP.vt=r.t; panelWin.ex30ReplayApply(r); }
+  RP.vt=target;
+}
+const rpClock = t => { const d=new Date(t), z=n=>String(n).padStart(2,"0"); return `${z(d.getHours())}:${z(d.getMinutes())}:${z(d.getSeconds())}`; };
+function rpUi(){
+  $("rpPlay").textContent = RP.playing ? "❚❚" : "▶"; $("rpPlay").setAttribute("aria-label", RP.playing ? "Durdur" : "Oynat");
+  $("rpTime").textContent = `${rpClock(RP.vt)} / ${rpClock(RP.t1)}`;
+  if (!RP.dragging) $("rpSeek").value = Math.round((RP.vt-RP.t0)/(RP.t1-RP.t0||1)*1000);
+}
+function rpTick(){
+  const now=realNow(), dt=Math.min(now-RP.lastReal, 1000); RP.lastReal=now;
+  if (!RP.playing) return;
+  let target=RP.vt+dt*RP.rate; if (target>=RP.t1){ target=RP.t1; RP.playing=false; }
+  rpAdvance(target); rpUi();
+}
+function rpSeek(target){
+  target=Math.max(RP.t0, Math.min(RP.t1, target));
+  const far=Math.abs(target-RP.vt) > 5000; if (far) rpQuiet(true);
+  if (target < RP.vt){ RP.i=0; RP.vt=RP.t0; rpResetApp(); panelWin.ex30ReplayBegin(); }
+  rpAdvance(target);
+  if (far) rpQuiet(false);
+  rpUi(); renderAll();
+}
+async function rpStart(file){
+  $("rpMsg").textContent="";
+  if (chW){ $("rpMsg").textContent="Test modu için önce adaptör bağlantısını kesin."; return; }
+  let text; try{ text = await file.text(); }catch{ $("rpMsg").textContent="Dosya okunamadı."; return; }
+  await rpWaitPanel();
+  const {rows, known} = rpParse(text, panelWin.ex30ReplayCols());
+  if (rows.length<2 || known<3){ $("rpMsg").textContent="Bu dosya bir EX30 Reader kaydı gibi görünmüyor (zaman ve bilinen sütunlar bulunamadı)."; return; }
+  Object.assign(RP, {on:true, rows, i:0, t0:rows[0].t, t1:rows.at(-1).t, vt:rows[0].t, playing:true, rate:+$("rpRate").value, lastReal:realNow()});
+  window.ex30Replay = true;
+  Date.now = () => RP.vt; try{ panelWin.Date.now = () => RP.vt; }catch{}
+  rpResetApp(); panelWin.ex30ReplayBegin();
+  $("rpName").textContent = file.name; $("rpBar").hidden=false; document.body.classList.add("replay");
+  btnConn.disabled = true;
+  RP.timer = setInterval(rpTick, 100);
+  rpUi(); goTab("panel");
+}
+$("rpFile").onchange = e => { const f=e.target.files && e.target.files[0]; if (f) rpStart(f); e.target.value=""; };
+$("rpPlay").onclick = () => { if (RP.vt>=RP.t1){ rpSeek(RP.t0); } RP.playing=!RP.playing; RP.lastReal=realNow(); rpUi(); };
+$("rpBar").addEventListener("click", e => { const b=e.target.closest("[data-rj]"); if (b) rpSeek(RP.vt + +b.dataset.rj); });
+$("rpRate").onchange = () => { RP.rate=+$("rpRate").value; };
+$("rpSeek").addEventListener("input", ()=>{ RP.dragging=true; $("rpTime").textContent = `${rpClock(RP.t0 + (RP.t1-RP.t0)*$("rpSeek").value/1000)} / ${rpClock(RP.t1)}`; });
+$("rpSeek").addEventListener("change", ()=>{ RP.dragging=false; rpSeek(RP.t0 + (RP.t1-RP.t0)*$("rpSeek").value/1000); });
+$("rpExit").onclick = () => { location.reload(); };   // test hiçbir şey yazmadığı için yeniden yükleme gerçek duruma döndürür
+// Okuma aralığı ve akım yönü artık Panel ayarlarında (okumayı panel yürütüyor)
 $("chgAuto").checked = cfg.chgAuto;
 $("chgAuto").onchange = () => { cfg.chgAuto=$("chgAuto").checked; saveCfg(); };
 $("chgBtn").onclick = () => active.charge ? stopSession("charge") : startSession("charge", {auto:false});
@@ -2115,7 +2183,9 @@ const INIT = ["ATZ","ATE0","ATL0","ATS0","ATH1","ATAL","ATST64","ATSP7"];
 const SERVICES = [0xfff0, 0xffe0, 0x18f0, "e7810a71-73ae-499d-8c15-faa9aef0c3f2"];
 
 // ============ Kalıcı ayarlar ============
-const store = { get(k,d){ try{ const v=localStorage.getItem("ex30."+k); return v==null?d:JSON.parse(v);}catch{return d;} }, set(k,v){ if (MIRROR) return; try{ localStorage.setItem("ex30."+k, JSON.stringify(v)); }catch{} } };
+// Test modu (kayıt oynatma): açıkken hiçbir şey kalıcı yazılmaz, Telegram'a gönderilmez; çıkışta sayfa yeniden yüklenir
+const REPLAY = {on:false};
+const store = { get(k,d){ try{ const v=localStorage.getItem("ex30."+k); return v==null?d:JSON.parse(v);}catch{return d;} }, set(k,v){ if (MIRROR || REPLAY.on) return; try{ localStorage.setItem("ex30."+k, JSON.stringify(v)); }catch{} } };
 const mainCfg = store.get("cfg", {});
 const sign = mainCfg.sign || 1;
 const pcfg = Object.assign({interval:0, sources:{}, logOn:true, logMode:"1000"}, store.get("panel", {}));
@@ -2437,14 +2507,16 @@ function sample(fromLoop){
   if (lastS){
     const dth = Math.min(now-lastS.t, 15000)/3600e3;
     for (const a of accs()){
-      if (P!=null && lastS.P!=null){ const Pm=(P+lastS.P)/2; a.eOut+=Math.max(Pm,0)*dth; a.eIn+=Math.max(-Pm,0)*dth; }
+      // Araç dururken bataryaya giren enerji rejen değil şarjdır: yolculuk enerjisine sayılmaz
+      if (P!=null && lastS.P!=null){ const Pm=(P+lastS.P)/2, still = vs!=null && vs<=1 && (lastS.vs??0)<=1;
+        a.eOut+=Math.max(Pm,0)*dth; if (!still) a.eIn+=Math.max(-Pm,0)*dth; }
       if (vs!=null && lastS.vs!=null){ const vm=(vs+lastS.vs)/2; a.kmCar += vm*dth; if (vm>3) a.movingMsCar += dth*3600e3; }
     }
   }
   brakeEst(now, vs, P);
   lastS={t:now, P, vs};
   tripTick(now, vs);
-  if (HOST && fromLoop && now-lastFeed>=500){ lastFeed=now; try{ HOST.feed({avg:vals.avg, max:vals.max, cool:vals.cin, soc:vals.soc, volt:vals.volt, cur:vals.cur, aa:autoSnap(now, vs)}); }catch{} }
+  if (HOST && fromLoop && now-lastFeed>=500){ lastFeed=now; try{ HOST.feed({avg:vals.avg, max:vals.max, cool:vals.cin, soc:vals.soc, volt:vals.volt, cur:vals.cur, spd:vs, aa:autoSnap(now, vs)}); }catch{} }
   if (fromLoop) logRow(now);   // okuma duraklatıldığında (Tarayıcı/terminal) eski değerleri tekrar tekrar yazma
   render();
 }
@@ -2565,6 +2637,7 @@ function autoSnap(now, vs){
 }
 
 function render(){
+  if (REPLAY.quiet) return;
   const now=Date.now(); if (now-lastR<250) return; lastR=now;
   tile("avg", vals.avg, "°C", 1, raw.avg?"ham "+hex(raw.avg):"");
   tile("cin", vals.cin, "°C", 0);
@@ -2696,7 +2769,7 @@ const idb = req => new Promise((res,rej)=>{ req.onsuccess=()=>res(req.result); r
 // src: "obd" (adaptör bağlı) ya da "arac" (orta ekranda adaptörsüz, yalnız aracın kendi verileri). OBD bağlanınca araç kaydı kapanıp OBD kaydı açılır.
 let logStarting=false;
 async function logStart(src="obd"){
-  if (!pcfg.logOn || logStarting) return;
+  if (!pcfg.logOn || logStarting || REPLAY.on) return;
   if (logSess && logSess.src===src) return;
   logStarting=true;
   try{
@@ -2900,7 +2973,7 @@ async function tgTripCsv(start, end){
   if (out.length<2) return null;
   return {name:"EX30_"+a.slice(0,16).replace(/[: ]/g,"-")+".csv", text:out.join("\n")+"\n"};
 }
-function tgEnqueue(it){ if (!TG.token || !TG.chat || MIRROR) return; tgQ.push(it); while (tgQ.length>60) tgQ.shift(); store.set("tgQueue", tgQ); tgFlush(); tgRender(); }
+function tgEnqueue(it){ if (!TG.token || !TG.chat || MIRROR || REPLAY.on) return; tgQ.push(it); while (tgQ.length>60) tgQ.shift(); store.set("tgQueue", tgQ); tgFlush(); tgRender(); }
 async function tgFlush(){
   if (tgBusy || !tgQ.length || !TG.token || !TG.chat || MIRROR) return; tgBusy=true;
   try{
@@ -2948,6 +3021,39 @@ $("tgTest").onclick=async()=>{ if (!TG.chat){ tgRender(); return; } const r=awai
 $("tgOff").onclick=()=>{ if (!confirmBtn($("tgOff"))) return; Object.assign(TG,{token:"", chat:null, chatName:"", bot:""}); tgQ=[]; store.set("tg", TG); store.set("tgQueue", tgQ); tgRender(); };
 function confirmBtn(b){ if (b.dataset.ok) { delete b.dataset.ok; b.textContent=b.dataset.t; return true; } b.dataset.t=b.textContent; b.dataset.ok="1"; b.textContent="Emin misiniz?"; setTimeout(()=>{ if (b.dataset.ok){ delete b.dataset.ok; b.textContent=b.dataset.t; } },3000); return false; }
 tgRender(); setTimeout(tgFlush, 5000);
+
+// =====================================================================
+//  Test modu: indirilmiş kayıt (CSV) satır satır panele verilir; ana sayfa saati sanal zamana çeker
+// =====================================================================
+const RP_CAR = {a_kw:["EV_BATTERY_INSTANTANEOUS_CHARGE_RATE",1e6], a_kwh:["EV_BATTERY_LEVEL",1000], a_cap:["EV_CURRENT_BATTERY_CAPACITY",1000],
+  a_rng:["RANGE_REMAINING",1000], a_spd:["PERF_VEHICLE_SPEED",1/3.6], a_dsp:["PERF_VEHICLE_SPEED_DISPLAY",1/3.6], a_out:["ENV_OUTSIDE_TEMPERATURE",1],
+  a_rgn:["EV_REGENERATIVE_BRAKING_STATE",1], a_chg:["EV_CHARGE_STATE",1], a_batT:["EV_BATTERY_AVERAGE_TEMPERATURE",1]};
+const RP_SKIP = new Set(["kw","gps","lat","lon","alt","auto","torqueCalc","slip","acc_g","brk_kw","inst"]);   // panelin kendi hesapladıkları
+window.ex30ReplayCols = () => LOG_COLS.map(c=>c.slice());
+window.ex30ReplayBegin = () => {
+  REPLAY.on = true; running = true;
+  // gerçek saatle tutulmuş kısıtlayıcılar sanal saatte kilitlenmesin
+  lastR=0; lastFeed=0; lastSampleT=0; lastCarT=0;
+  for (const k in vals) vals[k]=null; for (const k in valT) delete valT[k]; for (const k in carv) delete carv[k];
+  for (const k of Object.keys(trips)) if (!["A","B"].includes(k)) delete trips[k];
+  trips.A=newAcc("A"); trips.B=newAcc("B"); trips.auto=null;
+  lastS=null; accBuf.length=0; icBuf.length=0; speed.cyc.length=0;
+  Object.assign(geo, {last:null, spd:null, t:0, alt:null, altT:0, hdg:null, hdgT:0, yaw:null, yawT:0});
+  render();
+};
+// row: {t, v:{id:değer}}; t sanal zaman (ms)
+window.ex30ReplayApply = row => {
+  const t=row.t, v=row.v;
+  for (const id in v){
+    if (RP_SKIP.has(id)) continue;
+    if (RP_CAR[id]){ const [name,k]=RP_CAR[id]; carv[name]=v[id]*k; continue; }
+    if (id.startsWith("a_")) continue;
+    vals[id]=v[id]; valT[id]=t;
+  }
+  if (v.lat!=null && v.lon!=null) onGeo({timestamp:t, coords:{latitude:v.lat, longitude:v.lon, speed:v.gps!=null?v.gps/3.6:null, accuracy:5, altitude:v.alt??null, altitudeAccuracy:v.alt!=null?5:null, heading:null}});
+  sample(true);
+};
+window.ex30ReplayQuiet = q => { REPLAY.quiet = q; if (!q) render(); };
 // ---- Ayna: durum aktarımı ----
 window.ex30MirrorState = () => { const now=Date.now(), age={}; for (const k in valT) age[k]=now-valT[k];
   return JSON.stringify({vals, trips, tripView, carv, geo, age, running, sT: now-lastSampleT, cT: lastCarT? now-lastCarT : 1e9}); };

@@ -293,7 +293,9 @@ const INIT = ["ATZ","ATE0","ATL0","ATS0","ATH1","ATAL","ATST64","ATSP7"];
 const SERVICES = [0xfff0, 0xffe0, 0x18f0, "e7810a71-73ae-499d-8c15-faa9aef0c3f2"];
 
 // ============ Kalıcı ayarlar ============
-const store = { get(k,d){ try{ const v=localStorage.getItem("ex30."+k); return v==null?d:JSON.parse(v);}catch{return d;} }, set(k,v){ if (MIRROR) return; try{ localStorage.setItem("ex30."+k, JSON.stringify(v)); }catch{} } };
+// Test modu (kayıt oynatma): açıkken hiçbir şey kalıcı yazılmaz, Telegram'a gönderilmez; çıkışta sayfa yeniden yüklenir
+const REPLAY = {on:false};
+const store = { get(k,d){ try{ const v=localStorage.getItem("ex30."+k); return v==null?d:JSON.parse(v);}catch{return d;} }, set(k,v){ if (MIRROR || REPLAY.on) return; try{ localStorage.setItem("ex30."+k, JSON.stringify(v)); }catch{} } };
 const mainCfg = store.get("cfg", {});
 const sign = mainCfg.sign || 1;
 const pcfg = Object.assign({interval:0, sources:{}, logOn:true, logMode:"1000"}, store.get("panel", {}));
@@ -615,14 +617,16 @@ function sample(fromLoop){
   if (lastS){
     const dth = Math.min(now-lastS.t, 15000)/3600e3;
     for (const a of accs()){
-      if (P!=null && lastS.P!=null){ const Pm=(P+lastS.P)/2; a.eOut+=Math.max(Pm,0)*dth; a.eIn+=Math.max(-Pm,0)*dth; }
+      // Araç dururken bataryaya giren enerji rejen değil şarjdır: yolculuk enerjisine sayılmaz
+      if (P!=null && lastS.P!=null){ const Pm=(P+lastS.P)/2, still = vs!=null && vs<=1 && (lastS.vs??0)<=1;
+        a.eOut+=Math.max(Pm,0)*dth; if (!still) a.eIn+=Math.max(-Pm,0)*dth; }
       if (vs!=null && lastS.vs!=null){ const vm=(vs+lastS.vs)/2; a.kmCar += vm*dth; if (vm>3) a.movingMsCar += dth*3600e3; }
     }
   }
   brakeEst(now, vs, P);
   lastS={t:now, P, vs};
   tripTick(now, vs);
-  if (HOST && fromLoop && now-lastFeed>=500){ lastFeed=now; try{ HOST.feed({avg:vals.avg, max:vals.max, cool:vals.cin, soc:vals.soc, volt:vals.volt, cur:vals.cur, aa:autoSnap(now, vs)}); }catch{} }
+  if (HOST && fromLoop && now-lastFeed>=500){ lastFeed=now; try{ HOST.feed({avg:vals.avg, max:vals.max, cool:vals.cin, soc:vals.soc, volt:vals.volt, cur:vals.cur, spd:vs, aa:autoSnap(now, vs)}); }catch{} }
   if (fromLoop) logRow(now);   // okuma duraklatıldığında (Tarayıcı/terminal) eski değerleri tekrar tekrar yazma
   render();
 }
@@ -743,6 +747,7 @@ function autoSnap(now, vs){
 }
 
 function render(){
+  if (REPLAY.quiet) return;
   const now=Date.now(); if (now-lastR<250) return; lastR=now;
   tile("avg", vals.avg, "°C", 1, raw.avg?"ham "+hex(raw.avg):"");
   tile("cin", vals.cin, "°C", 0);
@@ -874,7 +879,7 @@ const idb = req => new Promise((res,rej)=>{ req.onsuccess=()=>res(req.result); r
 // src: "obd" (adaptör bağlı) ya da "arac" (orta ekranda adaptörsüz, yalnız aracın kendi verileri). OBD bağlanınca araç kaydı kapanıp OBD kaydı açılır.
 let logStarting=false;
 async function logStart(src="obd"){
-  if (!pcfg.logOn || logStarting) return;
+  if (!pcfg.logOn || logStarting || REPLAY.on) return;
   if (logSess && logSess.src===src) return;
   logStarting=true;
   try{
@@ -1078,7 +1083,7 @@ async function tgTripCsv(start, end){
   if (out.length<2) return null;
   return {name:"EX30_"+a.slice(0,16).replace(/[: ]/g,"-")+".csv", text:out.join("\n")+"\n"};
 }
-function tgEnqueue(it){ if (!TG.token || !TG.chat || MIRROR) return; tgQ.push(it); while (tgQ.length>60) tgQ.shift(); store.set("tgQueue", tgQ); tgFlush(); tgRender(); }
+function tgEnqueue(it){ if (!TG.token || !TG.chat || MIRROR || REPLAY.on) return; tgQ.push(it); while (tgQ.length>60) tgQ.shift(); store.set("tgQueue", tgQ); tgFlush(); tgRender(); }
 async function tgFlush(){
   if (tgBusy || !tgQ.length || !TG.token || !TG.chat || MIRROR) return; tgBusy=true;
   try{
@@ -1126,6 +1131,39 @@ $("tgTest").onclick=async()=>{ if (!TG.chat){ tgRender(); return; } const r=awai
 $("tgOff").onclick=()=>{ if (!confirmBtn($("tgOff"))) return; Object.assign(TG,{token:"", chat:null, chatName:"", bot:""}); tgQ=[]; store.set("tg", TG); store.set("tgQueue", tgQ); tgRender(); };
 function confirmBtn(b){ if (b.dataset.ok) { delete b.dataset.ok; b.textContent=b.dataset.t; return true; } b.dataset.t=b.textContent; b.dataset.ok="1"; b.textContent="Emin misiniz?"; setTimeout(()=>{ if (b.dataset.ok){ delete b.dataset.ok; b.textContent=b.dataset.t; } },3000); return false; }
 tgRender(); setTimeout(tgFlush, 5000);
+
+// =====================================================================
+//  Test modu: indirilmiş kayıt (CSV) satır satır panele verilir; ana sayfa saati sanal zamana çeker
+// =====================================================================
+const RP_CAR = {a_kw:["EV_BATTERY_INSTANTANEOUS_CHARGE_RATE",1e6], a_kwh:["EV_BATTERY_LEVEL",1000], a_cap:["EV_CURRENT_BATTERY_CAPACITY",1000],
+  a_rng:["RANGE_REMAINING",1000], a_spd:["PERF_VEHICLE_SPEED",1/3.6], a_dsp:["PERF_VEHICLE_SPEED_DISPLAY",1/3.6], a_out:["ENV_OUTSIDE_TEMPERATURE",1],
+  a_rgn:["EV_REGENERATIVE_BRAKING_STATE",1], a_chg:["EV_CHARGE_STATE",1], a_batT:["EV_BATTERY_AVERAGE_TEMPERATURE",1]};
+const RP_SKIP = new Set(["kw","gps","lat","lon","alt","auto","torqueCalc","slip","acc_g","brk_kw","inst"]);   // panelin kendi hesapladıkları
+window.ex30ReplayCols = () => LOG_COLS.map(c=>c.slice());
+window.ex30ReplayBegin = () => {
+  REPLAY.on = true; running = true;
+  // gerçek saatle tutulmuş kısıtlayıcılar sanal saatte kilitlenmesin
+  lastR=0; lastFeed=0; lastSampleT=0; lastCarT=0;
+  for (const k in vals) vals[k]=null; for (const k in valT) delete valT[k]; for (const k in carv) delete carv[k];
+  for (const k of Object.keys(trips)) if (!["A","B"].includes(k)) delete trips[k];
+  trips.A=newAcc("A"); trips.B=newAcc("B"); trips.auto=null;
+  lastS=null; accBuf.length=0; icBuf.length=0; speed.cyc.length=0;
+  Object.assign(geo, {last:null, spd:null, t:0, alt:null, altT:0, hdg:null, hdgT:0, yaw:null, yawT:0});
+  render();
+};
+// row: {t, v:{id:değer}}; t sanal zaman (ms)
+window.ex30ReplayApply = row => {
+  const t=row.t, v=row.v;
+  for (const id in v){
+    if (RP_SKIP.has(id)) continue;
+    if (RP_CAR[id]){ const [name,k]=RP_CAR[id]; carv[name]=v[id]*k; continue; }
+    if (id.startsWith("a_")) continue;
+    vals[id]=v[id]; valT[id]=t;
+  }
+  if (v.lat!=null && v.lon!=null) onGeo({timestamp:t, coords:{latitude:v.lat, longitude:v.lon, speed:v.gps!=null?v.gps/3.6:null, accuracy:5, altitude:v.alt??null, altitudeAccuracy:v.alt!=null?5:null, heading:null}});
+  sample(true);
+};
+window.ex30ReplayQuiet = q => { REPLAY.quiet = q; if (!q) render(); };
 // ---- Ayna: durum aktarımı ----
 window.ex30MirrorState = () => { const now=Date.now(), age={}; for (const k in valT) age[k]=now-valT[k];
   return JSON.stringify({vals, trips, tripView, carv, geo, age, running, sT: now-lastSampleT, cT: lastCarT? now-lastCarT : 1e9}); };

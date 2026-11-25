@@ -157,6 +157,21 @@ final class WebHost {
                     callback.invoke(origin, false, false);
                 }
             }
+
+            // Test modu: kayıt dosyası (CSV) seçme
+            @Override
+            public boolean onShowFileChooser(WebView v, android.webkit.ValueCallback<android.net.Uri[]> cb, FileChooserParams params) {
+                if (act == null) { cb.onReceiveValue(null); return true; }
+                if (fileCb != null) fileCb.onReceiveValue(null);
+                fileCb = cb;
+                android.content.Intent i = new android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT);
+                i.addCategory(android.content.Intent.CATEGORY_OPENABLE);
+                i.setType("*/*");
+                i.putExtra(android.content.Intent.EXTRA_MIME_TYPES, new String[]{"text/csv", "text/comma-separated-values", "text/plain", "application/octet-stream"});
+                try { act.startActivityForResult(i, MainActivity.REQ_FILE); }
+                catch (Exception e) { fileCb = null; cb.onReceiveValue(null); }
+                return true;
+            }
         });
 
         // https://ex30.app/<dosya> adresleri uygulamanın içindeki dosyalardan sunulur
@@ -204,6 +219,14 @@ final class WebHost {
         } catch (Exception e) {
             return new WebResourceResponse("text/plain", "UTF-8", 404, "Not Found", null, new ByteArrayInputStream(new byte[0]));
         }
+    }
+
+    private android.webkit.ValueCallback<android.net.Uri[]> fileCb;
+    void onFileResult(int resultCode, android.content.Intent data) {
+        if (fileCb == null) return;
+        android.net.Uri u = (resultCode == Activity.RESULT_OK && data != null) ? data.getData() : null;
+        fileCb.onReceiveValue(u != null ? new android.net.Uri[]{u} : null);
+        fileCb = null;
     }
 
     /** Telefon ekranı açıldı: WebView'u ekrana yerleştir. */

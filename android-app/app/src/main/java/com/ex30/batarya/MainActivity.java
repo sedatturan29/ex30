@@ -13,6 +13,7 @@ public class MainActivity extends Activity {
 
     static final int REQ_BLE = 10;
     static final int REQ_GEO = 11;
+    static final int REQ_FILE = 12;
 
     private WebHost host;
 
@@ -60,6 +61,7 @@ public class MainActivity extends Activity {
     protected void onActivityResult(int requestCode, int resultCode, android.content.Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == AutoStart.REQ_ASSOC) AutoStart.onActivityResult(this, resultCode, data);
+        if (requestCode == REQ_FILE && host != null) host.onFileResult(resultCode, data);
     }
 
     @Override
