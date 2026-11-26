@@ -97,7 +97,7 @@
   .dv-c .l{font-size:min(17cqh,9cqw,19px);color:var(--dv-mut);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.15}
   .dv-c.w2{grid-column:span 2}
   /* 4 sütunda 10 hücre: son iki hücre ikişer sütun */
-  #dv-slip,#dv-tire{grid-column:span 2}
+  #dv-tire{grid-column:span 2}
   .dv-c .v,.dv-c .l{flex-shrink:0}
   .dv-c .v.warn{color:var(--dv-warn)} .dv-c .v.hot{color:var(--dv-hot)} .dv-c .v.cold{color:var(--dv-regen)}
   .dv-tires{display:grid;grid-template-columns:repeat(2,auto);column-gap:min(4vmin,8cqw);row-gap:.4vmin;justify-content:start;font-weight:700;font-size:min(26cqh,22cqw,64px);line-height:1}
@@ -110,7 +110,7 @@
     .dv-band{grid-template-columns:repeat(4,minmax(0,1fr));padding:min(2vmin,18px) min(3vmin,28px)}
     .dv-band .bl{grid-column:1/-1;flex-direction:row;align-items:baseline;gap:2vmin}
     .dv-band .bv b{font-size:min(7vmin,11cqw,88px)} .dv-band .bv.main b{font-size:min(9.5vmin,14cqw,116px)}
-    #dv-slip{grid-column:auto} #dv-tire{grid-column:span 3} #dv-tire .dv-tires{grid-template-columns:repeat(4,auto)}
+    #dv-tire{grid-column:span 2} #dv-tire .dv-tires{grid-template-columns:repeat(4,auto)}
     .dv-temps{grid-template-columns:repeat(4,minmax(0,1fr));row-gap:min(1.6vmin,12px)}
     .dv-temps .tt b{font-size:min(6vmin,8cqw,46px)} .dv-temps span{font-size:min(2.6vmin,3.2cqw,15px)} .dv-g b{font-size:min(4.6vmin,6cqw,32px)}
     .dv-g{grid-column:span 2;flex-direction:row;gap:10px;justify-content:center} .dv-g svg{max-width:96px;width:45%} .dv-g b{margin:0}
@@ -119,7 +119,7 @@
   /* Orta ekran gibi geniş dikey ekranlar: 4 sütun, 4 satır (16 hücre tam oturur) */
   @media (max-aspect-ratio: 1/1) and (min-width: 700px){
     .dv-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
-    #dv-slip,#dv-tire{grid-column:span 2}
+    #dv-tire{grid-column:span 2}
     .dv-temps{grid-template-columns:repeat(7,minmax(0,1fr)) repeat(2,minmax(0,1.15fr))}
     .dv-temps .tt b{font-size:min(5vmin,4.4cqw,46px)} .dv-temps span{font-size:min(2vmin,1.8cqw,15px)}
     .dv-g{grid-column:auto;flex-direction:column;gap:0} .dv-g svg{width:100%} .dv-g b{font-size:min(3.8vmin,3.4cqw,32px)}
@@ -2035,6 +2035,8 @@ const DV_CELLS = [
   ["dcell","Hücre gerilim farkı", s=>[s.cmax!=null&&s.cmin!=null?f1((s.cmax-s.cmin)*1000,0):"–", "mV", s.cmax!=null&&s.cmin!=null&&(s.cmax-s.cmin)>0.05?"warn":""]],
   ["brk",  "Fren",                s=>[f1(s.brake,0), "bar", ""]],
   ["v12",  "12 V akü",            s=>[f1(s.v12,1), "V", s.v12!=null&&s.v12<12.2?"warn":""]],
+  ["grade","Eğim",                s=>[s.grade==null?"–":(Math.abs(s.grade)<0.8?"":s.grade>0?"↗ ":"↘ ")+"%"+f1(Math.abs(s.grade),1), "", s.grade==null?"":s.grade>=3?"warn":s.grade<=-3?"cold":"",
+    s.grade==null?"Eğim · hareket edince":Math.abs(s.grade)<0.8?"Eğim · düz yol":s.grade>0?"Eğim · yokuş yukarı":"Eğim · yokuş aşağı"]],
   ["slip", "Patinaj (arka − ön)", s=>[s.slip==null?"–":(s.slip>0?"+":"")+f1(s.slip,1), "km/s", s.slip!=null&&Math.abs(s.slip)>=3?"warn":""]],
   ["tire", "Lastikler (psi)",     null],
 ];
@@ -3040,7 +3042,7 @@ function sample(fromLoop){
       if (vs!=null && lastS.vs!=null){ const vm=(vs+lastS.vs)/2; a.kmCar += vm*dth; if (vm>3) a.movingMsCar += dth*3600e3; }
     }
   }
-  brakeEst(now, vs, P);
+  brakeEst(now, vs, P); gradeTick(now, P, vs);
   lastS={t:now, P, vs};
   tripTick(now, vs);
   if (HOST && fromLoop && now-lastFeed>=500){ lastFeed=now; try{ HOST.feed({avg:vals.avg, max:vals.max, cool:vals.cin, soc:vals.soc, volt:vals.volt, cur:vals.cur, Pd:null, out:aaos("ENV_OUTSIDE_TEMPERATURE"), spd:vs, aa:autoSnap(now, vs)}); }catch{} }
@@ -3050,6 +3052,27 @@ function sample(fromLoop){
   if (fromLoop) logRow(now);   // okuma duraklatıldığında (Tarayıcı/terminal) eski değerleri tekrar tekrar yazma
   render();
 }
+// ---- Yol eğimi: güç, hız ve ivmeden kuvvet dengesi; son ~600 m'deki GPS irtifa değişimiyle sapması düzeltilir ----
+// F_eğim = P_teker/v − m·a − yuvarlanma − hava direnci. Fren basıncı varken (mekanik fren) hesaplanmaz.
+const GR = {last:null, dist:0, ema:null, buf:[], bias:0, val:null, t:0};
+function gradeTick(now, P, vs){
+  const v = vs==null ? null : vs/3.6, brk = vals.brake;
+  if (v==null){ GR.last=null; return; }
+  if (GR.last){ const dt=(now-GR.last.t)/1000;
+    if (dt>0.2 && dt<10){ const a=(v-GR.last.v)/dt; GR.dist += (v+GR.last.v)/2*dt;
+      if (v>4 && P!=null && !(brk>2)){ const m=MASS+80, pw=P*1000*(P>0?0.9:1/0.85)-1500;
+        const g=(pw/v - m*a - 0.009*m*9.81 - 0.5*1.25*0.62*v*v)/(m*9.81)*100;
+        if (isFinite(g) && Math.abs(g)<40) GR.ema = GR.ema==null ? g : GR.ema + (g-GR.ema)*Math.min(1, dt/6); }
+      if (GR.ema!=null){ GR.buf.push({d:GR.dist, h:geo.alt!=null && now-geo.altT<5000 ? geo.alt : null, g:GR.ema});
+        while (GR.buf.length && GR.buf[0].d < GR.dist-600) GR.buf.shift();
+        const hs=GR.buf.filter(x=>x.h!=null);
+        if (hs.length>5 && hs.at(-1).d-hs[0].d > 350){ const gps=(hs.at(-1).h-hs[0].h)/(hs.at(-1).d-hs[0].d)*100, phys=hs.reduce((a,x)=>a+x.g,0)/hs.length;
+          const b=Math.max(-4, Math.min(4, gps-phys)); GR.bias += (b-GR.bias)*Math.min(1, dt/20); }
+        GR.val = GR.ema + GR.bias; GR.t = now; } } }
+  if (v<1){ GR.ema=null; }
+  GR.last={t:now, v};
+}
+const gradeNow = () => GR.val!=null && Date.now()-GR.t<8000 ? GR.val : null;
 const geo={last:null, spd:null, t:0, alt:null, altT:0, hdg:null, hdgT:0, yaw:null, yawT:0};
 const ALT_STEP = 3;   // m: bu kadar değişmeden tırmanış/iniş sayılmaz (GPS gürültüsü)
 function geoStart(){
@@ -3127,7 +3150,7 @@ window.ex30Snap = () => { const n=v=>(v==null||!isFinite(v))?null:+v;
     kwhLeft: aaos("EV_BATTERY_LEVEL")!=null ? n(aaos("EV_BATTERY_LEVEL")/1000) : n(vals.erem),
     kwhCap: aaos("EV_CURRENT_BATTERY_CAPACITY")!=null ? n(aaos("EV_CURRENT_BATTERY_CAPACITY")/1000) : null,
     slip: (()=>{ const k=["w_fl","w_fr","w_rl","w_rr"]; if (!k.every(x=>vals[x]!=null && valT[x] && Date.now()-valT[x]<2500)) return null; return (vals.w_rl+vals.w_rr-vals.w_fl-vals.w_fr)/2; })(),
-    inst: n(vals.inst), jt: journalNow(), batT: n(batTemp()), socAny: n(vals.soc ?? aaosSoc()), cab: n(aaos("HVAC_TEMPERATURE_CURRENT")), cabSet: n(aaos("HVAC_TEMPERATURE_SET")),
+    inst: n(vals.inst), grade: n(gradeNow()), jt: journalNow(), batT: n(batTemp()), socAny: n(vals.soc ?? aaosSoc()), cab: n(aaos("HVAC_TEMPERATURE_CURRENT")), cabSet: n(aaos("HVAC_TEMPERATURE_SET")),
     yaw: geo.yaw!=null && Date.now()-geo.yawT<2500 ? geo.yaw : null,
     dsp: aaos("PERF_VEHICLE_SPEED_DISPLAY")!=null ? n(aaos("PERF_VEHICLE_SPEED_DISPLAY")*3.6) : null};
 };
@@ -3346,7 +3369,7 @@ const LOG_COLS = [["avg","bat_ort_C"],["cin","sogutma_giris_C"],["cout","guc_akt
   ["brake","fren_bar"],["w_fl","teker_sol_on_kmsa"],["w_fr","teker_sag_on_kmsa"],["w_rl","teker_sol_arka_kmsa"],["w_rr","teker_sag_arka_kmsa"],["slip","arka_eksi_on_kmsa"],
   ["a_kw","aaos_guc_kW"],["a_kwh","aaos_kalan_kWh"],["a_cap","aaos_kapasite_kWh"],["a_rng","aaos_menzil_km"],["a_spd","aaos_hiz_kmsa"],["a_dsp","aaos_gosterge_kmsa"],["a_out","aaos_dis_C"],["a_rgn","aaos_rejen_mod"],["a_chg","aaos_sarj_durum"],["socd","sarj_gosterge"],["v12","aku_12V"],["cmax","hucre_maks_V"],["cmin","hucre_min_V"],["tmin","bat_min_C"],["erem","kalan_enerji_kWh_aday"],["soh2","soh2_yuzde"],["mdcv","inv_dc_V"],["minv","inv_C_aday"],["mtq2","E301_tork_aday"],["mtq3","E308_tork_aday"],["mrpm2","E312_devir_aday"],["mlim","E353_sinir_yuzde"],["mx363","E363_aday"],["mx314","E314_aday"],["mx315","E315_aday"],["mx341","E341_aday"],
   ["h28","vcu_4A28_C"],["h29","vcu_4A29_C"],["h30","vcu_4A30_C"],["h31","vcu_4A31_C"],["h32","vcu_4A32_C"],["h33","vcu_4A33_C"],["eused","harcanan_enerji_kWh_aday"],["pdis","bms_desarj_kW"],["pchg","bms_sarj_kW"],
-  ["a_soc","aaos_sarj_yuzde"],["a_batT","aaos_bat_C"],["a_gear","aaos_vites"],["a_port","aaos_kablo_takili"],["a_tRem","aaos_sarj_kalan_dk"],["a_lim","aaos_sarj_hedef_yuzde"],["a_stop","aaos_durma_modu"],["a_pb","aaos_el_freni"],["a_ign","aaos_kontak"],["a_eff","aaos_anlik_verim_ham"],["acc_g","ivme_g"],["brk_kw","mekanik_fren_kW_tahmini"]];
+  ["a_soc","aaos_sarj_yuzde"],["a_batT","aaos_bat_C"],["a_gear","aaos_vites"],["a_port","aaos_kablo_takili"],["a_tRem","aaos_sarj_kalan_dk"],["a_lim","aaos_sarj_hedef_yuzde"],["a_stop","aaos_durma_modu"],["a_pb","aaos_el_freni"],["a_ign","aaos_kontak"],["a_eff","aaos_anlik_verim_ham"],["grade","egim_yuzde_tahmini"],["acc_g","ivme_g"],["brk_kw","mekanik_fren_kW_tahmini"]];
 const p2=n=>String(n).padStart(2,"0");
 const localStamp = t => { const d=new Date(t); return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3,"0")}`; };
 const LOG_HEADER = "zaman," + LOG_COLS.map(c=>c[1]).join(",");
@@ -3380,7 +3403,7 @@ function logRow(now){
     a_spd: aaos("PERF_VEHICLE_SPEED")!=null ? aaos("PERF_VEHICLE_SPEED")*3.6 : null, a_out: aaos("ENV_OUTSIDE_TEMPERATURE"), a_rgn: aaos("EV_REGENERATIVE_BRAKING_STATE"), a_chg: aaos("EV_CHARGE_STATE"),
     a_soc: aaosSoc(), a_batT: aaos("EV_BATTERY_AVERAGE_TEMPERATURE"), a_gear: aaos("GEAR_SELECTION") ?? aaos("CURRENT_GEAR"),
     a_port: aaosBool("EV_CHARGE_PORT_CONNECTED"), a_tRem: aaos("EV_CHARGE_TIME_REMAINING")!=null && aaos("EV_CHARGE_TIME_REMAINING")>=0 ? Math.round(aaos("EV_CHARGE_TIME_REMAINING")/60) : null,
-    a_lim: aaos("EV_CHARGE_PERCENT_LIMIT"), a_stop: aaos("EV_STOPPING_MODE"), a_pb: aaosBool("PARKING_BRAKE_ON"), a_ign: aaos("IGNITION_STATE"), a_eff: aaos("INSTANTANEOUS_EV_EFFICIENCY")});
+    a_lim: aaos("EV_CHARGE_PERCENT_LIMIT"), a_stop: aaos("EV_STOPPING_MODE"), a_pb: aaosBool("PARKING_BRAKE_ON"), a_ign: aaos("IGNITION_STATE"), a_eff: aaos("INSTANTANEOUS_EV_EFFICIENCY"), grade: gradeNow()!=null ? Math.round(gradeNow()*10)/10 : null});
   v.slip = [v.w_fl,v.w_fr,v.w_rl,v.w_rr].every(x=>x!=null) ? (v.w_rl+v.w_rr-v.w_fl-v.w_fr)/2 : null;
   const cols = LOG_COLS.map(c=>c[0]).concat((logSess.extra||[]).map(e=>e.id));
   const line = localStamp(now) + "," + cols.map(k=>{ const x=v[k]; return x==null||!isFinite(x) ? "" : (k==="lat"||k==="lon" ? (+x).toFixed(6) : +(+x).toFixed(3)); }).join(",");

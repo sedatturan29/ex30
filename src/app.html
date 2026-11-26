@@ -94,7 +94,7 @@
   .dv-c .l{font-size:min(17cqh,9cqw,19px);color:var(--dv-mut);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.15}
   .dv-c.w2{grid-column:span 2}
   /* 4 sütunda 10 hücre: son iki hücre ikişer sütun */
-  #dv-slip,#dv-tire{grid-column:span 2}
+  #dv-tire{grid-column:span 2}
   .dv-c .v,.dv-c .l{flex-shrink:0}
   .dv-c .v.warn{color:var(--dv-warn)} .dv-c .v.hot{color:var(--dv-hot)} .dv-c .v.cold{color:var(--dv-regen)}
   .dv-tires{display:grid;grid-template-columns:repeat(2,auto);column-gap:min(4vmin,8cqw);row-gap:.4vmin;justify-content:start;font-weight:700;font-size:min(26cqh,22cqw,64px);line-height:1}
@@ -107,7 +107,7 @@
     .dv-band{grid-template-columns:repeat(4,minmax(0,1fr));padding:min(2vmin,18px) min(3vmin,28px)}
     .dv-band .bl{grid-column:1/-1;flex-direction:row;align-items:baseline;gap:2vmin}
     .dv-band .bv b{font-size:min(7vmin,11cqw,88px)} .dv-band .bv.main b{font-size:min(9.5vmin,14cqw,116px)}
-    #dv-slip{grid-column:auto} #dv-tire{grid-column:span 3} #dv-tire .dv-tires{grid-template-columns:repeat(4,auto)}
+    #dv-tire{grid-column:span 2} #dv-tire .dv-tires{grid-template-columns:repeat(4,auto)}
     .dv-temps{grid-template-columns:repeat(4,minmax(0,1fr));row-gap:min(1.6vmin,12px)}
     .dv-temps .tt b{font-size:min(6vmin,8cqw,46px)} .dv-temps span{font-size:min(2.6vmin,3.2cqw,15px)} .dv-g b{font-size:min(4.6vmin,6cqw,32px)}
     .dv-g{grid-column:span 2;flex-direction:row;gap:10px;justify-content:center} .dv-g svg{max-width:96px;width:45%} .dv-g b{margin:0}
@@ -116,7 +116,7 @@
   /* Orta ekran gibi geniş dikey ekranlar: 4 sütun, 4 satır (16 hücre tam oturur) */
   @media (max-aspect-ratio: 1/1) and (min-width: 700px){
     .dv-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
-    #dv-slip,#dv-tire{grid-column:span 2}
+    #dv-tire{grid-column:span 2}
     .dv-temps{grid-template-columns:repeat(7,minmax(0,1fr)) repeat(2,minmax(0,1.15fr))}
     .dv-temps .tt b{font-size:min(5vmin,4.4cqw,46px)} .dv-temps span{font-size:min(2vmin,1.8cqw,15px)}
     .dv-g{grid-column:auto;flex-direction:column;gap:0} .dv-g svg{width:100%} .dv-g b{font-size:min(3.8vmin,3.4cqw,32px)}
@@ -2032,6 +2032,8 @@ const DV_CELLS = [
   ["dcell","Hücre gerilim farkı", s=>[s.cmax!=null&&s.cmin!=null?f1((s.cmax-s.cmin)*1000,0):"–", "mV", s.cmax!=null&&s.cmin!=null&&(s.cmax-s.cmin)>0.05?"warn":""]],
   ["brk",  "Fren",                s=>[f1(s.brake,0), "bar", ""]],
   ["v12",  "12 V akü",            s=>[f1(s.v12,1), "V", s.v12!=null&&s.v12<12.2?"warn":""]],
+  ["grade","Eğim",                s=>[s.grade==null?"–":(Math.abs(s.grade)<0.8?"":s.grade>0?"↗ ":"↘ ")+"%"+f1(Math.abs(s.grade),1), "", s.grade==null?"":s.grade>=3?"warn":s.grade<=-3?"cold":"",
+    s.grade==null?"Eğim · hareket edince":Math.abs(s.grade)<0.8?"Eğim · düz yol":s.grade>0?"Eğim · yokuş yukarı":"Eğim · yokuş aşağı"]],
   ["slip", "Patinaj (arka − ön)", s=>[s.slip==null?"–":(s.slip>0?"+":"")+f1(s.slip,1), "km/s", s.slip!=null&&Math.abs(s.slip)>=3?"warn":""]],
   ["tire", "Lastikler (psi)",     null],
 ];
