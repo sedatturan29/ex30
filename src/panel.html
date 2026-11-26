@@ -684,7 +684,8 @@ function gradeTick(now, P, vs){
   const v = vs==null ? null : vs/3.6, brk = vals.brake;
   if (v==null){ GR.last=null; return; }
   if (GR.last){ const dt=(now-GR.last.t)/1000;
-    if (dt>0.2 && dt<10){ const a=(v-GR.last.v)/dt; GR.dist += (v+GR.last.v)/2*dt;
+    if (dt<1) return;   // OBD ölçümleri çok sık gelir: ivme için en az 1 sn aralık (başlangıç noktası korunur)
+    if (dt<10){ const a=(v-GR.last.v)/dt; GR.dist += (v+GR.last.v)/2*dt;
       if (v>4 && P!=null && !(brk>2)){ const m=MASS+80, pw=P*1000*(P>0?0.9:1/0.85)-1500;
         const g=(pw/v - m*a - 0.009*m*9.81 - 0.5*1.25*0.62*v*v)/(m*9.81)*100;
         if (isFinite(g) && Math.abs(g)<40) GR.ema = GR.ema==null ? g : GR.ema + (g-GR.ema)*Math.min(1, dt/6); }

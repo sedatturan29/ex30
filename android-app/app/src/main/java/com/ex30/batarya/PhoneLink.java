@@ -185,6 +185,7 @@ final class PhoneLink {
             peer = n == null ? "" : n;
             q.clear();
             setState("bağlı");
+            notifyLink(true);
             if (!isCar) main.post(() -> WebHost.onLink(ctx, true));
             Thread w = new Thread(this::writer, "ex30-link-w");
             w.setDaemon(true);
@@ -204,6 +205,7 @@ final class PhoneLink {
             out = null;
             q.offer("");   // yazıcıyı uyandır
             setState("bağlantı koptu");
+            notifyLink(false);
             if (!isCar) main.post(() -> WebHost.onLink(ctx, false));
         }
     }
@@ -245,6 +247,24 @@ final class PhoneLink {
         if (v == null) return;
         final String st = state();
         main.post(() -> v.evaluateJavascript("window.__linkState&&__linkState(" + st + ")", null));
+    }
+
+    /** Bağlanınca bildirim: telefonda "Orta ekran bağlı", orta ekranda "Telefon bağlı". Kopunca kalkar. */
+    private void notifyLink(boolean up) {
+        try {
+            android.app.NotificationManager nm = (android.app.NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm == null) return;
+            if (!up) { nm.cancel(3030); return; }
+            if (Build.VERSION.SDK_INT >= 26)
+                nm.createNotificationChannel(new android.app.NotificationChannel("link", "Telefon ve orta ekran", android.app.NotificationManager.IMPORTANCE_LOW));
+            String title = isCar ? "Telefon bağlı" : "Araç (orta ekran) bağlı";
+            String text = (peer.isEmpty() ? "" : peer + " · ") + "yolculuklar, şarjlar ve kayıtlar eşitleniyor";
+            android.app.Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new android.app.Notification.Builder(ctx, "link") : new android.app.Notification.Builder(ctx);
+            b.setSmallIcon(android.R.drawable.stat_sys_data_bluetooth).setContentTitle(title).setContentText(text).setOngoing(true).setOnlyAlertOnce(true);
+            android.content.Intent it = ctx.getPackageManager().getLaunchIntentForPackage(ctx.getPackageName());
+            if (it != null) b.setContentIntent(android.app.PendingIntent.getActivity(ctx, 3030, it, android.app.PendingIntent.FLAG_IMMUTABLE));
+            nm.notify(3030, b.build());
+        } catch (Throwable ignored) { }
     }
 
     private static void sleep(long ms) { try { Thread.sleep(ms); } catch (InterruptedException ignored) { } }

@@ -24,6 +24,8 @@ import androidx.car.app.SurfaceCallback;
 import androidx.car.app.SurfaceContainer;
 import androidx.car.app.model.Action;
 import androidx.car.app.model.ActionStrip;
+import androidx.car.app.model.CarIcon;
+import androidx.core.graphics.drawable.IconCompat;
 import androidx.car.app.model.ItemList;
 import androidx.car.app.model.ListTemplate;
 import androidx.car.app.model.Row;
@@ -135,7 +137,7 @@ public class DashScreen extends Screen {
     private void applyInset() {
         if (mirror == null || visible == null || sw <= 0) return;
         float k = sdpi > 0 ? sdpi / 160f : 1f;
-        int l = Math.max(0, Math.round(visible.left / k)), t = Math.max(0, Math.round(visible.top / k));
+        int l = Math.max(0, Math.round(visible.left / k)), t = 0;   // üstteki menü düğmesi içeriğin üzerinde yüzer
         int r = Math.max(0, Math.round((sw - visible.right) / k)), b = Math.max(0, Math.round((sh - visible.bottom) / k));
         mirror.evaluateJavascript("window.ex30Inset&&ex30Inset(" + l + "," + t + "," + r + "," + b + ")", null);
     }
@@ -153,12 +155,12 @@ public class DashScreen extends Screen {
     @NonNull
     @Override
     public Template onGetTemplate() {
-        Action drive = new Action.Builder().setTitle("Sürüş").setOnClickListener(() -> show("drive")).build();
-        Action panel = new Action.Builder().setTitle("Panel").setOnClickListener(() -> show("panel")).build();
-        Action perf = new Action.Builder().setTitle("Performans").setOnClickListener(() -> show("perf")).build();
-        Action more = new Action.Builder().setTitle("Diğer").setOnClickListener(() -> getScreenManager().push(new MoreScreen(getCarContext(), this))).build();
+        // Ekranı kaplamasın diye tek, küçük menü düğmesi; sayfalar listeden seçilir
+        Action menu = new Action.Builder()
+                .setIcon(new CarIcon.Builder(IconCompat.createWithResource(getCarContext(), R.drawable.ic_ex30_menu)).build())
+                .setOnClickListener(() -> getScreenManager().push(new MoreScreen(getCarContext(), this))).build();
         return new NavigationTemplate.Builder()
-                .setActionStrip(new ActionStrip.Builder().addAction(drive).addAction(panel).addAction(perf).addAction(more).build())
+                .setActionStrip(new ActionStrip.Builder().addAction(menu).build())
                 .build();
     }
 
@@ -175,6 +177,9 @@ public class DashScreen extends Screen {
         @Override
         public Template onGetTemplate() {
             ItemList list = new ItemList.Builder()
+                    .addItem(row("Sürüş", "Güç, yolculuk, ekonomi çizgisi, sıcaklıklar", "drive"))
+                    .addItem(row("Performans", "Hız, kW, pedallar, G-metre", "perf"))
+                    .addItem(row("Panel", "Tüm değerler", "panel"))
                     .addItem(row("Telefondaki ekran", "Telefonda hangi sekme açıksa onu gösterir", "follow"))
                     .addItem(row("Şarj", "Şarj gücü, şarj yüzdesi ve şarj eğrisi", "charge"))
                     .addItem(row("Yolculuklar", "Otomatik yolculuklar ve tüketim", "trip"))
