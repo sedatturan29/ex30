@@ -365,6 +365,7 @@ public class BleBridge {
     public void saveFile(final String name, final String mime, final String text) {
         if (ctx.getPackageManager().hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE)) {
             // Orta ekran: paylaşım menüsü yok; dosyayı aynı Wi-Fi'deki telefona QR ile sun
+            LogShare.onHit = from -> js("window.ex30ShareHit&&ex30ShareHit(" + JSONObject.quote(from) + ")");
             final String r = LogShare.serve(name, text.getBytes(StandardCharsets.UTF_8));
             js("window.ex30Share&&ex30Share(" + r + ")");
         }

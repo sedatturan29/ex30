@@ -32,23 +32,29 @@ final class LogShare {
     private static volatile byte[] data;
     private static volatile String fileName;
     private static volatile long until;
+    private static volatile String iface = "";
+    /** Telefon dosyayı istediğinde sayfaya haber ver (bağlantı kuruldu mu görünsün). */
+    static volatile java.util.function.Consumer<String> onHit;
 
     /** Dosyayı yayınlar; {"url":..,"qr":"data:image/png;base64,.."} ya da {"error":..} döner. */
     static synchronized String serve(String name, byte[] bytes) {
         try {
             String ip = localIp();
             if (ip == null) return "{\"error\":\"Araç bir Wi-Fi ağına bağlı değil. Telefonun hotspot'unu açıp aracı ona bağlayın.\"}";
+            if (!iface.startsWith("wlan")) return "{\"error\":\"Araç Wi-Fi'ye bağlı görünmüyor (yalnızca " + iface + " ağı var, adres " + ip + "). Telefonun internet paylaşımını açıp aracı Ayarlar > Wi-Fi'den ona bağlayın; ya da Kayıtlar'daki Telegram'a gönder düğmesini kullanın.\"}";
             data = bytes; fileName = name; until = System.currentTimeMillis() + 10 * 60_000L;
             if (server == null || server.isClosed()) start();
             String url = "http://" + ip + ":" + PORT + "/" + URLEncoder.encode(name, "UTF-8");
-            return "{\"url\":\"" + url + "\",\"qr\":\"" + qr(url) + "\",\"name\":\"" + name.replace("\"", "") + "\"}";
+            return "{\"url\":\"" + url + "\",\"qr\":\"" + qr(url) + "\",\"name\":\"" + name.replace("\"", "") + "\",\"iface\":\"" + iface + "\",\"ip\":\"" + ip + "\"}";
         } catch (Throwable e) {
             return "{\"error\":\"" + String.valueOf(e.getMessage()).replace("\"", "'") + "\"}";
         }
     }
 
     private static void start() throws Exception {
-        server = new ServerSocket(PORT);
+        server = new ServerSocket();
+        server.setReuseAddress(true);
+        server.bind(new java.net.InetSocketAddress(PORT));
         Thread t = new Thread(() -> {
             while (server != null && !server.isClosed()) {
                 try (Socket s = server.accept()) {
@@ -57,6 +63,10 @@ final class LogShare {
                     byte[] buf = new byte[2048]; int n = in.read(buf);   // isteği oku (içeriği önemli değil)
                     OutputStream out = s.getOutputStream();
                     if (n <= 0) continue;
+                    String req = new String(buf, 0, n, StandardCharsets.US_ASCII);
+                    java.util.function.Consumer<String> h0 = onHit;
+                    if (h0 != null && !req.contains("favicon")) h0.accept(s.getInetAddress().getHostAddress());
+                    if (req.contains("favicon")) { out.write("HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n".getBytes(StandardCharsets.US_ASCII)); out.flush(); continue; }
                     byte[] d = data;
                     if (d == null || System.currentTimeMillis() > until) {
                         out.write("HTTP/1.1 410 Gone\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\nSüre doldu; araçta tekrar İndir'e basın.".getBytes(StandardCharsets.UTF_8));
@@ -87,8 +97,8 @@ final class LogShare {
             for (InetAddress a : Collections.list(ni.getInetAddresses())) {
                 if (!(a instanceof Inet4Address) || a.isLoopbackAddress() || !a.isSiteLocalAddress()) continue;
                 String ip = a.getHostAddress();
-                if (ni.getName().startsWith("wlan")) return ip;
-                if (fallback == null) fallback = ip;
+                if (ni.getName().startsWith("wlan")) { iface = ni.getName(); return ip; }
+                if (fallback == null) { fallback = ip; iface = ni.getName(); }
             }
         }
         return fallback;

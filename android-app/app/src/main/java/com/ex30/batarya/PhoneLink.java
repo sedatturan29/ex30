@@ -99,7 +99,7 @@ final class PhoneLink {
             BluetoothServerSocket ss = null;
             try {
                 BluetoothAdapter a = adapter();
-                if (a == null || !a.isEnabled() || !permitted()) { setState(a == null ? "Bluetooth yok" : !permitted() ? "Bluetooth izni yok" : "Bluetooth kapalı"); sleep(15000); continue; }
+                if (a == null || !a.isEnabled() || !permitted()) { setState(a == null ? "Bluetooth yok" : !permitted() ? "Bluetooth izni yok" : "Bluetooth kapalı"); sleep(5000); continue; }
                 ss = a.listenUsingRfcommWithServiceRecord(NAME, ID);
                 setState("telefon bekleniyor");
                 BluetoothSocket s = ss.accept();
@@ -144,7 +144,10 @@ final class PhoneLink {
                     }
                 }
                 if (!ok) setState("araç uygulamasına ulaşılamadı");
-                sleep(ok ? 3000 : 45000);
+                // araca şu an Bluetooth ile bağlı bir cihaz varsa sık dene (araç uygulaması birkaç sn içinde açılır); yoksa pil için seyrek
+                boolean carNear = false;
+                for (BluetoothDevice d : list) if (Boolean.TRUE.equals(isConnected(d))) { carNear = true; break; }
+                sleep(ok ? 3000 : carNear ? 8000 : 45000);
             } catch (Throwable e) {
                 setState("hata: " + e.getMessage());
                 sleep(30000);

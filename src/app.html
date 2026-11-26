@@ -429,6 +429,7 @@
       <h2>Telefon ve orta ekran</h2>
       <p class="note" style="margin-top:0" id="lkInfo"></p>
       <div id="lkState"></div>
+      <p class="note" id="lkProg" style="display:none;color:var(--warn)"></p>
       <p class="note" id="lkLast"></p>
     </div>
     <div class="card" id="rpCard">
@@ -1898,8 +1899,10 @@ async function linkOnHello(m){
       const have=new Set(m.sess||[]), lim=Date.now()-60*86400e3;
       for (const x of sessions) if (have.has(x.id) && ((x.meta&&x.meta.mt)||0) > ((m.sm||{})[x.id]||0)) linkSend({k:"smeta", id:x.id, meta:x.meta});
       for (const x of sessions) if (!have.has(x.id) && x.end && x.start>lim){ linkSend({k:"sess", s:x}); await sleep(20); }
-      const hl=new Set(m.logs||[]);
-      for (const l of await pw.ex30Sync.logList()) if (!hl.has(l.id)){ if (!(await pw.ex30Sync.logSend(l.id, linkSend))) break; await sleep(50); }
+      const hl=new Set(m.logs||[]), todo=(await pw.ex30Sync.logList()).filter(l=>!hl.has(l.id)).sort((a,b)=>b.start-a.start);   // en yeni kayıt önce
+      if (todo.length) linkSend({k:"prog", total:todo.length});
+      let i=0; for (const l of todo){ linkProg(`Gönderiliyor: sürüş kaydı ${++i}/${todo.length}`); linkSend({k:"prog", n:i, total:todo.length}); if (!(await pw.ex30Sync.logSend(l.id, linkSend))) break; await sleep(30); }
+      linkProg("");
       linkSend({k:"done"}); res();
     }));
   } finally { linkBusy=false; }
@@ -1918,7 +1921,8 @@ function linkRecv(m){
   if (m.k==="smeta"){ const x=sessions.find(y=>y.id===m.id); if (x && m.meta && (m.meta.mt||0) > ((x.meta&&x.meta.mt)||0)){ x.meta=m.meta; saveSessions(true); renderAll(); } return; }
   if (m.k==="logm"||m.k==="logc"||m.k==="loge"){ if (m.k==="loge") linkGot.logs++; return withPanel(pw=>pw.ex30Sync.logRecv(m)); }
   if (m.k==="cfg") return linkApplyCfg(m);
-  if (m.k==="done"){ linkStat={t:Date.now(), peer:linkSt.peer, got:Object.assign({}, linkGot)}; store.set("linkStat", linkStat); renderLink(); }
+  if (m.k==="prog"){ linkProg(m.n ? `Alınıyor: sürüş kaydı ${m.n}/${m.total}` : `Eşitleniyor: ${m.total} sürüş kaydı gelecek`); return; }
+  if (m.k==="done"){ linkProg(""); linkStat={t:Date.now(), peer:linkSt.peer, got:Object.assign({}, linkGot)}; store.set("linkStat", linkStat); renderLink(); }
 }
 function linkApplyCfg(m){
   if (!m.data || (m.t||0) <= +(localStorage.getItem("ex30.syncT")||0)) return;
@@ -1930,6 +1934,7 @@ function linkApplyCfg(m){
   else { window.__cfgApplied = false; log("Ayarlar diğer cihazdan alındı; uygulama yeniden açılınca geçerli olur"); }
 }
 let linkLastCar=0;
+const linkProg = t => { const el=$("lkProg"); if (el){ el.textContent=t; el.style.display=t?"":"none"; } };
 function renderLink(){
   if (!LINK) return; $("lkCard").style.display="";
   const ch=$("lkChip"); ch.hidden = !linkSt.up; ch.textContent = linkSt.role==="car" ? "Telefon bağlı" : "Araç (orta ekran) bağlı";
@@ -2396,6 +2401,7 @@ $("extraList").onclick = e => { const b=e.target.closest("[data-exdel]"); if (!b
 fillUnitSelect(); renderUnits();
 fillScanHist(); if (scans.length) loadScan(scans[scans.length-1]);
 // ---- Orta ekrandan telefona kayıt aktarma (QR) ----
+window.ex30ShareHit = from => { const el=document.getElementById("shareHit"); if (el) el.innerHTML = `<b style="color:#59D68A">Telefon bağlandı (${String(from).replace(/[<>&]/g,"")}), dosya gönderildi.</b> İndirilenler klasörüne bakın.`; };
 window.ex30Share = o => {
   let d=document.getElementById("shareDlg");
   if (!d){ d=document.createElement("div"); d.id="shareDlg";
@@ -2407,7 +2413,7 @@ window.ex30Share = o => {
     : `<img src="${o.qr}" alt="QR" style="width:220px;height:220px;border-radius:8px;background:#fff">
        <div style="flex:1;min-width:220px"><h2 style="margin:0 0 8px">Telefona aktar</h2>
        <ol style="margin:0;padding-left:18px;line-height:1.6"><li>Telefon ile araç <b>aynı Wi-Fi</b>'de olsun (en kolayı: telefonun hotspot'u)</li><li>Telefon kamerasıyla QR kodu okutun</li><li>Açılan sayfa <b>${esc(o.name)}</b> dosyasını indirir</li></ol>
-       <p class="note" style="word-break:break-all">${esc(o.url)}</p><p class="note">Bağlantı 10 dakika açık kalır.</p></div>`}
+       <p class="note" style="word-break:break-all">${esc(o.url)}${o.iface?` · ağ: ${esc(o.iface)}`:""}</p><p class="note" id="shareHit">Telefonun bağlanması bekleniyor… QR'ı okutup sayfa açılmazsa telefon araca ulaşamıyor demektir: ikisi aynı Wi-Fi'de değil ya da araç gelen bağlantıyı engelliyor. O durumda Kayıtlar'daki "Telegram'a gönder" düğmesini kullanın.</p><p class="note">Bağlantı 10 dakika açık kalır.</p></div>`}
     <div style="width:100%;text-align:right"><button onclick="document.getElementById('shareDlg').remove()">Kapat</button></div></div>`;
 };
 

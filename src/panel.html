@@ -1059,7 +1059,7 @@ async function renderLogs(){
   const list = (await idb(tx("sessions","readonly").getAll())).sort((a,b)=>b.start-a.start);
   const total = list.reduce((a,x)=>a+x.bytes,0);
   $("logInfo").textContent = `${list.length} kayıt, toplam ${kb(total)}. Saniyede bir satır ≈ saatte 0,5 MB; ham mod ≈ saatte 2–3 MB.`;
-  tb.innerHTML = list.map(x=>`<tr><td>${new Date(x.start).toLocaleString("tr-TR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}${x.src==="arac"?" · araç verisi":""}${x.synced?" · eşitlendi":""}${logSess&&logSess.id===x.id?" (sürüyor)":""}</td><td>${Math.round((x.end-x.start)/60000)} dk</td><td>${x.rows}</td><td>${kb(x.bytes)}</td><td style="white-space:nowrap"><button class="sec mini" data-dl="${x.id}">İndir</button> <button class="sec mini" data-rm="${x.id}">Sil</button></td></tr>`).join("") || `<tr><td colspan="5" class="note">Henüz kayıt yok</td></tr>`;
+  tb.innerHTML = list.map(x=>`<tr><td>${new Date(x.start).toLocaleString("tr-TR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}${x.src==="arac"?" · araç verisi":""}${x.synced?" · eşitlendi":""}${logSess&&logSess.id===x.id?" (sürüyor)":""}</td><td>${Math.round((x.end-x.start)/60000)} dk</td><td>${x.rows}</td><td>${kb(x.bytes)}</td><td style="white-space:nowrap"><button class="sec mini" data-dl="${x.id}">İndir</button>${TG.token&&TG.chat?` <button class="sec mini" data-tgs="${x.id}">Telegram'a gönder</button>`:""} <button class="sec mini" data-rm="${x.id}">Sil</button></td></tr>`).join("") || `<tr><td colspan="5" class="note">Henüz kayıt yok</td></tr>`;
 }
 async function logExport(id){
   if (logSess && logSess.id===id) await logFlush();
@@ -1068,6 +1068,21 @@ async function logExport(id){
   const text = LOG_HEADER + (s.extra||[]).map(e=>","+String(e.name).replace(/[,\n]/g," ")).join("") + "\n" + chunks.map(c=>c.text).join("");
   const name = "EX30_" + localStamp(s.start).slice(0,19).replace(/[: ]/g,"-") + ".csv";
   saveText(name, text);
+}
+// Kaydı Telegram botuna gönder (QR/Wi-Fi gerektirmez). Konum, km sayacı, VIN gibi sütunlar çıkarılır.
+async function logToTg(id, btn){
+  if (!TG.token || !TG.chat) return;
+  if (logSess && logSess.id===id) await logFlush();
+  const s = await idb(tx("sessions","readonly").get(id)); if (!s) return;
+  const chunks = await idb(tx("chunks","readonly").index("sid").getAll(id));
+  const names=["zaman", ...LOG_COLS.map(c=>c[1])], keep=names.map(n=>!TG_PRIVATE.test(n));
+  const out=[names.filter((n,i)=>keep[i]).join(",")];
+  for (const c of chunks) for (const line of c.text.split("\n")){ if (!line) continue; const v=line.split(","); out.push(names.map((n,i)=>keep[i]?(v[i]??""):null).filter(x=>x!==null).join(",")); }
+  const name="EX30_"+localStamp(s.start).slice(0,19).replace(/[: ]/g,"-")+".csv";
+  btn.disabled=true; btn.textContent="Gönderiliyor…";
+  const r = await tgCall("sendDocument", {chat_id:TG.chat, caption:`${localStamp(s.start).slice(0,16)} kaydı · ${out.length-1} satır (${tgDevice()})`}, {name, text:out.join("\n")+"\n"});
+  btn.disabled=false; btn.textContent = r && r.ok ? "Gönderildi ✓" : "Gönderilemedi";
+  if (!(r && r.ok)){ TG.err=(r&&r.description)||"bilinmeyen hata"; log("Telegram'a gönderilemedi: "+TG.err); tgRender(); }
 }
 async function saveText(name, text){
   const AB = window.AndroidBle || (HOST && window.parent.AndroidBle);
@@ -1081,8 +1096,9 @@ async function logDelete(id){
   const st = tx("chunks","readwrite"); for (const k of keys) st.delete(k);
   await idb(tx("sessions","readwrite").delete(id)); renderLogs();
 }
-$("logTable").addEventListener("click", e=>{ const d=e.target.closest("[data-dl]"), r=e.target.closest("[data-rm]");
+$("logTable").addEventListener("click", e=>{ const d=e.target.closest("[data-dl]"), r=e.target.closest("[data-rm]"), t=e.target.closest("[data-tgs]");
   if (d) logExport(d.dataset.dl);
+  if (t) logToTg(t.dataset.tgs, t);
   if (r){ if (r.dataset.ok){ logDelete(r.dataset.rm); } else { r.dataset.ok="1"; r.textContent="Emin misiniz?"; setTimeout(()=>{ if(r.isConnected){ delete r.dataset.ok; r.textContent="Sil"; } },3000); } } });
 // Lastik basıncı renk kademeleri (psi): 36–42 yeşil, uzaklaştıkça sarı → turuncu → kırmızı
 const TIRE_STAGES = [
