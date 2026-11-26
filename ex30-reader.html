@@ -418,6 +418,7 @@
     <div class="card" id="cjCard">
       <h2>Şarj günlüğü</h2>
       <div class="cj-sum" id="cjSum"></div>
+      <p class="note" id="cjCons" style="margin-top:-6px"></p>
       <div id="cjList"></div>
     </div>
   </section>
@@ -954,6 +955,7 @@ function startSession(type, meta={}){
 }
 function stopSession(type, extra={}){
   const ss = active[type]; if (!ss) return null;
+  setTimeout(()=>window.ex30LinkPoke&&ex30LinkPoke(), 500);
   ss.end = Date.now(); Object.assign(ss.meta, extra);
   if (type==="trip"){ ss.meta.km = ss.meta.km ?? r2(geo.dist/1000); geoStop(); }
   active[type]=null;
@@ -1455,13 +1457,23 @@ function chgInfo(s){
   const durH = m.dur/3600e3;
   return {m, grid, price, cost: price!=null ? (grid ?? s.eIn)*price : null, costEst: price!=null && grid==null,
     out: outs.length ? outs.reduce((a,b)=>a+b,0)/outs.length : null, tMax: maxs.length ? Math.max(...maxs) : m.tMax,
-    avgKw: durH>0.01 ? s.eIn/durH : null, eff: chgEff(s), lost: chargeLoss(s)};
+    avgKw: durH>0.01 ? s.eIn/durH : null, eff: chgEff(s), lost: chargeLoss(s),
+    // km başına: bataryaya giren kWh'ın maliyeti × ortalama tüketim (şarj kaybı da fiyata dahil olur)
+    tlKm: (()=>{ const c=avgCons(); return price!=null && c && s.eIn>0 ? (grid ?? s.eIn)*price/s.eIn*c.kwhKm : null; })()};
 }
+// Ortalama tüketim (kWh/km): son 30 günün otomatik yolculukları, yoksa tüm yolculuklar
+function avgCons(){ try{ const L = (panelWin && panelWin.ex30Trips) ? panelWin.ex30Trips.list() : store.get("tripHistory",[]);
+  const lim=Date.now()-30*86400e3, ok=h=>{ const km=h.km_arac||h.km_gps; return km>1 && h.harcanan_kWh!=null; };
+  let sel=L.filter(h=>ok(h) && /^oto/i.test(h.tur||"") && Date.parse((h.baslangic||"").replace(" ","T"))>lim); if (sel.length<2) sel=L.filter(ok);
+  const km=sel.reduce((a,h)=>a+(h.km_arac||h.km_gps),0), e=sel.reduce((a,h)=>a+h.harcanan_kWh-(h.rejen_kWh||0),0);
+  return km>5 && e>0 ? {kwhKm:e/km, km, n:sel.length} : null; }catch{ return null; } }
+// "1 TL 85 kr" biçimi
+const tlKr = v => { if (v==null||!isFinite(v)) return "–"; const k=Math.round(v*100), t=Math.floor(k/100), r=k%100; return t ? `${t} TL${r?` ${r} kr`:""}` : `${r} kr`; };
 let cjOpen = null, cjSig = "";
 function renderJournal(list){
   const done = list.filter(s=>s.end).sort((a,b)=>b.start-a.start);
   // yalnızca kayıtlar değişince yeniden çiz (düzenlerken yazılan silinmesin)
-  const sig = cjOpen+"|"+done.map(s=>s.id+":"+(s.meta.mt||0)).join(",")+"|"+new Date().getMonth();
+  const cons=avgCons(); const sig = cjOpen+"|"+done.map(s=>s.id+":"+(s.meta.mt||0)).join(",")+"|"+new Date().getMonth()+"|"+(cons?cons.kwhKm.toFixed(4):"");
   if (sig===cjSig && $("cjList").childElementCount) return; cjSig = sig;
   // bu ay
   const now=new Date(), mon=done.filter(s=>{ const d=new Date(s.start); return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear(); });
@@ -1469,8 +1481,11 @@ function renderJournal(list){
   const gridSum=priced.reduce((a,x,i)=>a+(x.grid ?? 0),0);
   $("cjSum").innerHTML = done.length ? [
     [mon.length, TR_MON[now.getMonth()]+" şarjı"], [fmt(kwh,1), "kWh bataryaya"], [priced.length?tl(cost):"–", priced.length<mon.length&&priced.length?`fiyatı girilen ${priced.length} şarj`:"toplam maliyet"],
-    [priced.length && gridSum>0 ? tl(cost/I.filter(x=>x.cost!=null).reduce((a,x)=>a+(x.grid??0),0)) : "–", "ortalama kWh fiyatı"]
+    [priced.length && gridSum>0 ? tl(cost/I.filter(x=>x.cost!=null).reduce((a,x)=>a+(x.grid??0),0)) : "–", "ortalama kWh fiyatı"],
+    (()=>{ const pe=mon.filter((s,i)=>I[i].cost!=null).reduce((a,s)=>a+s.eIn,0); const v = priced.length && cons && pe>0 ? cost/pe*cons.kwhKm : null;
+      return [tlKr(v), v!=null ? `km başına · ${fmt(v*100,0)} TL/100 km` : "km başına (fiyat ve yolculuk gerekli)"]; })()
   ].map(([v,k])=>`<div><b>${v}</b><span>${k}</span></div>`).join("") : "";
+  $("cjCons").textContent = cons ? `Km başına maliyet, son yolculuklarının ortalama tüketimiyle (${fmt(cons.kwhKm*100,1)} kWh/100 km, ${cons.n} yolculuk, ${fmt(cons.km,0)} km) hesaplanır; şarj kaybı fiyata dahildir.` : "Km başına maliyet için birkaç otomatik yolculuk kaydı gerekiyor.";
   if (!done.length){ $("cjList").innerHTML = `<div class="empty">Şarj başlayınca kendiliğinden kaydedilir ve burada görünür</div>`; return; }
   let html="", day="";
   for (const s of done){
@@ -1479,7 +1494,7 @@ function renderJournal(list){
     const x=chgInfo(s), open=cjOpen===s.id;
     html += `<div class="cj-row" data-cj="${s.id}">
       <div class="t">${hm(s.start)}–${hm(s.end)}${s.meta.note?` · ${String(s.meta.note).replace(/[<>&]/g,"")}`:""}</div>
-      <div class="c ${x.cost==null?"none":""}">${x.cost!=null ? (x.costEst?"≈ ":"")+tl(x.cost) : "fiyat yok"}</div>
+      <div class="c ${x.cost==null?"none":""}">${x.cost!=null ? (x.costEst?"≈ ":"")+tl(x.cost) : "fiyat yok"}${x.tlKm!=null?`<div class="d" style="text-align:right">${tlKr(x.tlKm)}/km</div>`:""}</div>
       <div class="d">${dur(x.m.dur)} · %${fmt(x.m.socA,0)} → %${fmt(x.m.socB,0)} · ${fmt(s.eIn,1)} kWh${x.grid?` (istasyon ${fmt(x.grid,1)})`:""} · ort. ${fmt(x.avgKw,0)} kW, en yüksek ${fmt(x.m.peakIn,0)} kW</div>
       <div class="d">Batarya ${fmt(x.m.tA,1)} → ${fmt(x.m.tB,1)} °C${x.tMax!=null?`, en yüksek ${fmt(x.tMax,1)}`:""} · dış ${x.out!=null?fmt(x.out,0)+" °C":"–"}${x.lost!=null&&x.lost>=0.5?` · nominale göre ${fmtMin(x.lost)} kayıp`:""}</div>
       ${open ? cjEditor(s, x) : ""}
@@ -1502,6 +1517,7 @@ function cjEditor(s, x){
       ${x.eff?`<b>Verim</b><span>%${fmt(x.eff.eff,1)} · kayıp ${fmt(x.eff.loss,2)} kWh</span>`:""}
       ${x.cost!=null?`<b>Maliyet</b><span>${tl(x.cost)} = ${fmt(x.grid??s.eIn,2)} kWh × ${tl(x.price)}${x.costEst?" (istasyon kWh girilmedi, bataryaya girenle hesaplandı)":""}</span>`:""}
       ${x.cost!=null&&x.m.dSoc>0?`<b>Şarj yüzdesi başına</b><span>${tl(x.cost/x.m.dSoc)}</span>`:""}
+      ${x.tlKm!=null?`<b>Km başına</b><span>${tlKr(x.tlKm)} · ${fmt(x.tlKm*100,0)} TL/100 km · bu şarjla yaklaşık ${fmt(s.eIn/avgCons().kwhKm,0)} km</span>`:""}
     </div>
     <div class="row"><button class="sec mini" data-cjcurve="${s.id}">Eğriyi göster</button><button class="sec mini" data-csv="${s.id}">CSV</button><button class="sec mini" data-del="${s.id}">Sil</button></div>
   </div>`;
@@ -1800,6 +1816,9 @@ function renderLink(){
   $("lkState").innerHTML = `<div class="chk ${ok?"ok":"warn"}"><span class="ic">${ok?"✓":"…"}</span><div><div class="t">${ok ? (car?"Telefon bağlı":"Araç bağlı")+(linkSt.peer?": "+esc(linkSt.peer):"") : (car?"Telefon bağlı değil":"Araca bağlı değil")}</div>${ok?"":`<div class="d">${esc(linkSt.state)}</div>`}</div></div>`;
   const L=linkStat; $("lkLast").textContent = L.t ? `Son eşitleme ${new Date(L.t).toLocaleString("tr-TR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})}: ${L.got.trips} yolculuk, ${L.got.sess} şarj/park, ${L.got.logs} sürüş kaydı alındı.` : "";
 }
+// Yeni yolculuk, kayıt ya da şarj bitince bağlantı açıksa karşı tarafla hemen yeniden eşitle
+let pokeT=null;
+window.ex30LinkPoke = () => { if (!LINK) return; clearTimeout(pokeT); pokeT=setTimeout(()=>{ if (linkSt.up) linkHello(true); }, 4000); };
 window.__linkState = st => { const was=linkSt.up; linkSt = st || {up:false}; renderLink(); if (linkSt.up && !was) linkHello(true); };
 window.__link = line => { let m; try{ m=JSON.parse(line); }catch{ return; } try{ linkRecv(m); }catch(e){ log("Köprü mesajı işlenemedi: "+e.message); } };
 if (LINK) setTimeout(()=>{ try{ window.__linkState(JSON.parse(LINK.state())); }catch{} }, 500);
@@ -2648,7 +2667,9 @@ async function startEmbedded(){
   if (!logSess || logSess.src!=="obd") logStart("obd");
   loop();
 }
-function stopEmbedded(){ running=false; chW=null; logStop(); setPill("","Bağlı değil"); $("btnConn").textContent="Bağlan"; }
+// Bağlantı elle kesildiğinde araç duruyorsa otomatik yolculuk o an biter (OBD sökülüp araç kapanınca kapanmamış kalmasın)
+function endAutoIfStill(){ try{ const v = carSpeed().v ?? (lastS ? lastS.vs : null); if (trips.auto && trips.auto.lastMove && (v==null || v<=0.5) && Date.now()-trips.auto.lastMove > 5000){ log("Bağlantı kesildi, araç duruyor: otomatik yolculuk bitti"); endAuto(); } }catch{} }
+function stopEmbedded(){ endAutoIfStill(); running=false; chW=null; logStop(); setPill("","Bağlı değil"); $("btnConn").textContent="Bağlan"; }
 window.ex30Pause = async () => { hostPaused=true; running=false; while (loopBusy) await sleep(30); curEcu=""; curCp=""; };
 window.ex30Resume = () => { hostPaused=false; curEcu=""; curCp=""; startEmbedded(); };
 if (HOST){
@@ -2679,7 +2700,7 @@ async function connect(){
     loop();
   }catch(e){ log("Hata: "+e.message); setPill("err","Bağlantı hatası"); cleanup(); }
 }
-function cleanup(){ running=false; chW=null; logStop(); $("btnConn").textContent="Bağlan"; try{wake?.release()}catch{} wake=null; }
+function cleanup(){ endAutoIfStill(); running=false; chW=null; logStop(); $("btnConn").textContent="Bağlan"; try{wake?.release()}catch{} wake=null; }
 function disconnect(){ manual=true; try{ dev?.gatt?.disconnect(); }catch{} setPill("","Bağlı değil"); cleanup(); }
 
 // ============ Okuma döngüsü ============
@@ -2830,6 +2851,8 @@ function tripTick(now, vs){
     for (const a of accs()) a.lastMove = now;
   }
   if (trips.auto && trips.auto.lastMove && now - trips.auto.lastMove > AUTO_STOP_MS) endAuto();
+  // Vites P'deyse ve araç 20 sn duruyorsa beklemeden bitir (araç kapanınca 5 dk dolmayabilir)
+  else if (trips.auto && trips.auto.lastMove && !moving && (aaos("GEAR_SELECTION") ?? aaos("CURRENT_GEAR"))===4 && now - trips.auto.lastMove > 20000){ log("Vites P: otomatik yolculuk bitti"); endAuto(); }
   if (now-lastTripSave>10000){ lastTripSave=now; saveTrip(); }
   const outT = aaos("ENV_OUTSIDE_TEMPERATURE");
   for (const a of accs()){
@@ -2845,9 +2868,10 @@ function tripTick(now, vs){
 function endAuto(){
   const a = trips.auto; if (!a) return; trips.auto = null;
   if (a.km>0.2 || a.kmCar>0.2) { const endT=Math.max(a.start, a.lastMove||Date.now()), h=summarizeAcc(a, endT); tripHist.push(h); saveHist(); log("Otomatik yolculuk kaydedildi");
-    try{ tgOnTrip(h, a, endT); }catch{} }
+    try{ tgOnTrip(h, a, endT); }catch{} linkPoke(); }
   saveTrip();
 }
+const linkPoke = () => { try{ HOST && window.parent.ex30LinkPoke && window.parent.ex30LinkPoke(); }catch{} };
 const r0=v=>v==null||!isFinite(v)?null:Math.round(v), r1=v=>v==null||!isFinite(v)?null:Math.round(v*10)/10, r2=v=>v==null||!isFinite(v)?null:Math.round(v*100)/100;
 function tripKm(a){ return a.kmCar>0.5 ? a.kmCar : a.km; }
 function tripAvgSpeed(a){ const car = a.movingMsCar>60e3; const h=(car?a.movingMsCar:a.movingMs)/3600e3; return h>0.01 ? (car?a.kmCar:a.km)/h : null; }
@@ -3257,7 +3281,7 @@ async function logFlush(){
 }
 async function logStop(){
   if (!logSess) return; clearInterval(logFlushTimer); await logFlush(); log(`Oturum kaydedildi: ${logSess.rows} satır, ${kb(logSess.bytes)}`);
-  logSess=null; $("recPill").style.display="none"; renderLogs();
+  logSess=null; $("recPill").style.display="none"; renderLogs(); linkPoke();
 }
 const kb = b => b>1048576 ? fmt(b/1048576,1)+" MB" : Math.max(1,Math.round(b/1024))+" KB";
 async function renderLogs(){

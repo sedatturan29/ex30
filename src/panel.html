@@ -389,7 +389,9 @@ async function startEmbedded(){
   if (!logSess || logSess.src!=="obd") logStart("obd");
   loop();
 }
-function stopEmbedded(){ running=false; chW=null; logStop(); setPill("","Bağlı değil"); $("btnConn").textContent="Bağlan"; }
+// Bağlantı elle kesildiğinde araç duruyorsa otomatik yolculuk o an biter (OBD sökülüp araç kapanınca kapanmamış kalmasın)
+function endAutoIfStill(){ try{ const v = carSpeed().v ?? (lastS ? lastS.vs : null); if (trips.auto && trips.auto.lastMove && (v==null || v<=0.5) && Date.now()-trips.auto.lastMove > 5000){ log("Bağlantı kesildi, araç duruyor: otomatik yolculuk bitti"); endAuto(); } }catch{} }
+function stopEmbedded(){ endAutoIfStill(); running=false; chW=null; logStop(); setPill("","Bağlı değil"); $("btnConn").textContent="Bağlan"; }
 window.ex30Pause = async () => { hostPaused=true; running=false; while (loopBusy) await sleep(30); curEcu=""; curCp=""; };
 window.ex30Resume = () => { hostPaused=false; curEcu=""; curCp=""; startEmbedded(); };
 if (HOST){
@@ -420,7 +422,7 @@ async function connect(){
     loop();
   }catch(e){ log("Hata: "+e.message); setPill("err","Bağlantı hatası"); cleanup(); }
 }
-function cleanup(){ running=false; chW=null; logStop(); $("btnConn").textContent="Bağlan"; try{wake?.release()}catch{} wake=null; }
+function cleanup(){ endAutoIfStill(); running=false; chW=null; logStop(); $("btnConn").textContent="Bağlan"; try{wake?.release()}catch{} wake=null; }
 function disconnect(){ manual=true; try{ dev?.gatt?.disconnect(); }catch{} setPill("","Bağlı değil"); cleanup(); }
 
 // ============ Okuma döngüsü ============
@@ -571,6 +573,8 @@ function tripTick(now, vs){
     for (const a of accs()) a.lastMove = now;
   }
   if (trips.auto && trips.auto.lastMove && now - trips.auto.lastMove > AUTO_STOP_MS) endAuto();
+  // Vites P'deyse ve araç 20 sn duruyorsa beklemeden bitir (araç kapanınca 5 dk dolmayabilir)
+  else if (trips.auto && trips.auto.lastMove && !moving && (aaos("GEAR_SELECTION") ?? aaos("CURRENT_GEAR"))===4 && now - trips.auto.lastMove > 20000){ log("Vites P: otomatik yolculuk bitti"); endAuto(); }
   if (now-lastTripSave>10000){ lastTripSave=now; saveTrip(); }
   const outT = aaos("ENV_OUTSIDE_TEMPERATURE");
   for (const a of accs()){
@@ -586,9 +590,10 @@ function tripTick(now, vs){
 function endAuto(){
   const a = trips.auto; if (!a) return; trips.auto = null;
   if (a.km>0.2 || a.kmCar>0.2) { const endT=Math.max(a.start, a.lastMove||Date.now()), h=summarizeAcc(a, endT); tripHist.push(h); saveHist(); log("Otomatik yolculuk kaydedildi");
-    try{ tgOnTrip(h, a, endT); }catch{} }
+    try{ tgOnTrip(h, a, endT); }catch{} linkPoke(); }
   saveTrip();
 }
+const linkPoke = () => { try{ HOST && window.parent.ex30LinkPoke && window.parent.ex30LinkPoke(); }catch{} };
 const r0=v=>v==null||!isFinite(v)?null:Math.round(v), r1=v=>v==null||!isFinite(v)?null:Math.round(v*10)/10, r2=v=>v==null||!isFinite(v)?null:Math.round(v*100)/100;
 function tripKm(a){ return a.kmCar>0.5 ? a.kmCar : a.km; }
 function tripAvgSpeed(a){ const car = a.movingMsCar>60e3; const h=(car?a.movingMsCar:a.movingMs)/3600e3; return h>0.01 ? (car?a.kmCar:a.km)/h : null; }
@@ -998,7 +1003,7 @@ async function logFlush(){
 }
 async function logStop(){
   if (!logSess) return; clearInterval(logFlushTimer); await logFlush(); log(`Oturum kaydedildi: ${logSess.rows} satır, ${kb(logSess.bytes)}`);
-  logSess=null; $("recPill").style.display="none"; renderLogs();
+  logSess=null; $("recPill").style.display="none"; renderLogs(); linkPoke();
 }
 const kb = b => b>1048576 ? fmt(b/1048576,1)+" MB" : Math.max(1,Math.round(b/1024))+" KB";
 async function renderLogs(){
