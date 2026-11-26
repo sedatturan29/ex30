@@ -319,7 +319,7 @@ public class BleBridge {
                 if (token == null || !token.matches("[0-9]+:[A-Za-z0-9_-]{20,}") || !method.matches("[A-Za-z]+")) throw new IllegalArgumentException("Geçersiz anahtar");
                 java.net.URL u = new java.net.URL("https://api.telegram.org/bot" + token + "/" + method);
                 c = (java.net.HttpURLConnection) u.openConnection();
-                c.setConnectTimeout(15000); c.setReadTimeout(45000); c.setDoOutput(true); c.setRequestMethod("POST");
+                c.setConnectTimeout(20000); c.setReadTimeout(120000); c.setDoOutput(true); c.setRequestMethod("POST");
                 JSONObject p = new JSONObject(paramsJson == null || paramsJson.isEmpty() ? "{}" : paramsJson);
                 if (fileName != null && !fileName.isEmpty()) {
                     String bd = "ex30" + System.nanoTime();
@@ -330,8 +330,13 @@ public class BleBridge {
                         String k = it.next();
                         o.write(("--" + bd + "\r\nContent-Disposition: form-data; name=\"" + k + "\"\r\n\r\n" + p.get(k) + "\r\n").getBytes(StandardCharsets.UTF_8));
                     }
-                    o.write(("--" + bd + "\r\nContent-Disposition: form-data; name=\"document\"; filename=\"" + fileName.replaceAll("[\"\\r\\n]", "_") + "\"\r\nContent-Type: text/csv\r\n\r\n").getBytes(StandardCharsets.UTF_8));
-                    o.write(fileText.getBytes(StandardCharsets.UTF_8));
+                    // 1 MB üstü CSV sıkıştırılır (.csv.gz): mobil veride daha hızlı ve güvenilir yüklenir
+                    byte[] raw = fileText.getBytes(StandardCharsets.UTF_8);
+                    boolean gz = raw.length > 1_000_000;
+                    String fn = fileName.replaceAll("[\"\\r\\n]", "_") + (gz ? ".gz" : "");
+                    if (gz) { java.io.ByteArrayOutputStream zb = new java.io.ByteArrayOutputStream(); try (java.util.zip.GZIPOutputStream z = new java.util.zip.GZIPOutputStream(zb)) { z.write(raw); } raw = zb.toByteArray(); }
+                    o.write(("--" + bd + "\r\nContent-Disposition: form-data; name=\"document\"; filename=\"" + fn + "\"\r\nContent-Type: " + (gz ? "application/gzip" : "text/csv") + "\r\n\r\n").getBytes(StandardCharsets.UTF_8));
+                    o.write(raw);
                     o.write(("\r\n--" + bd + "--\r\n").getBytes(StandardCharsets.UTF_8));
                     byte[] data = o.toByteArray();
                     c.setFixedLengthStreamingMode(data.length);

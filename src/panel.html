@@ -1014,9 +1014,12 @@ async function logStart(src="obd"){
   try{
   if (logSess) await logStop();
   if (!db) db = await openDb(); if (!db){ log("Kayıt veritabanı açılamadı"); return; }
-  logSess = {id:String(Date.now()), start:Date.now(), end:Date.now(), rows:0, bytes:0, mode:pcfg.logMode, src, extra:src==="obd"?extras.map(e=>({id:e.id, name:e.name})):[]};
+  // Bağlantı koptu ve 5 dk içinde geri geldiyse aynı oturuma devam: kayıt bölünmez, kaybolmaz
+  const prev = logLast && logLast.src===src && Date.now()-logLast.t < 300000 ? await idb(tx("sessions","readonly").get(logLast.id)) : null;
+  if (prev){ logSess = prev; log("Bağlantı geri geldi: önceki kayda devam ediliyor"); }
+  else logSess = {id:String(Date.now()), start:Date.now(), end:Date.now(), rows:0, bytes:0, mode:pcfg.logMode, src, extra:src==="obd"?extras.map(e=>({id:e.id, name:e.name})):[]};
   await idb(tx("sessions","readwrite").put(logSess)); logBuf=[]; lastLogRow=0;
-  $("recPill").style.display=""; logFlushTimer=setInterval(logFlush, 15000); log(src==="arac" ? "Araç verisi kaydı başladı (OBD yok)" : "Oturum kaydı başladı");
+  $("recPill").style.display=""; logFlushTimer=setInterval(logFlush, 5000); if (!prev) log(src==="arac" ? "Araç verisi kaydı başladı (OBD yok)" : "Oturum kaydı başladı");
   } finally { logStarting=false; }
 }
 function logRow(now){
@@ -1040,8 +1043,14 @@ async function logFlush(){
   const text = logBuf.join("\n")+"\n"; logBuf=[];
   try{ await idb(tx("chunks","readwrite").add({sid:logSess.id, text})); await idb(tx("sessions","readwrite").put(logSess)); }catch(e){ log("Kayıt yazılamadı: "+e.message); }
 }
+let logLast = null;   // son kapanan oturum: kısa kopmada devam için
+window.ex30Rec = () => logSess ? logSess.src : null;
+addEventListener("pagehide", ()=>{ try{ logFlush(); }catch{} });
+addEventListener("visibilitychange", ()=>{ if (document.visibilityState==="hidden") try{ logFlush(); }catch{} });
 async function logStop(){
-  if (!logSess) return; clearInterval(logFlushTimer); await logFlush(); log(`Oturum kaydedildi: ${logSess.rows} satır, ${kb(logSess.bytes)}`);
+  if (!logSess) return; clearInterval(logFlushTimer); logSess.end=Date.now(); await logFlush(); try{ await idb(tx("sessions","readwrite").put(logSess)); }catch{}
+  logLast = {id:logSess.id, src:logSess.src, t:Date.now()};
+  log(`Oturum kaydedildi: ${logSess.rows} satır, ${kb(logSess.bytes)}`);
   logSess=null; $("recPill").style.display="none"; renderLogs(); linkPoke();
 }
 const kb = b => b>1048576 ? fmt(b/1048576,1)+" MB" : Math.max(1,Math.round(b/1024))+" KB";
@@ -1169,7 +1178,7 @@ function tgCall(method, params, file){
   if (AB && AB.tg) return new Promise(res=>{
     const id="t"+(++tgSeq);
     tgWait[id] = body => { let j=null; try{ j=JSON.parse(body); }catch{} res(j || {ok:false, description:String(body).slice(0,200)}); };
-    setTimeout(()=>{ if (tgWait[id]){ delete tgWait[id]; res({ok:false, description:"zaman aşımı"}); } }, 90000);
+    setTimeout(()=>{ if (tgWait[id]){ delete tgWait[id]; res({ok:false, description:"zaman aşımı"}); } }, 150000);
     AB.tg(id, TG.token, method, JSON.stringify(params||{}), file?file.name:"", file?file.text:"");
   });
   const url = `https://api.telegram.org/bot${TG.token}/${method}`;
@@ -1200,7 +1209,7 @@ async function tgTripCsv(start, end){
   if (!db) db = await openDb(); if (!db) return null;
   if (logSess) await logFlush();
   const a=localStamp(start), b=localStamp(end+1000);
-  const list=(await idb(tx("sessions","readonly").getAll())).filter(s=>s.start<=end+1000 && s.end>=start).sort((x,y)=>x.start-y.start);
+  const list=(await idb(tx("sessions","readonly").getAll())).filter(s=>s.start<=end+1000 && ((logSess && s.id===logSess.id) || (s.end ?? Infinity)>=start)).sort((x,y)=>x.start-y.start);
   if (!list.length) return null;
   const names=["zaman", ...LOG_COLS.map(c=>c[1])], keep=names.map((n,i)=>!TG_PRIVATE.test(n));
   const out=[names.filter((n,i)=>keep[i]).join(",")];
@@ -1221,10 +1230,16 @@ async function tgFlush(){
     while (tgQ.length){
       const it=tgQ[0]; let r;
       if (it.kind==="sum") r = await tgCall("sendMessage", {chat_id:TG.chat, text:it.text});
-      else { const f = await tgTripCsv(it.start, it.end); if (!f){ tgQ.shift(); continue; } r = await tgCall("sendDocument", {chat_id:TG.chat, caption:it.caption||""}, f); }
-      if (r && r.ok){ tgQ.shift(); TG.last=Date.now(); store.set("tg", TG); }
-      else if (r && r.error_code>=400 && r.error_code<500 && r.error_code!==429){ log("Telegram reddetti: "+(r.description||r.error_code)); tgQ.shift(); }
-      else break;   // internet yok / geçici hata: sonra yeniden denenir
+      else { const f = await tgTripCsv(it.start, it.end);
+        if (!f){ it.tries=(it.tries||0)+1;   // kayıt henüz diske yazılmamış olabilir: 5 kez (≈5 dk) dene, sonra haber ver
+          if (it.tries<5){ TG.err="CSV için kayıt bekleniyor"; break; }
+          tgQ[0]={kind:"sum", text:`${it.caption||"Yolculuk"}: CSV oluşturulamadı, bu zaman aralığında kayıt bulunamadı (OBD kaydı kapalı ya da araç verisi yoktu).`}; continue; }
+        r = await tgCall("sendDocument", {chat_id:TG.chat, caption:(it.caption||"")+` · ${f.text.split("\n").length-2} satır`}, f);
+        if (!(r && r.ok)){ it.fails=(it.fails||0)+1;
+          if (it.fails>=3){ tgQ[0]={kind:"sum", text:`${it.caption||"Yolculuk"}: CSV gönderilemedi (${(r&&r.description)||"bilinmeyen hata"}). Kayıt cihazda duruyor; Kayıtlar bölümünden indirilebilir ve telefona eşitlenir.`}; TG.err=(r&&r.description)||"CSV gönderilemedi"; continue; } } }
+      if (r && r.ok){ tgQ.shift(); TG.last=Date.now(); TG.err=null; store.set("tg", TG); }
+      else if (r && r.error_code>=400 && r.error_code<500 && r.error_code!==429){ log("Telegram reddetti: "+(r.description||r.error_code)); TG.err=r.description||String(r.error_code); tgQ.shift(); }
+      else { TG.err=(r&&r.description)||"bağlantı yok"; break; }   // internet yok / geçici hata: sonra yeniden denenir
       store.set("tgQueue", tgQ);
     }
   } finally { tgBusy=false; store.set("tgQueue", tgQ); tgRender(); }
@@ -1240,7 +1255,7 @@ function tgRender(){
   $("tgSum").checked=!!TG.sum; $("tgCsv").checked=!!TG.csv;
   el.textContent = !TG.token ? "Bağlı değil. Telegram'da @BotFather → /newbot ile bot oluşturun, botunuza bir mesaj yazın, anahtarı buraya girip Bağla'ya basın."
     : !TG.chat ? "Anahtar kayıtlı ama sohbet bulunamadı: botunuza Telegram'dan bir mesaj yazıp yeniden Bağla'ya basın."
-    : `Bağlı: @${TG.bot} → ${TG.chatName}. ` + (tgQ.length ? `Gönderilmeyi bekleyen: ${tgQ.length}. ` : "") + (TG.last ? "Son gönderim "+new Date(TG.last).toLocaleString("tr-TR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}) : "");
+    : `Bağlı: @${TG.bot} → ${TG.chatName}. ` + (tgQ.length ? `Gönderilmeyi bekleyen: ${tgQ.length}. ` : "") + (TG.last ? "Son gönderim "+new Date(TG.last).toLocaleString("tr-TR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})+". " : "") + (TG.err ? "Son sorun: "+TG.err : "");
 }
 $("tgLink").onclick = async () => {
   const v=$("tgToken").value.trim();

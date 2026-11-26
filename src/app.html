@@ -141,6 +141,17 @@
   body.aaos main{padding-top:64px}
   #btnMenu{display:none}
   .pill.lk{background:#1E2A24;color:#8FD3A8;border-color:#2F4A3A}
+  /* Başlıktaki durum ışıkları: yeşil açık, sarı bekliyor, gri kapalı; kayıtta kırmızı yanıp söner */
+  .leds{display:inline-flex;gap:10px;align-items:center;margin:0 4px}
+  .led{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--mut);font-weight:500;white-space:nowrap}
+  .led i{width:9px;height:9px;border-radius:50%;background:#3A444C;flex:none}
+  .led.on i{background:#59D68A;box-shadow:0 0 6px #59D68A} .led.wait i{background:var(--warn);box-shadow:0 0 6px var(--warn)}
+  .led.rec.on i{background:#EC5A4F;box-shadow:0 0 8px #EC5A4F;animation:recb 1.2s ease-in-out infinite} .led.rec.on b{color:#EC5A4F}
+  @keyframes recb{50%{opacity:.35}}
+  @media (prefers-reduced-motion: reduce){ .led.rec.on i{animation:none} }
+  @media (max-width: 520px){ .led b{display:none} .leds{gap:7px} #pill{display:none} }
+  @media (max-width: 700px){ #lkChip{display:none} }
+  body.aaos .leds{margin:0 6px}
   /* Android Auto: medya kartı ve düğmelerin kapladığı yerleri boş bırak (DashScreen görünür alanı bildirir) */
   body.mirror{padding:var(--aa-t,0px) var(--aa-r,0px) var(--aa-b,0px) var(--aa-l,0px);box-sizing:border-box}
   body.mirror .dv, body.mirror .pv{height:calc(100vh - var(--aa-t,0px) - var(--aa-b,0px)) !important}
@@ -360,6 +371,12 @@
     <h1>EX30 Reader</h1>
     <span id="pill" class="pill">Bağlı değil</span>
     <span id="lkChip" class="pill lk" hidden></span>
+    <span class="leds" id="leds" aria-label="Durum ışıkları">
+      <span class="led" id="ledLink" title="Telefon / orta ekran"><i></i><b>Telefon</b></span>
+      <span class="led" id="ledBt" title="Bluetooth"><i></i><b>BT</b></span>
+      <span class="led" id="ledObd" title="OBD adaptörü (ELM327)"><i></i><b>OBD</b></span>
+      <span class="led rec" id="ledRec" title="Kayıt"><i></i><b>Kayıt</b></span>
+    </span>
     <button id="btnMenu" class="sec" title="Sayfalar" aria-label="Sayfalar" aria-expanded="false">☰</button>
     <button id="btnSet" class="sec" title="Ayarlar" aria-label="Ayarlar">⚙<span class="lbl"> Ayarlar</span></button>
     <button id="btnConn">Bağlan</button>
@@ -1811,6 +1828,19 @@ function showBanner(t){ const b=$("banner"); b.textContent=t; b.style.display="b
 const autoWaiting = () => { try{ return !chW && autoMode() && !obdHold() && !!navigator.bluetooth?.lastDevice?.(); }catch{ return false; } };
 function connLabel(){ const t = chW ? "Kes" : autoWaiting() ? "Durdur" : "Bağlan"; if (btnConn.textContent!==t && !(btnConn.textContent==="Kes" && !chW && autoBusy)) btnConn.textContent=t; }
 setInterval(connLabel, 1000);
+// Durum ışıkları
+function renderLeds(){
+  const set=(id,st,title)=>{ const el=$(id); el.classList.toggle("on", st==="on"); el.classList.toggle("wait", st==="wait"); if (title) el.title=title; };
+  const car = !!window.AndroidCar;
+  $("ledLink").querySelector("b").textContent = car ? "Telefon" : "Orta ekran";
+  set("ledLink", typeof linkSt!=="undefined" && linkSt.up ? "on" : "", typeof linkSt!=="undefined" && linkSt.up ? (car?"Telefon bağlı":"Orta ekran bağlı") : (car?"Telefon bağlı değil":"Orta ekran bağlı değil"));
+  let bt=null; try{ bt = window.AndroidBle ? !!AndroidBle.available() : !!navigator.bluetooth; }catch{}
+  set("ledBt", bt ? "on" : "", bt ? "Bluetooth açık" : "Bluetooth kapalı ya da yok");
+  set("ledObd", chW ? "on" : (autoBusy ? "wait" : ""), chW ? "OBD bağlı" : autoBusy ? "OBD'ye bağlanılıyor" : "OBD bağlı değil");
+  let rec=null; try{ rec = panelWin && panelWin.ex30Rec ? panelWin.ex30Rec() : null; }catch{}
+  set("ledRec", rec ? "on" : "", rec ? (rec==="arac" ? "Kayıt sürüyor (araç verisi)" : "Kayıt sürüyor (OBD)") : "Kayıt yok");
+}
+setInterval(renderLeds, 1000);
 // Bağlantı sayfası: otomatik bağlanma açık mı, şu an ne yapıyor
 let acLast="";
 function renderAuto(){
