@@ -1932,7 +1932,7 @@ function pfMeters(s){
   $("pfMeters").innerHTML =
     m("Devir", s?.rpm==null?"–":Math.round(s.rpm).toLocaleString("tr-TR"), "", s?.rpm!=null?Math.abs(s.rpm)/16000:null, pf.rpm!=null?pf.rpm/16000:null, "maks "+(pf.rpm!=null?Math.round(pf.rpm).toLocaleString("tr-TR"):"–"))+
     m("Tork", f1(s?.tq), "Nm", s?.tq!=null?Math.abs(s.tq)/343:null, pf.tq!=null?pf.tq/343:null, s?.tqRaw===0&&s?.tq<0?"rejen (hesap)":"maks "+f1(pf.tq))+
-    m("Hız", f1(s?.spd), "km/s", s?.spd!=null?s.spd/180:null, pf.spd!=null?pf.spd/180:null, "maks "+f1(pf.spd))+
+    m("Batarya", s?.avg==null?"–":f1(s.avg,1), "°C", s?.avg!=null?(s.avg+10)/60:null, null, s?.tmin!=null&&s?.max!=null?"hücre "+f1(s.tmin,0)+"–"+f1(s.max,0)+"°":"")+
     m("Akım", f1(s?.cur), "A", s?.cur!=null?Math.abs(s.cur)/600:null, pf.cur!=null?pf.cur/600:null, s?.volt!=null?f1(s.volt)+" V":"");
 }
 // EX30 kuş bakışı (ön yukarıda, soldan direksiyonlu); koyu arayüz için gri ve koyulaştırılmış
