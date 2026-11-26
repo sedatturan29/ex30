@@ -973,7 +973,7 @@ const LOG_COLS = [["avg","bat_ort_C"],["cin","sogutma_giris_C"],["cout","guc_akt
   ["brake","fren_bar"],["w_fl","teker_sol_on_kmsa"],["w_fr","teker_sag_on_kmsa"],["w_rl","teker_sol_arka_kmsa"],["w_rr","teker_sag_arka_kmsa"],["slip","arka_eksi_on_kmsa"],
   ["a_kw","aaos_guc_kW"],["a_kwh","aaos_kalan_kWh"],["a_cap","aaos_kapasite_kWh"],["a_rng","aaos_menzil_km"],["a_spd","aaos_hiz_kmsa"],["a_dsp","aaos_gosterge_kmsa"],["a_out","aaos_dis_C"],["a_rgn","aaos_rejen_mod"],["a_chg","aaos_sarj_durum"],["socd","sarj_gosterge"],["v12","aku_12V"],["cmax","hucre_maks_V"],["cmin","hucre_min_V"],["tmin","bat_min_C"],["erem","kalan_enerji_kWh_aday"],["soh2","soh2_yuzde"],["mdcv","inv_dc_V"],["minv","inv_C_aday"],["mtq2","E301_tork_aday"],["mtq3","E308_tork_aday"],["mrpm2","E312_devir_aday"],["mlim","E353_sinir_yuzde"],["mx363","E363_aday"],["mx314","E314_aday"],["mx315","E315_aday"],["mx341","E341_aday"],
   ["h28","vcu_4A28_C"],["h29","vcu_4A29_C"],["h30","vcu_4A30_C"],["h31","vcu_4A31_C"],["h32","vcu_4A32_C"],["h33","vcu_4A33_C"],["eused","harcanan_enerji_kWh_aday"],["pdis","bms_desarj_kW"],["pchg","bms_sarj_kW"],
-  ["a_soc","aaos_sarj_yuzde"],["a_batT","aaos_bat_C"],["a_gear","aaos_vites"],["a_port","aaos_kablo_takili"],["a_tRem","aaos_sarj_kalan_dk"],["a_lim","aaos_sarj_hedef_yuzde"],["a_stop","aaos_durma_modu"],["a_pb","aaos_el_freni"],["a_ign","aaos_kontak"],["acc_g","ivme_g"],["brk_kw","mekanik_fren_kW_tahmini"]];
+  ["a_soc","aaos_sarj_yuzde"],["a_batT","aaos_bat_C"],["a_gear","aaos_vites"],["a_port","aaos_kablo_takili"],["a_tRem","aaos_sarj_kalan_dk"],["a_lim","aaos_sarj_hedef_yuzde"],["a_stop","aaos_durma_modu"],["a_pb","aaos_el_freni"],["a_ign","aaos_kontak"],["a_eff","aaos_anlik_verim_ham"],["acc_g","ivme_g"],["brk_kw","mekanik_fren_kW_tahmini"]];
 const p2=n=>String(n).padStart(2,"0");
 const localStamp = t => { const d=new Date(t); return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3,"0")}`; };
 const LOG_HEADER = "zaman," + LOG_COLS.map(c=>c[1]).join(",");
@@ -1007,7 +1007,7 @@ function logRow(now){
     a_spd: aaos("PERF_VEHICLE_SPEED")!=null ? aaos("PERF_VEHICLE_SPEED")*3.6 : null, a_out: aaos("ENV_OUTSIDE_TEMPERATURE"), a_rgn: aaos("EV_REGENERATIVE_BRAKING_STATE"), a_chg: aaos("EV_CHARGE_STATE"),
     a_soc: aaosSoc(), a_batT: aaos("EV_BATTERY_AVERAGE_TEMPERATURE"), a_gear: aaos("GEAR_SELECTION") ?? aaos("CURRENT_GEAR"),
     a_port: aaosBool("EV_CHARGE_PORT_CONNECTED"), a_tRem: aaos("EV_CHARGE_TIME_REMAINING")!=null && aaos("EV_CHARGE_TIME_REMAINING")>=0 ? Math.round(aaos("EV_CHARGE_TIME_REMAINING")/60) : null,
-    a_lim: aaos("EV_CHARGE_PERCENT_LIMIT"), a_stop: aaos("EV_STOPPING_MODE"), a_pb: aaosBool("PARKING_BRAKE_ON"), a_ign: aaos("IGNITION_STATE")});
+    a_lim: aaos("EV_CHARGE_PERCENT_LIMIT"), a_stop: aaos("EV_STOPPING_MODE"), a_pb: aaosBool("PARKING_BRAKE_ON"), a_ign: aaos("IGNITION_STATE"), a_eff: aaos("INSTANTANEOUS_EV_EFFICIENCY")});
   v.slip = [v.w_fl,v.w_fr,v.w_rl,v.w_rr].every(x=>x!=null) ? (v.w_rl+v.w_rr-v.w_fl-v.w_fr)/2 : null;
   const cols = LOG_COLS.map(c=>c[0]).concat((logSess.extra||[]).map(e=>e.id));
   const line = localStamp(now) + "," + cols.map(k=>{ const x=v[k]; return x==null||!isFinite(x) ? "" : (k==="lat"||k==="lon" ? (+x).toFixed(6) : +(+x).toFixed(3)); }).join(",");
