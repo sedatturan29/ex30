@@ -78,6 +78,9 @@ public class CarBridge {
         NAMES.put(0x11510306, "WHEEL_TICK");
         NAMES.put(0x11200405, "FUEL_LEVEL_LOW");
         NAMES.put(291504901, "ENGINE_RPM");
+        // Kabin: araç izin verirse (iklim izni) mevcut ve ayarlı sıcaklık
+        NAMES.put(0x15600502, "HVAC_TEMPERATURE_CURRENT");
+        NAMES.put(0x15600503, "HVAC_TEMPERATURE_SET");
     }
 
     private final android.content.Context ctx;   // uygulama bağlamı: ekran açık olmasa da (sürüş ekranı/arka plan) çalışır

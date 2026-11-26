@@ -42,6 +42,7 @@
     <uses-permission android:name="android.car.permission.CAR_TIRES_3P" />
     <uses-permission android:name="android.car.permission.CAR_MILEAGE_3P" />
     <uses-permission android:name="android.car.permission.CAR_ENGINE_DETAILED_3P" />
+    <uses-permission android:name="android.car.permission.CONTROL_CAR_CLIMATE" />
 
     <application
         android:label="EX30 Reader"

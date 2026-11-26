@@ -550,9 +550,13 @@ function stat(a, k, v){ if (v==null || !isFinite(v)) return; const s = a.st[k] |
 // Araç durur + bataryaya 5 sn boyunca güç girerse (ya da araç "şarj oluyor" derse) şarj başlar; otomatik yolculuk
 // hemen, aracın durduğu anla kapanır; Trip A/B şarj boyunca donar. 30 sn akım kesilince ya da araç hareket edince biter.
 const CHG = {on:false, since:0, cand:0, idle:0};
+const aaosBool = k => { const v=carv[k]; return v==null ? null : (v===true||v===1) ? 1 : 0; };
+// Şarj ekranı için aracın kendi şarj bilgileri
+window.ex30CarCharge = () => { const t=aaos("EV_CHARGE_TIME_REMAINING"); return {port:aaosBool("EV_CHARGE_PORT_CONNECTED"), tRem: t!=null && t>=0 ? t/60 : null, lim:aaos("EV_CHARGE_PERCENT_LIMIT"), state:aaos("EV_CHARGE_STATE")}; };
 function chargeState(now, P, vs){
   const cs = aaos("EV_CHARGE_STATE"), still = vs==null || vs<=1;
-  const filling = still && ((P!=null && P < -2.5) || cs===1);
+  // Şarj: araç duruyor ve bataryaya güç giriyor, ya da araç "şarj oluyor" diyor, ya da kablo takılıyken güç giriyor
+  const filling = still && ((P!=null && P < -2.5) || cs===1 || (aaosBool("EV_CHARGE_PORT_CONNECTED")===1 && P!=null && P < -1));
   if (!CHG.on){
     if (filling){ if (!CHG.cand) CHG.cand=now; if (now-CHG.cand>=5000){ CHG.on=true; CHG.since=CHG.cand; CHG.idle=0; log("Şarj algılandı: yolculuk verileri donduruldu"); if (trips.auto) endAuto(); } }
     else CHG.cand=0;
@@ -569,12 +573,19 @@ function tripTick(now, vs){
   const gps = (geo.t && now-geo.t<5000) ? geo.spd : null;
   const moving = vs!=null ? vs>0.5 : (gps!=null && gps>5);
   if (moving){
-    if (!trips.auto){ trips.auto = newAcc("auto"); trips.auto.altStart = trips.auto.altRef = geo.alt; log("Otomatik yolculuk başladı"); }
+    if (!trips.auto){
+      const r = pEnded && now - pEnded.t < AUTO_STOP_MS ? pEnded : null; pEnded = null;
+      const i = r ? tripHist.indexOf(r.h) : -1;
+      if (r && i>=0){ tripHist.splice(i,1); saveHist(); trips.auto = r.a; log("P'den kısa süre sonra yola devam: aynı yolculuk sürüyor"); }
+      else { trips.auto = newAcc("auto"); trips.auto.altStart = trips.auto.altRef = geo.alt; log("Otomatik yolculuk başladı"); } }
     for (const a of accs()) a.lastMove = now;
   }
   if (trips.auto && trips.auto.lastMove && now - trips.auto.lastMove > AUTO_STOP_MS) endAuto();
   // Vites P'deyse ve araç 20 sn duruyorsa beklemeden bitir (araç kapanınca 5 dk dolmayabilir)
-  else if (trips.auto && trips.auto.lastMove && !moving && (aaos("GEAR_SELECTION") ?? aaos("CURRENT_GEAR"))===4 && now - trips.auto.lastMove > 20000){ log("Vites P: otomatik yolculuk bitti"); endAuto(); }
+  // Kontak kapandıysa (aracın bildirdiği LOCK/OFF) hemen bitir
+  else if (trips.auto && trips.auto.lastMove && !moving && [1,2].includes(aaos("IGNITION_STATE"))){ log("Araç kapandı: otomatik yolculuk bitti"); endAuto(); }
+  // Vites P'deyse ve araç 20 sn duruyorsa bitir; 5 dk içinde yola devam edilirse aynı yolculuk sürer
+  else if (trips.auto && trips.auto.lastMove && !moving && (aaos("GEAR_SELECTION") ?? aaos("CURRENT_GEAR"))===4 && now - trips.auto.lastMove > 20000){ log("Vites P: otomatik yolculuk bitti"); endAuto(true); }
   if (now-lastTripSave>10000){ lastTripSave=now; saveTrip(); }
   const outT = aaos("ENV_OUTSIDE_TEMPERATURE");
   for (const a of accs()){
@@ -587,9 +598,11 @@ function tripTick(now, vs){
     if (moving) for (const w of ["fl","fr","rl","rr"]) stat(a,"p_"+w,tirePsi(w));
   }
 }
-function endAuto(){
-  const a = trips.auto; if (!a) return; trips.auto = null;
+let pEnded = null;   // P ile biten son yolculuk: kısa süre sonra hareket edilirse devam ettirilir
+function endAuto(byP){
+  const a = trips.auto; if (!a) return; trips.auto = null; pEnded = null;
   if (a.km>0.2 || a.kmCar>0.2) { const endT=Math.max(a.start, a.lastMove||Date.now()), h=summarizeAcc(a, endT); tripHist.push(h); saveHist(); log("Otomatik yolculuk kaydedildi");
+    if (byP) pEnded = {a, h, t:Date.now()};
     try{ tgOnTrip(h, a, endT); }catch{} linkPoke(); }
   saveTrip();
 }
@@ -741,7 +754,7 @@ window.ex30Snap = () => { const n=v=>(v==null||!isFinite(v))?null:+v;
     kwhLeft: aaos("EV_BATTERY_LEVEL")!=null ? n(aaos("EV_BATTERY_LEVEL")/1000) : n(vals.erem),
     kwhCap: aaos("EV_CURRENT_BATTERY_CAPACITY")!=null ? n(aaos("EV_CURRENT_BATTERY_CAPACITY")/1000) : null,
     slip: (()=>{ const k=["w_fl","w_fr","w_rl","w_rr"]; if (!k.every(x=>vals[x]!=null && valT[x] && Date.now()-valT[x]<2500)) return null; return (vals.w_rl+vals.w_rr-vals.w_fl-vals.w_fr)/2; })(),
-    inst: n(vals.inst), jt: journalNow(), batT: n(batTemp()), socAny: n(vals.soc ?? aaosSoc()),
+    inst: n(vals.inst), jt: journalNow(), batT: n(batTemp()), socAny: n(vals.soc ?? aaosSoc()), cab: n(aaos("HVAC_TEMPERATURE_CURRENT")), cabSet: n(aaos("HVAC_TEMPERATURE_SET")),
     yaw: geo.yaw!=null && Date.now()-geo.yawT<2500 ? geo.yaw : null,
     dsp: aaos("PERF_VEHICLE_SPEED_DISPLAY")!=null ? n(aaos("PERF_VEHICLE_SPEED_DISPLAY")*3.6) : null};
 };
@@ -765,13 +778,15 @@ function syncOverlap(a0,a1,b0,b1){ if (a0==null||b0==null) return 0; a1=a1??a0; 
 const isObd = h => /obd/i.test(h.kaynak||"");
 let syncQ = Promise.resolve(), syncIn = null;
 window.ex30Sync = {
-  tripKeys(){ return tripHist.map(tripKey); },
-  tripsMissing(keys){ const k=new Set(keys||[]); return tripHist.filter(h=>!k.has(tripKey(h))); },
+  tripKeys(){ return tripHist.map(h=>tripKey(h)+"@"+(h.bitis||"")); },
+  tripsMissing(keys){ const k=new Set(keys||[]); return tripHist.filter(h=>!k.has(tripKey(h)+"@"+(h.bitis||""))); },
   // Aynı sürüşü iki cihaz da kaydettiyse (zaman %50+ örtüşüyorsa) OBD'li olan kalır
   addTrips(list){
     let added=0;
     for (const h of list||[]){
-      if (!h || !h.baslangic || tripHist.some(x=>tripKey(x)===tripKey(h))) continue;
+      if (!h || !h.baslangic) continue;
+      const same = tripHist.findIndex(x=>tripKey(x)===tripKey(h));
+      if (same>=0){ if ((h.bitis||"") > (tripHist[same].bitis||"")){ tripHist[same]=h; added++; } continue; }   // P sonrası devam eden yolculuğun son hali
       const h0=syncTime(h.baslangic), h1=syncTime(h.bitis);
       const dup = tripHist.findIndex(x=>/^oto/i.test(x.tur||"") && /^oto/i.test(h.tur||"") && syncOverlap(h0,h1,syncTime(x.baslangic),syncTime(x.bitis))>0.5);
       if (dup>=0){ if (isObd(h) && !isObd(tripHist[dup])){ tripHist[dup]=h; added++; } continue; }
@@ -958,7 +973,7 @@ const LOG_COLS = [["avg","bat_ort_C"],["cin","sogutma_giris_C"],["cout","guc_akt
   ["brake","fren_bar"],["w_fl","teker_sol_on_kmsa"],["w_fr","teker_sag_on_kmsa"],["w_rl","teker_sol_arka_kmsa"],["w_rr","teker_sag_arka_kmsa"],["slip","arka_eksi_on_kmsa"],
   ["a_kw","aaos_guc_kW"],["a_kwh","aaos_kalan_kWh"],["a_cap","aaos_kapasite_kWh"],["a_rng","aaos_menzil_km"],["a_spd","aaos_hiz_kmsa"],["a_dsp","aaos_gosterge_kmsa"],["a_out","aaos_dis_C"],["a_rgn","aaos_rejen_mod"],["a_chg","aaos_sarj_durum"],["socd","sarj_gosterge"],["v12","aku_12V"],["cmax","hucre_maks_V"],["cmin","hucre_min_V"],["tmin","bat_min_C"],["erem","kalan_enerji_kWh_aday"],["soh2","soh2_yuzde"],["mdcv","inv_dc_V"],["minv","inv_C_aday"],["mtq2","E301_tork_aday"],["mtq3","E308_tork_aday"],["mrpm2","E312_devir_aday"],["mlim","E353_sinir_yuzde"],["mx363","E363_aday"],["mx314","E314_aday"],["mx315","E315_aday"],["mx341","E341_aday"],
   ["h28","vcu_4A28_C"],["h29","vcu_4A29_C"],["h30","vcu_4A30_C"],["h31","vcu_4A31_C"],["h32","vcu_4A32_C"],["h33","vcu_4A33_C"],["eused","harcanan_enerji_kWh_aday"],["pdis","bms_desarj_kW"],["pchg","bms_sarj_kW"],
-  ["a_soc","aaos_sarj_yuzde"],["a_batT","aaos_bat_C"],["a_gear","aaos_vites"],["acc_g","ivme_g"],["brk_kw","mekanik_fren_kW_tahmini"]];
+  ["a_soc","aaos_sarj_yuzde"],["a_batT","aaos_bat_C"],["a_gear","aaos_vites"],["a_port","aaos_kablo_takili"],["a_tRem","aaos_sarj_kalan_dk"],["a_lim","aaos_sarj_hedef_yuzde"],["a_stop","aaos_durma_modu"],["a_pb","aaos_el_freni"],["a_ign","aaos_kontak"],["acc_g","ivme_g"],["brk_kw","mekanik_fren_kW_tahmini"]];
 const p2=n=>String(n).padStart(2,"0");
 const localStamp = t => { const d=new Date(t); return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3,"0")}`; };
 const LOG_HEADER = "zaman," + LOG_COLS.map(c=>c[1]).join(",");
@@ -990,7 +1005,9 @@ function logRow(now){
   Object.assign(v, {a_kw: aaosPower(), a_kwh: aaos("EV_BATTERY_LEVEL")!=null ? aaos("EV_BATTERY_LEVEL")/1000 : null, a_cap: aaos("EV_CURRENT_BATTERY_CAPACITY")!=null ? aaos("EV_CURRENT_BATTERY_CAPACITY")/1000 : null,
     a_rng: aaos("RANGE_REMAINING")!=null ? aaos("RANGE_REMAINING")/1000 : null, a_dsp: aaos("PERF_VEHICLE_SPEED_DISPLAY")!=null ? aaos("PERF_VEHICLE_SPEED_DISPLAY")*3.6 : null,
     a_spd: aaos("PERF_VEHICLE_SPEED")!=null ? aaos("PERF_VEHICLE_SPEED")*3.6 : null, a_out: aaos("ENV_OUTSIDE_TEMPERATURE"), a_rgn: aaos("EV_REGENERATIVE_BRAKING_STATE"), a_chg: aaos("EV_CHARGE_STATE"),
-    a_soc: aaosSoc(), a_batT: aaos("EV_BATTERY_AVERAGE_TEMPERATURE"), a_gear: aaos("GEAR_SELECTION") ?? aaos("CURRENT_GEAR")});
+    a_soc: aaosSoc(), a_batT: aaos("EV_BATTERY_AVERAGE_TEMPERATURE"), a_gear: aaos("GEAR_SELECTION") ?? aaos("CURRENT_GEAR"),
+    a_port: aaosBool("EV_CHARGE_PORT_CONNECTED"), a_tRem: aaos("EV_CHARGE_TIME_REMAINING")!=null && aaos("EV_CHARGE_TIME_REMAINING")>=0 ? Math.round(aaos("EV_CHARGE_TIME_REMAINING")/60) : null,
+    a_lim: aaos("EV_CHARGE_PERCENT_LIMIT"), a_stop: aaos("EV_STOPPING_MODE"), a_pb: aaosBool("PARKING_BRAKE_ON"), a_ign: aaos("IGNITION_STATE")});
   v.slip = [v.w_fl,v.w_fr,v.w_rl,v.w_rr].every(x=>x!=null) ? (v.w_rl+v.w_rr-v.w_fl-v.w_fr)/2 : null;
   const cols = LOG_COLS.map(c=>c[0]).concat((logSess.extra||[]).map(e=>e.id));
   const line = localStamp(now) + "," + cols.map(k=>{ const x=v[k]; return x==null||!isFinite(x) ? "" : (k==="lat"||k==="lon" ? (+x).toFixed(6) : +(+x).toFixed(3)); }).join(",");

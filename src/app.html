@@ -34,60 +34,94 @@
   /* ======== Sürüş ekranı (Android Auto / orta ekran / telefon yatay) ========
      Renkler EX30'un kendi boya adlarından: Moss Yellow çekiş, Cloud Blue rejen, Vapour Grey etiketler. */
   /*@FONTS@*/
-  .dv{background:var(--dv-bg);display:grid;grid-template-columns:minmax(0,38fr) minmax(0,62fr);gap:1px;background-clip:padding-box;
+  /* Düzen: üstte ince güç şeridi, altında yolculuk + ekonomi LED'i, kalan alan değer hücreleri.
+     Hücre yazıları hücrenin kendi boyuna göre küçülür (container query), satır ne kadar daralırsa daralsın üst üste binmez. */
+  .dv{background:var(--dv-line);display:flex;flex-direction:column;gap:1px;
     height:calc(100vh - var(--dv-top,150px));min-height:420px;border-radius:14px;overflow:hidden;outline:1px solid var(--dv-line)}
   body.mirror .dv{height:100vh;min-height:0;border-radius:0;outline:0}
-  .dv > *{background:var(--dv-bg)}
-  .dv-hero{display:flex;flex-direction:column;justify-content:space-evenly;padding:3.2vmin 3.6vmin;gap:1.2vmin;box-shadow:1px 0 0 var(--dv-line)}
-  .dv-kw{display:flex;align-items:baseline;gap:1.2vmin;line-height:.82}
-  .dv-kw b{font-weight:700;font-size:clamp(64px,24vmin,240px);letter-spacing:-.02em;transition:color .25s}
-  .dv-kw i{font-style:normal;font-weight:500;font-size:clamp(18px,5vmin,44px);color:var(--dv-mut)}
+  .dv-hero{flex:none;background:var(--dv-bg);display:flex;align-items:center;gap:min(3vmin,28px);padding:min(1.6vmin,14px) min(3vmin,28px)}
+  .dv-kw{display:flex;align-items:baseline;gap:.25em;line-height:.9;min-width:4.2ch;flex:none}
+  .dv-kw b{font-weight:700;font-size:min(9vmin,84px);letter-spacing:-.02em;font-variant-numeric:tabular-nums;transition:color .25s}
+  .dv-kw i,.dv-hs i{font-style:normal;font-weight:500;font-size:min(2.6vmin,22px);color:var(--dv-mut)}
   .dv-hero.pos .dv-kw b{color:var(--dv-draw)} .dv-hero.neg .dv-kw b{color:var(--dv-regen)}
-  /* imza öğe: güç şeridi — sıfırdan sağa çekiş, sola rejen; ince çizgi oturumun tepe değeri */
-  .dv-rib{position:relative;height:clamp(14px,3.4vmin,30px);background:#1B2227;border-radius:999px;overflow:hidden}
-  .dv-rib .f{position:absolute;top:0;bottom:0;transition:left .2s,width .2s}
+  .dv-rib{flex:1;min-width:60px;position:relative;height:min(1.4vmin,12px);background:#1B2227;border-radius:999px}
+  .dv-rib .f{position:absolute;top:0;bottom:0;border-radius:999px;transition:left .2s,width .2s}
   .dv-rib .f.p{background:var(--dv-draw)} .dv-rib .f.n{background:var(--dv-regen)}
-  .dv-rib .z{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--dv-fg);opacity:.55}
-  .dv-rib .pk{position:absolute;top:0;bottom:0;width:3px;background:var(--dv-fg);opacity:.9}
-  .dv-scale{display:flex;justify-content:space-between;font-size:clamp(11px,2.4vmin,18px);color:var(--dv-mut);font-weight:500}
-  .dv-row{display:flex;gap:4vmin;align-items:baseline;margin-top:1vmin}
-  .dv-row div{display:flex;flex-direction:column}
-  .dv-row b{font-weight:700;font-size:clamp(36px,14vmin,140px);line-height:.9}
-  .dv-row span{font-size:clamp(12px,2.6vmin,20px);color:var(--dv-mut);font-weight:500}
-  .dv-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:minmax(0,1fr) minmax(0,1.2fr) repeat(3,minmax(0,1fr));gap:1px;background:var(--dv-line)}
-  /* Yolculuk bandı: en büyük sayı tüketim; süren yolculukta solda sarı çizgi, son yolculukta gri */
-  .dv-band{grid-column:1/-1;background:#161D22;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1.3fr) repeat(3,minmax(0,1fr));align-items:center;gap:0 2.4vmin;padding:1.2vmin 2.4vmin;box-shadow:inset .7vmin 0 0 #3A444C;container-type:inline-size}
-  .dv-band.live{box-shadow:inset .7vmin 0 0 var(--dv-draw)}
-  .dv-band .bl{display:flex;flex-direction:column;gap:.4vmin;min-width:0}
-  .dv-band .bl b{font-weight:700;font-size:min(3.6vmin,4.2cqw,30px);line-height:1.05}
-  .dv-band .bl span,.dv-band .bv span{font-size:clamp(11px,2.3vmin,18px);color:var(--dv-mut);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dv-rib .z{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--dv-fg);opacity:.5}
+  .dv-rib .pk{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--dv-fg);opacity:.85}
+  .dv-hs{display:flex;align-items:baseline;gap:.25em;line-height:.9;flex:none}
+  .dv-hs b{font-weight:700;font-size:min(9vmin,84px);font-variant-numeric:tabular-nums}
+  .dv-grid{flex:1;min-height:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:auto auto;grid-auto-rows:minmax(0,1fr);gap:1px;background:var(--dv-line)}
+  /* Yolculuk satırı */
+  .dv-band{grid-column:1/-1;background:#161D22;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1.3fr) repeat(3,minmax(0,1fr));align-items:end;gap:min(1.2vmin,10px) min(2.4vmin,22px);padding:min(1.6vmin,14px) min(3vmin,28px) min(1.4vmin,12px);box-shadow:inset .6vmin 0 0 #3A444C;container-type:inline-size}
+  .dv-band.live{box-shadow:inset .6vmin 0 0 var(--dv-draw)}
+  .dv-band .bl{display:flex;flex-direction:column;gap:.3em;min-width:0;align-self:center}
+  .dv-band .bl b{font-weight:700;font-size:min(3.4vmin,4cqw,28px);line-height:1.05}
+  .dv-band .bl span,.dv-band .bv span{font-size:min(2.2vmin,2.6cqw,17px);color:var(--dv-mut);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .dv-band .bv{display:flex;flex-direction:column;min-width:0}
-  .dv-band .bv b{font-weight:700;font-size:min(8.5vmin,8.6cqw,88px);line-height:.95;white-space:nowrap}
-  .dv-band .bv.main b{font-size:min(11vmin,11cqw,116px)}
-  .dv-band.live .bv.main b{color:var(--dv-draw)}
-  .dv-c{background:var(--dv-bg);padding:1.4vmin 2vmin;display:flex;flex-direction:column;justify-content:center;gap:.8vmin;min-width:0;container-type:inline-size}
-  .dv-c .v{font-weight:700;font-size:min(9vmin,30cqw,96px);line-height:.95;white-space:nowrap;overflow:hidden;text-overflow:clip}
+  .dv-band .bv b{font-weight:700;font-size:min(7.5vmin,7.6cqw,80px);line-height:.95;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .dv-band .bv.main b{font-size:min(10vmin,10cqw,108px);transition:color .4s}
+  /* Ekonomi LED'i: anlık tüketim yolculuk ortalamasının altındaysa yeşil, üstündeyse kırmızı; fark büyüdükçe ortadan kenarlara açılır */
+  .dv-eco{grid-column:1/-1;display:flex;align-items:center;gap:min(2vmin,16px);margin-top:min(.6vmin,6px)}
+  .dv-led{flex:1;position:relative;height:min(1.8vmin,16px);border-radius:999px;background:#0B0F12;overflow:visible}
+  .dv-led::before{content:"";position:absolute;inset:0;border-radius:inherit;background:repeating-linear-gradient(90deg,#1A2126 0 6px,#0B0F12 6px 8px)}
+  .dv-led .g{position:absolute;top:0;bottom:0;left:50%;width:0;border-radius:999px;--c:#59D68A;
+    background:repeating-linear-gradient(90deg,var(--c) 0 6px,transparent 6px 8px);box-shadow:0 0 12px 1px var(--c),0 0 3px var(--c);
+    transition:left .35s ease-out,width .35s ease-out,--c .35s}
+  .dv-led .mid{position:absolute;left:50%;top:-5px;bottom:-5px;width:2px;margin-left:-1px;background:var(--dv-fg);opacity:.45}
+  .dv-led.off .g{opacity:0}
+  .dv-eco .t{flex:none;font-size:min(2.2vmin,17px);color:var(--dv-mut);font-weight:500;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .dv-eco .t b{font-weight:700;color:var(--dv-fg);font-size:1.25em}
+  /* Sıcaklık satırı: tek sırada küçük değerler + iki yarım daire ısınma/soğuma göstergesi */
+  .dv-temps{grid-column:1/-1;background:var(--dv-bg);display:grid;grid-template-columns:repeat(7,minmax(0,1fr)) repeat(2,minmax(0,1.15fr));align-items:center;gap:0 min(1.6vmin,14px);padding:min(1.4vmin,12px) min(3vmin,28px);container-type:inline-size}
+  .dv-temps .tt{display:flex;flex-direction:column;gap:.25em;min-width:0}
+  .dv-temps .tt b{font-weight:700;font-size:min(5vmin,4.4cqw,46px);line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .dv-temps .tt b.cold{color:var(--dv-regen)} .dv-temps .tt b.warn{color:var(--dv-warn)} .dv-temps .tt b.hot{color:var(--dv-hot)}
+  .dv-temps span{font-size:min(2vmin,1.7cqw,15px);color:var(--dv-mut);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dv-g{display:flex;flex-direction:column;align-items:center;min-width:0;--gc:#5D6870;position:relative}
+  .dv-g svg{width:100%;max-width:120px;height:auto;overflow:visible}
+  .dv-g .bg{fill:none;stroke:#232B32;stroke-width:8;stroke-linecap:round}
+  .dv-g .fg{fill:none;stroke:var(--gc);stroke-width:8;stroke-linecap:round;filter:drop-shadow(0 0 4px var(--gc))}
+  .dv-g .nd{stroke:var(--gc);stroke-width:3;stroke-linecap:round;transition:all .6s}
+  .dv-g circle{fill:var(--gc)}
+  .dv-g b{font-weight:700;font-size:min(3.8vmin,3.4cqw,32px);line-height:1;margin-top:-.15em;color:var(--gc);font-variant-numeric:tabular-nums}
+  .dv-g.idle .nd,.dv-g.idle circle{opacity:.45} .dv-g.idle b{color:var(--dv-mut)}
+  @media (prefers-reduced-motion: reduce){ .dv-g .nd{transition:none} }
+  /* Değer hücreleri: yazı boyu hücre yüksekliğine ve genişliğine bağlı */
+  .dv-c{background:var(--dv-bg);padding:0 min(2vmin,18px);display:flex;flex-direction:column;justify-content:center;gap:min(1vmin,8px);min-width:0;min-height:0;overflow:hidden;container-type:size}
+  .dv-c .v{font-weight:700;font-size:min(46cqh,28cqw,90px);line-height:.95;white-space:nowrap;overflow:hidden;text-overflow:clip;font-variant-numeric:tabular-nums}
   .dv-c .v small{font-weight:500;font-size:.42em;color:var(--dv-mut);margin-left:.15em}
-  .dv-c .l{font-size:clamp(11px,2.5vmin,19px);color:var(--dv-mut);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dv-c .l{font-size:min(17cqh,9cqw,19px);color:var(--dv-mut);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.15}
   .dv-c.w2{grid-column:span 2}
+  /* 4 sütunda 10 hücre: son iki hücre ikişer sütun */
+  #dv-slip,#dv-tire{grid-column:span 2}
   .dv-c .v,.dv-c .l{flex-shrink:0}
   .dv-c .v.warn{color:var(--dv-warn)} .dv-c .v.hot{color:var(--dv-hot)} .dv-c .v.cold{color:var(--dv-regen)}
-  .dv-tires{display:grid;grid-template-columns:repeat(2,auto);column-gap:min(4vmin,8cqw);row-gap:.4vmin;justify-content:start;font-weight:700;font-size:min(6.2vmin,22cqw,64px);line-height:1}
+  .dv-tires{display:grid;grid-template-columns:repeat(2,auto);column-gap:min(4vmin,8cqw);row-gap:.4vmin;justify-content:start;font-weight:700;font-size:min(26cqh,22cqw,64px);line-height:1}
   #dv-tire.alt .dv-tires{display:none} #dv-tire:not(.alt) .v{display:none}
   .dv-tires span.warn{color:var(--dv-warn)} .dv-tires span.hot{color:var(--dv-hot)}
   .dv-stale{position:absolute;inset:auto 0 0 0;text-align:center;padding:1vmin;font-size:clamp(12px,2.6vmin,20px);color:var(--dv-warn)}
+  /* Dikey ve kareye yakın ekranlar (orta ekran, telefon dik): 3 sütun, yolculuk satırı iki katlı */
   @media (max-aspect-ratio: 1/1){
-    .dv{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}
-    .dv-hero{box-shadow:0 1px 0 var(--dv-line);padding:2.6vmin 4vmin;gap:1vmin}
-    .dv-kw b{font-size:clamp(56px,17vmin,200px)} .dv-row{margin-top:0} .dv-row b{font-size:clamp(32px,10vmin,110px)}
-    .dv-grid{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:minmax(0,1fr) minmax(0,1.7fr);grid-auto-rows:minmax(0,1fr);grid-auto-flow:row dense}
-    .dv-band{grid-row:2;grid-template-columns:repeat(4,minmax(0,1fr));align-content:center;row-gap:1.4vmin;padding:2vmin 3vmin}
-    .dv-band .bv b{font-size:min(8vmin,11cqw,96px)} .dv-band .bv.main b{font-size:min(10vmin,14cqw,120px)}
+    .dv-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .dv-band{grid-template-columns:repeat(4,minmax(0,1fr));padding:min(2vmin,18px) min(3vmin,28px)}
     .dv-band .bl{grid-column:1/-1;flex-direction:row;align-items:baseline;gap:2vmin}
-    .dv-c .v{font-size:min(6.4vmin,26cqw,90px)}
-    #dv-tire{grid-column:span 3} #dv-tire .dv-tires{grid-template-columns:repeat(4,auto)}
+    .dv-band .bv b{font-size:min(7vmin,11cqw,88px)} .dv-band .bv.main b{font-size:min(9.5vmin,14cqw,116px)}
+    #dv-slip{grid-column:auto} #dv-tire{grid-column:span 3} #dv-tire .dv-tires{grid-template-columns:repeat(4,auto)}
+    .dv-temps{grid-template-columns:repeat(4,minmax(0,1fr));row-gap:min(1.6vmin,12px)}
+    .dv-temps .tt b{font-size:min(6vmin,8cqw,46px)} .dv-temps span{font-size:min(2.6vmin,3.2cqw,15px)} .dv-g b{font-size:min(4.6vmin,6cqw,32px)}
+    .dv-g{grid-column:span 2;flex-direction:row;gap:10px;justify-content:center} .dv-g svg{max-width:96px;width:45%} .dv-g b{margin:0}
+    .dv-g span{white-space:normal}
   }
-  @media (prefers-reduced-motion: reduce){ .dv-rib .f,.dv-kw b{transition:none} }
+  /* Orta ekran gibi geniş dikey ekranlar: 4 sütun, 4 satır (16 hücre tam oturur) */
+  @media (max-aspect-ratio: 1/1) and (min-width: 700px){
+    .dv-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+    #dv-slip,#dv-tire{grid-column:span 2}
+    .dv-temps{grid-template-columns:repeat(7,minmax(0,1fr)) repeat(2,minmax(0,1.15fr))}
+    .dv-temps .tt b{font-size:min(5vmin,4.4cqw,46px)} .dv-temps span{font-size:min(2vmin,1.8cqw,15px)}
+    .dv-g{grid-column:auto;flex-direction:column;gap:0} .dv-g svg{width:100%} .dv-g b{font-size:min(3.8vmin,3.4cqw,32px)}
+  }
+  @media (prefers-reduced-motion: reduce){ .dv-rib .f,.dv-kw b,.dv-led .g{transition:none} }
 
   body.mirror main{max-width:none !important;padding:0 !important;margin:0 !important}
   /* Android Auto: medya kartı ve düğmelerin kapladığı yerleri boş bırak (DashScreen görünür alanı bildirir) */
@@ -512,13 +546,9 @@
     <div class="dv" id="dv">
       <div class="dv-hero" id="dvHero">
         <div class="dv-kw"><b id="dvKw">–</b><i>kW</i></div>
-        <div class="dv-rib" id="dvRib"><div class="f n"></div><div class="f p"></div><div class="z"></div><div class="pk"></div></div>
-        <div class="dv-scale"><span>rejen −80</span><span>0</span><span>200 çekiş</span></div>
-        <div class="dv-row">
-          <div><b id="dvSpd">–</b><span>km/s</span></div>
-          <div><b id="dvSoc">–</b><span id="dvSocL">% şarj</span></div>
-          <div><b id="dvInst">–</b><span>kWh/100 anlık</span></div>
-        </div>
+        <div class="dv-rib" id="dvRib" title="rejen −80 … 0 … 200 kW çekiş"><div class="f n"></div><div class="f p"></div><div class="z"></div><div class="pk"></div></div>
+        <div class="dv-hs"><b id="dvSpd">–</b><i>km/s</i></div>
+        <div class="dv-hs"><b id="dvSoc">–</b><i id="dvSocL">%</i></div>
       </div>
       <div class="dv-grid" id="dvGrid"></div>
     </div>
@@ -751,15 +781,18 @@ let autoBusy=false, autoTimer=null, autoFails=0;
 // Android Auto'dan açıldıysa ya da orta ekranda (Android Automotive) çalışıyorsa otomatik bağlan
 const autoMode = () => { try{ return !!(window.AndroidCar || (window.AndroidBle && AndroidBle.autoRequested && AndroidBle.autoRequested())); }catch{ return false; } };
 function autoStatus(t){ try{ window.AndroidBle && AndroidBle.publish(JSON.stringify({conn:false, status:t})); }catch{} }
+// "Kes"e basınca otomatik bağlanma, "Bağlan"a basılana kadar bekler (başka bir uygulama OBD'yi kullanabilsin ya da adaptör sökülebilsin)
+const obdHold = () => store.get("obdHold", false);
 window.ex30AutoConnect = async () => {
   if (autoBusy || chW || !window.AndroidBle || !navigator.bluetooth || !navigator.bluetooth.lastDevice) return;
+  if (obdHold()){ autoStatus((window.AndroidCar?"Araç verileriyle kayıt sürüyor. ":"")+"OBD otomatik bağlanması durduruldu; Bağlan'a basınca devam eder."); return; }
   clearTimeout(autoTimer);
   if (!navigator.bluetooth.lastDevice()){ autoStatus("Kayıtlı adaptör yok. Telefonda EX30 Reader'ı açıp bir kez Bağlan'a basın ve adaptörü seçin; sonrakilerde Android Auto'dan açmanız yeter."); return; }
   autoBusy=true; autoStatus("OBD adaptörüne bağlanılıyor…");
   try{ await connect(false, true); }catch{}
   autoBusy=false;
   if (!chW){ autoStatus((window.AndroidCar?"Araç verileriyle kayıt sürüyor. ":"")+"Adaptöre bağlanılamadı; tekrar denenecek. Araç açık, adaptör takılı ve Car Scanner kapalı olmalı.");
-    autoFails++; autoTimer=setTimeout(()=>{ if (autoMode()) ex30AutoConnect(); }, autoFails>40 ? 60000 : 15000); }
+    autoFails++; autoTimer=setTimeout(()=>{ if (autoMode() && !obdHold()) ex30AutoConnect(); }, autoFails>40 ? 60000 : 15000); }
   else autoFails=0;
 };
 async function connect(all=false, auto=false){
@@ -834,7 +867,7 @@ async function connect(all=false, auto=false){
   }
 }
 function onDisconnect(){ if(manual){manual=false;return;} log("Bağlantı koptu"); setPill("err","Bağlantı koptu"); cleanup();
-  try{ if (autoMode()){ autoStatus("Bağlantı koptu, yeniden bağlanılıyor…"); setTimeout(()=>ex30AutoConnect(), 5000); } }catch{} }
+  try{ if (autoMode() && !obdHold()){ autoStatus("Adaptör ayrıldı ya da bağlantı koptu; takılınca kendiliğinden bağlanır."); clearTimeout(autoTimer); autoTimer=setTimeout(()=>ex30AutoConnect(), 5000); } }catch{} }
 function cleanup(){ publishCar(false); try{ window.AndroidBle && AndroidBle.keepAlive && AndroidBle.keepAlive(false); }catch{} stopPolling(); chW=null; btnConn.textContent="Bağlan"; $("btnSend").disabled=true; $("scBtn").disabled=true; $("ufBtn").disabled=true; try{wake?.release()}catch{} wake=null; }
 function disconnect(){ manual=true; try{ dev?.gatt?.disconnect(); }catch{} setPill("","Bağlı değil"); cleanup(); }
 
@@ -1408,6 +1441,8 @@ function renderNom(ss){
     if (kw!=null && nk){ const d=nk-kw, f=kw/nk;
       R("Şu an", `<span class="big ${f<0.95?"short":"good"}">${d>2 ? "−"+fmt(d,0)+" kW" : "nominalde"}</span><i>${fmt(kw,0)} / ${fmt(nk,0)} kW, %${fmt(f*100,0)}</i>`); }
     const lost = chargeLoss(ss); if (lost!=null) R("Kaybedilen süre", `${fmtMin(lost)}<i>bu şarjda, nominal eğriye göre</i>`);
+    try{ const cc = panelWin && panelWin.ex30CarCharge ? panelWin.ex30CarCharge() : null;
+      if (cc && (cc.tRem!=null || cc.lim!=null)) R("Aracın tahmini", `${cc.tRem!=null ? fmtMin(cc.tRem)+" kaldı" : "–"}<i>${cc.lim!=null ? "hedef %"+fmt(cc.lim,0) : ""}</i>`); }catch{}
     if (T!=null) R("Batarya", T>=NOM_T ? `${fmt(T,1)} °C<i>nominal sıcaklıkta</i>` : `${fmt(T,1)} °C<i>nominal için ${NOM_T} °C · ${toNom!=null ? "yaklaşık "+fmtMin(toNom)+" sonra" : rate!=null ? "ısınmıyor" : "ısınma hızı ölçülüyor"}</i>`, T>=NOM_T?"good":"");
     const fNow=tempFrac(T), nkNow=nomKw(last.soc ?? soc); if (fNow!=null && fNow<1 && nkNow) R("Sıcaklık sınırı", `~${fmt(nkNow*fNow,0)} kW<i>${fmt(T,1)} °C bataryada nominalin %${fmt(fNow*100,0)} kadarı</i>`, "short");
     $("nomNote").textContent = "Nominal: EX30 Extended Range (69 kWh brüt, ~64 kWh kullanılabilir) için yayımlanan şarj eğrisi (%58 üstü tahmini). Sıcaklık sınırı bu aracın 24 ve 25 Kasım şarjlarından (180 kW istasyon) çıkarıldı: batarya ortalaması 30 °C'nin altındayken güç nominalin bir yüzdesine kısılıyor.";
@@ -1735,7 +1770,15 @@ function log(s){ const el=$("log"); const t=new Date().toLocaleTimeString("tr-TR
 function setPill(cls,txt){ const p=$("pill"); p.className="pill "+cls; p.textContent=txt; }
 function showBanner(t){ const b=$("banner"); b.textContent=t; b.style.display="block"; }
 
-btnConn.onclick = () => { if (btnConn.textContent==="Kes") disconnect(); else { if (tab!=="panel") goTab("conn"); connect(false); } };
+// Bağlıyken "Kes", otomatik bağlanma beklerken "Durdur": ikisi de otomatiği bekletir. "Bağlan" bekletmeyi kaldırır.
+const autoWaiting = () => { try{ return !chW && autoMode() && !obdHold() && !!navigator.bluetooth?.lastDevice?.(); }catch{ return false; } };
+function connLabel(){ const t = chW ? "Kes" : autoWaiting() ? "Durdur" : "Bağlan"; if (btnConn.textContent!==t && !(btnConn.textContent==="Kes" && !chW && autoBusy)) btnConn.textContent=t; }
+setInterval(connLabel, 1000);
+btnConn.onclick = () => {
+  if (chW || autoWaiting() || autoBusy){ store.set("obdHold", true); clearTimeout(autoTimer); autoFails=0;
+    if (chW) disconnect(); else { try{ dev?.gatt?.disconnect(); }catch{} }
+    log("OBD bağlantısı kesildi; Bağlan'a basana kadar otomatik bağlanılmaz"); autoStatus("OBD otomatik bağlanması durduruldu; Bağlan'a basınca devam eder."); connLabel(); return; }
+  store.set("obdHold", false); if (tab!=="panel") goTab("conn"); connect(false).then(()=>{ if (!chW && autoMode()) ex30AutoConnect(); }); };
 function sizePanel(){ const f=$("panelFrame"); const h=document.querySelector("header").offsetHeight; f.style.height=(window.innerHeight-h)+"px"; }
 // Panel bağlantı kurulunca arka planda da yüklenir: otomatik yolculuk, oturum kaydı ve tüm değerler hangi sekme açık olursa olsun sürer
 // =====================================================================
@@ -1975,16 +2018,10 @@ $("pfReset").onclick=()=>{ const b=$("pfReset"); if (!b.dataset.ok){ b.dataset.o
 // =====================================================================
 const DV_CELLS = [
   // [id, etiket, değer(s) → [metin, birim, durum], genişlik]
-  ["bat",  "Batarya ort.",        s=>[f1(s.avg,1), "°C", s.avg==null?"":s.avg<10?"cold":s.avg>45?"hot":s.avg>38?"warn":""]],
-  ["cell", "En sıcak hücre",      s=>[f1(s.max,1), "°C", s.max!=null&&s.max>45?"hot":"", s.tmin!=null?"En sıcak hücre · en soğuk "+f1(s.tmin,1)+"°":null]],
-  ["cin",  "Soğutma girişi",      s=>[f1(s.cin,0), "°C", ""]],
-  ["cout", "Güç devresi",         s=>[f1(s.cout,0), "°C", s.cout!=null&&s.cout>65?"warn":""]],
-  ["mot",  "Motor",               s=>[f1(s.motor,0), "°C", s.motor==null?"":s.motor>110?"hot":s.motor>90?"warn":""]],
   ["rpm",  "Devir (d/dk)",        s=>[s.rpm==null?"–":Math.round(s.rpm).toLocaleString("tr-TR"), "", ""]],
   ["tq",   "Tork",                s=>[f1(s.tq,0), "Nm", ""]],
   ["amp",  "Akım",                s=>[f1(s.cur,0), "A", ""]],
   ["kwh",  "Kalan enerji",        s=>[f1(s.kwhLeft,1), "kWh", "", s.kwhCap?"Kalan enerji · "+f1(s.kwhCap,1)+" kWh kapasite":null]],
-  ["rng",  "Menzil",              s=>[f1(s.rng,0), "km", s.rng!=null&&s.rng<40?"warn":""]],
   ["volt", "Batarya voltajı",     s=>[f1(s.volt,0), "V", ""]],
   ["dcell","Hücre gerilim farkı", s=>[s.cmax!=null&&s.cmin!=null?f1((s.cmax-s.cmin)*1000,0):"–", "mV", s.cmax!=null&&s.cmin!=null&&(s.cmax-s.cmin)>0.05?"warn":""]],
   ["brk",  "Fren",                s=>[f1(s.brake,0), "bar", ""]],
@@ -1993,11 +2030,17 @@ const DV_CELLS = [
   ["tire", "Lastikler (psi)",     null],
 ];
 // Yolculuk bandı: ilk satırdan sonra, tüm genişlikte. Süren otomatik yolculuk; yoksa son yolculuk.
+// Sıcaklık satırı: dış, kabin, batarya, en sıcak hücre, soğutma girişi, güç devresi, motor + ısınma/soğuma göstergeleri
+const DV_TEMPS = [["out","Dış"],["cab","Kabin"],["avg","Batarya"],["max","En sıcak hücre"],["cin","Soğutma girişi"],["cout","Güç devresi"],["motor","Motor"]];
+const DV_RATE = [["avg","Batarya",1.2],["motor","Motor",3]];   // [anahtar, ad, tam sapma °C/dk]
+const dvGauge = (k,l) => `<div class="dv-g" id="dvg-${k}"><svg viewBox="-60 -56 120 66" aria-hidden="true"><path class="bg" d="M-48 0 A48 48 0 0 1 48 0"/><path class="fg" d=""/><line class="nd" x1="0" y1="0" x2="0" y2="-40"/><circle r="4"/></svg><b>–</b><span>${l} °C/dk</span></div>`;
+const DV_TROW = `<div class="dv-temps" id="dvTemps">${DV_TEMPS.map(([k,l])=>`<div class="tt" id="dvt-${k}"><b>–</b><span>${l}</span></div>`).join("")}${DV_RATE.map(([k,l])=>dvGauge(k,l)).join("")}</div>`;
 const DV_BAND = `<div class="dv-band" id="dv-band"><div class="bl"><b id="dvbName">Yolculuk</b><span id="dvbSub">bekleniyor</span></div>
   <div class="bv main"><b id="dvbCons">–</b><span>kWh/100 km</span></div><div class="bv"><b id="dvbKm">–</b><span>km</span></div>
-  <div class="bv"><b id="dvbMin">–</b><span>dk</span></div><div class="bv"><b id="dvbNet">–</b><span id="dvbNetL">kWh net</span></div></div>`;
+  <div class="bv"><b id="dvbMin">–</b><span>dk</span></div><div class="bv"><b id="dvbNet">–</b><span id="dvbNetL">kWh net</span></div>
+  <div class="dv-eco"><span class="t">anlık <b id="dvInst">–</b></span><div class="dv-led off" id="dvLed"><div class="g"></div><div class="mid"></div></div><span class="t" id="dvEcoT">ortalama</span></div></div>`;
 function dvBuild(){
-  $("dvGrid").innerHTML = DV_CELLS.map(([id,l],i)=> (i===4?DV_BAND:"") + (id==="tire"
+  $("dvGrid").innerHTML = DV_BAND + DV_TROW + DV_CELLS.map(([id,l],i)=> (id==="tire"
     ? `<div class="dv-c" id="dv-${id}"><div class="dv-tires"><span>–</span><span>–</span><span>–</span><span>–</span></div><div class="l">${l}</div></div>`
     : `<div class="dv-c" id="dv-${id}"><div class="v">–</div><div class="l">${l}</div></div>`)).join("");
 }
@@ -2021,15 +2064,17 @@ function dvTick(){
   $("dvSpd").textContent = live ? f1(s.spd,0) : "–";
   $("dvSoc").textContent = live ? f1(s.soc,0) : "–";
   $("dvInst").textContent = live && s.inst!=null ? f1(Math.max(-99,Math.min(99,s.inst)),0) : "–";
+  dvEco(live ? s.inst : null, s.jt && s.jt.cons, live ? s.spd : null);
   { const j = s.jt, band=$("dv-band");
     band.classList.toggle("live", !!(j && j.live));
     $("dvbName").textContent = !j ? "Yolculuk" : j.live ? "Şu anki yolculuk" : "Son yolculuk";
-    $("dvbSub").textContent = !j ? "araç hareket edince başlar" : j.live ? "otomatik, 5 dk durunca biter" : (j.start||"").slice(11,16)+" – "+(j.end||"").slice(11,16);
+    $("dvbSub").textContent = !j ? "araç hareket edince başlar" : j.live ? "otomatik, P'de ya da 5 dk durunca biter" : (j.start||"").slice(11,16)+" – "+(j.end||"").slice(11,16);
     $("dvbCons").textContent = j && j.cons!=null ? f1(j.cons,1) : "–";
     $("dvbKm").textContent = j ? f1(j.km,1) : "–";
     $("dvbMin").textContent = j && j.min!=null ? j.min : "–";
     $("dvbNet").textContent = j && j.net!=null ? f1(j.net,1) : "–";
     $("dvbNetL").textContent = j && j.reg!=null ? `kWh net, rejen ${f1(j.reg,1)}` : "kWh net"; }
+  dvTemps(live ? s : {});
   for (const [id,,fn2] of DV_CELLS){
     const el=$("dv-"+id); if (!el) continue;
     if (id==="tire"){ const sp=el.querySelectorAll(".dv-tires span"), t=s.tp||{};
@@ -2037,7 +2082,7 @@ function dvTick(){
       const noTp = !live || ["fl","fr","rl","rr"].every(w=>t[w]==null);
       el.classList.toggle("alt", noTp);
       if (noTp){ let v=el.querySelector(".v"); if (!v){ v=document.createElement("div"); v.className="v"; el.prepend(v); }
-        v.innerHTML = `${live?f1(s.out,0):"–"}<small>°C</small>`; el.lastElementChild.textContent="Dış hava"; continue; }
+        v.innerHTML = `${live&&s.rng!=null?f1(s.rng,0):"–"}<small>km</small>`; el.lastElementChild.textContent="Menzil"; continue; }
       el.lastElementChild.textContent="Lastikler (psi)";
       ["fl","fr","rl","rr"].forEach((w,i)=>{ const v=live?t[w]:null; sp[i].textContent = v==null?"–":f1(v,0); sp[i].className = tireCls(v); }); continue; }
     const [txt,unit,cls,lab] = live ? fn2(s) : ["–","","",null];
@@ -2046,6 +2091,50 @@ function dvTick(){
   }
 }
 setInterval(dvTick, 300);
+// ---- Sıcaklık satırı ve ısınma/soğuma hızı ----
+const tempCls = (k,v) => v==null ? "" : k==="avg" ? (v<10?"cold":v>45?"hot":v>38?"warn":"") : k==="max" ? (v>45?"hot":"") : k==="cout" ? (v>65?"warn":"") : k==="motor" ? (v>110?"hot":v>90?"warn":"") : "";
+const rateRing = {avg:[], motor:[]};
+function rateOf(k){ const pts=rateRing[k], now=Date.now(), p=pts.filter(x=>x[0]>now-180000); if (p.length<4 || p.at(-1)[0]-p[0][0] < 45000) return null;
+  const n=p.length, mx=p.reduce((a,x)=>a+x[0],0)/n, my=p.reduce((a,x)=>a+x[1],0)/n; let c=0,v=0; for (const [x,y] of p){ c+=(x-mx)*(y-my); v+=(x-mx)**2; } return v ? c/v*60000 : null; }
+let rateT=0;
+// Renk: ısınma kırmızıya, soğuma maviye; nötr soluk gri
+function rateColor(f){ const a=Math.min(1,Math.abs(f)); const n=[110,122,128], h=[236,90,79], c=[90,160,230], t=f>=0?h:c; return `rgb(${n.map((v,i)=>Math.round(v+(t[i]-v)*a)).join(",")})`; }
+function dvGaugeSet(k, r, full){
+  const el=$("dvg-"+k); if (!el) return; const fg=el.querySelector(".fg"), nd=el.querySelector(".nd"), b=el.querySelector("b");
+  if (r==null){ fg.setAttribute("d",""); nd.setAttribute("x2","0"); nd.setAttribute("y2","-40"); el.style.setProperty("--gc","#5D6870"); el.classList.add("idle"); b.textContent="–"; return; }
+  const f=Math.max(-1,Math.min(1,r/full)), ang=f*90*Math.PI/180, R=48, x=Math.sin(ang)*R, y=-Math.cos(ang)*R, c=rateColor(f);
+  el.classList.toggle("idle", Math.abs(r)<0.05);
+  el.style.setProperty("--gc", c);
+  fg.setAttribute("d", Math.abs(f)<0.01 ? "" : `M0 -48 A48 48 0 0 ${f>0?1:0} ${x.toFixed(2)} ${y.toFixed(2)}`);
+  nd.setAttribute("x2",(Math.sin(ang)*40).toFixed(2)); nd.setAttribute("y2",(-Math.cos(ang)*40).toFixed(2));
+  b.textContent = (r>0.005?"+":r<-0.005?"−":"")+f1(Math.abs(r), Math.abs(r)<10?1:0);
+}
+function dvTemps(s){
+  for (const [k] of DV_TEMPS){ const el=$("dvt-"+k); if (!el) continue; const v = k==="avg" ? (s.avg ?? s.batT) : s[k];
+    const b=el.firstElementChild; b.textContent = v==null ? "–" : f1(v, k==="out"||k==="cab"||k==="cin"||k==="cout"||k==="motor" ? 0 : 1)+"°"; b.className=tempCls(k,v);
+    if (k==="cab") el.lastElementChild.textContent = s.cabSet!=null ? `Kabin · ayar ${f1(s.cabSet,0)}°` : "Kabin";
+    if (k==="max") el.lastElementChild.textContent = s.tmin!=null ? `Hücre ${f1(s.tmin,0)}–${f1(s.max,0)}°` : "En sıcak hücre"; }
+  const now=Date.now();
+  if (now-rateT>=5000){ rateT=now; for (const [k] of DV_RATE){ const v = k==="avg" ? (s.avg ?? s.batT) : s[k]; if (v!=null){ rateRing[k].push([now,v]); while (rateRing[k].length && rateRing[k][0][0]<now-200000) rateRing[k].shift(); } } }
+  for (const [k,,full] of DV_RATE) dvGaugeSet(k, rateOf(k), full);
+}
+// Ekonomi LED'i: fark = anlık − yolculuk ortalaması (kWh/100 km). ±12'de tam genişlik.
+// Renk: ortalamanın 12 altı koyu yeşil → ortalama sarı → 12 üstü kırmızı; durunca söner.
+const ECO_STOPS = [[-12,[64,214,138]],[-4,[120,210,110]],[0,[214,196,92]],[4,[239,164,58]],[12,[236,90,79]]];
+function ecoColor(d){ d=Math.max(-12,Math.min(12,d)); for (let i=1;i<ECO_STOPS.length;i++){ const [x1,c1]=ECO_STOPS[i],[x0,c0]=ECO_STOPS[i-1]; if (d<=x1){ const k=(d-x0)/(x1-x0); return `rgb(${c0.map((v,j)=>Math.round(v+(c1[j]-v)*k)).join(",")})`; } } return "rgb(236,90,79)"; }
+let ecoS=null;
+function dvEco(inst, avg, spd){
+  const led=$("dvLed"), g=led.firstElementChild, t=$("dvEcoT");
+  const on = inst!=null && avg!=null && spd!=null && spd>=3;
+  if (!on){ led.classList.add("off"); ecoS=null; t.textContent = avg!=null ? `ortalama ${f1(avg,1)}` : "ortalama –"; return; }
+  // yumuşatma: LED titremesin
+  const d0 = inst-avg; ecoS = ecoS==null ? d0 : ecoS + (d0-ecoS)*0.35;
+  const d=ecoS, w=Math.max(1.5, Math.min(1, Math.abs(d)/12)*50), c=ecoColor(d);
+  led.classList.remove("off");
+  g.style.setProperty("--c", c);
+  g.style.left=(50-w)+"%"; g.style.width=(2*w)+"%";
+  t.innerHTML = `ortalamanın <b style="color:${c}">${f1(Math.abs(d),1)}</b> ${d<=0?"altında":"üstünde"}`;
+}
 function dvSize(id="dv"){ const top = document.body.classList.contains("mirror") ? 0 : ($(id).getBoundingClientRect().top + window.scrollY + (id==="pv"?60:12)); document.documentElement.style.setProperty("--dv-top", top+"px"); }
 window.addEventListener("resize", ()=>{ if (tab==="drive") dvSize(); if (tab==="perf") dvSize("pv"); });
 
