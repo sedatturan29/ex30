@@ -1284,7 +1284,7 @@ function parseUds(resp, did){
   }
   return null;
 }
-const KNOWN_UNITS = {"1DD01601":"VCU","1DD01602":"Klima kompresörü? (1602)","1DD01630":"Isı yönetimi? (1630)","1DD01631":"Fren/ABS? (1631)","1DD01634":"Şarj cihazı? (1634)","1DD01635":"Batarya (BMS)","1DD01637":"Arka motor","1DD01650":"Şarj cihazı","1DD01701":"Şasi"};
+const KNOWN_UNITS = {"1DD01601":"VCU","1DD01602":"Klima kompresörü? (1602)","1DD01630":"Isı yönetimi? (1630)","1DD01631":"Ön motor (tek motorluda yok)","1DD01634":"Şarj cihazı? (1634)","1DD01635":"Batarya (BMS)","1DD01637":"Arka motor","1DD01650":"Şarj cihazı","1DD01701":"Şasi"};
 const UNIT_PRESETS = {"1DD01635":["4800-49FF","DD00-DDFF","EE00-EEFF"],"1DD01637":["E300-E3FF","EE00-EEFF"],"1DD01601":["4000-4FFF","4A00-4AFF","D900-D9FF","E300-E3FF"],"1DD01650":["EE00-EEFF"],"1DD01701":["2B00-2BFF","F400-F4FF","FD00-FEFF"]};
 const rxFor = tx => (0x1EC00E80 + ((parseInt(tx.slice(4),16) - 0x1600) << 13)).toString(16).toUpperCase();
 let units = store.get("units", []);   // [{tx, rx, name, part}]
@@ -1442,21 +1442,21 @@ const CS_RAW = [
  [0,"BECM","HV Battery SoC","Batarya şarjı","%",84.9,"h","soc","soc"],
  [1,"BECM","HV battery: average temperature","Batarya ortalama sıcaklık","°C",24.4,"h","avg","avg"],
  [2,"BECM","HV battery: current","Batarya akımı","A",-43.1,"h","cur","cur"],
- [3,"BECM","HV battery: IGM fuse voltage","Batarya sigorta (IGM) gerilimi","V",445.8,"h","volt",null],
+ [3,"BECM","HV battery: IGM fuse voltage","Batarya sigorta (IGM) gerilimi","V",445.8,"h","volt","igm"],
  [4,"BECM","HV battery: inlet coolant temperature","Batarya soğutma girişi","°C",21,"h","cin","cin"],
  [5,"BECM","HV battery: voltage [Pure Electric/BEV]","Batarya gerilimi","V",445.5,"h","volt","volt"],
  [6,"BECM","HV battery: max temperature","Batarya en yüksek sıcaklık","°C",25.2,"h","max","max"],
  [7,"BECM","12V Battery voltage","12 V akü (BECM)","V",14,"h","v12",null],
  [8,"BECM","SOC Percent Battery 1","Şarj (batarya 1)","%",85.4,"h","soc",null],
- [9,"BECM","HV Battery Cell voltage sum","Hücre gerilimleri toplamı","V",445.8,"h","volt",null],
+ [9,"BECM","HV Battery Cell voltage sum","Hücre gerilimleri toplamı","V",445.8,"h","volt","csum"],
  [10,"BECM","SOC Display","Göstergedeki şarj","%",87.1,"h","soc",null],
  [11,"BECM","ECU Power supply voltage","BECM besleme gerilimi","V",35.7,"h",null,null],
  [12,"BECM","? Total odometer","Kilometre sayacı","km",17844,"h",null,"odo"],
  [13,"BECM","HV Battery SoH","Batarya sağlığı (SoH, ABRP'nin okuduğu)","%",100,"h",null,"soh"],
  [14,"BECM","Cell Min State Of Charge","En düşük hücre şarjı","%",85.3,"h","soc",null],
- [15,"BECM","Charging power limit","Şarj güç sınırı","W",19100,"h",null,null],
- [16,"BECM","Discharging power limit","Deşarj güç sınırı","W",0,"s",null,null],
- [17,"ABS","Brake disc temperature: front left","Fren diski sıcaklığı sol ön","°C",16.4,"h",null,null],
+ [15,"BECM","Charging power limit","Şarj güç sınırı","kW",19.1,"h",null,"pchg"],
+ [16,"BECM","Discharging power limit","Deşarj güç sınırı","kW",0,"s",null,"pdis"],
+ [17,"ABS","Brake disc temperature: front left","Fren diski sıcaklığı sol ön","°C",16.4,"h",null,"d_fl"],
  [18,"BECM","HV Battery Max Cell Voltage","En yüksek hücre gerilimi","V",4.171,"h","cmax","cmax"],
  [19,"BECM","Cell voltage delta","Hücre gerilim farkı","mV",9,"h",null,"cdelta"],
  [20,"BECM","HV Battery Min Cell Voltage","En düşük hücre gerilimi","V",4.16,"h","cmin","cmin"],
@@ -1464,9 +1464,9 @@ const CS_RAW = [
  [22,"BECM","Positive connector temperature. DC Charging","DC soket + sıcaklığı","°C",15.9,"d",null,null],
  [23,"BECM","Negative connector temperature. DC Charging","DC soket − sıcaklığı","°C",15.9,"d",null,null],
  [24,"BECM","HV Battery State Of Health","Batarya sağlığı (ikinci SoH)","%",98,"h",null,"soh2"],
- [25,"ABS","Brake disc temperature: front right","Fren diski sıcaklığı sağ ön","°C",16.4,"h",null,null],
- [26,"ABS","Brake disc temperature: rear left","Fren diski sıcaklığı sol arka","°C",18.5,"h",null,null],
- [27,"ABS","Brake disc temperature: rear right","Fren diski sıcaklığı sağ arka","°C",18.5,"h",null,null],
+ [25,"ABS","Brake disc temperature: front right","Fren diski sıcaklığı sağ ön","°C",16.4,"h",null,"d_fr"],
+ [26,"ABS","Brake disc temperature: rear left","Fren diski sıcaklığı sol arka","°C",18.5,"h",null,"d_rl"],
+ [27,"ABS","Brake disc temperature: rear right","Fren diski sıcaklığı sağ arka","°C",18.5,"h",null,"d_rr"],
  [28,"ABS","Brake pressure: rear left","Fren basıncı sol arka","bar",0,"s","brake","brake"],
  [29,"ABS","Brake pressure: front right","Fren basıncı sağ ön","bar",0,"s","brake","brake"],
  [30,"ABS","Brake pressure: rear right","Fren basıncı sağ arka","bar",0,"s","brake","brake"],
@@ -1476,20 +1476,20 @@ const CS_RAW = [
  [34,"ABS","Front right wheel speed","Teker hızı sağ ön","km/h",0,"s","spd","w_fr"],
  [35,"ABS","Rear right wheel speed","Teker hızı sağ arka","km/h",0,"s","spd","w_rr"],
  [36,"ABS","Vehicle speed","Araç hızı","km/h",0,"s","spd","vspd"],
- [37,"ABS","Longtitudinal acceleration","Boylamsal ivme","g",-0.005,"s","acc",null],
- [38,"CDD","AC Plug Temperature 1","AC soket sıcaklığı 1","°C",38,"a",null,null],
- [39,"CDD","AC Plug Temperature 2","AC soket sıcaklığı 2","°C",30,"a",null,null],
+ [37,"ABS","Longtitudinal acceleration","Boylamsal ivme","g",-0.005,"s","acc","lacc"],
+ [38,"CDD","AC Plug Temperature 1","AC soket sıcaklığı 1","°C",38,"a",null,"acT1"],
+ [39,"CDD","AC Plug Temperature 2","AC soket sıcaklığı 2","°C",30,"a",null,"acT2"],
  [40,"CDD","Control Pilot Duty Cycle","Şarj pilot sinyali (izin verilen akım)","%",52,"a",null,null],
  [41,"CDD","Charging: DC Voltage","Şarj DC gerilimi","V",460.4,"a","volt",null],
  [42,"CDD","Charging: Direct Current","Şarj DC akımı","A",51.9,"a","chgA",null],
  [43,"CDD","Charging: Grid Current","Şebeke akımı","A",31.7,"a",null,null],
  [44,"CDD","Charging: Grid Voltage","Şebeke gerilimi","V",237.1,"a",null,null],
- [45,"CDD","DC/DC Actual Input Power","DC/DC giriş gücü","W",313,"h",null,null],
+ [45,"CDD","DC/DC Actual Input Power","DC/DC giriş gücü","W",313,"h",null,"dcW"],
  [46,"CDD","DC/DC Converter Power Request","DC/DC güç isteği","W",20460,"h",null,null],
  [47,"CDD","DC/DC Converter Circuit Board Temperature","DC/DC kart sıcaklığı","°C",53,"h",null,null],
- [48,"CDD","DC/DC Output Voltage Settings","DC/DC çıkış ayarı","V",14.2,"h",null,null],
- [49,"CDD","Low voltage side, voltage","12 V tarafı gerilim","V",14.4,"h","v12",null],
- [50,"CDD","Low voltage side, current","12 V tarafı akım","A",19,"h",null,null],
+ [48,"CDD","DC/DC Output Voltage Settings","DC/DC çıkış ayarı","V",14.2,"h",null,"dcSet"],
+ [49,"CDD","Low voltage side, voltage","12 V tarafı gerilim","V",14.4,"h","v12","lvV"],
+ [50,"CDD","Low voltage side, current","12 V tarafı akım","A",19,"h",null,"lvA"],
  [51,"CDD","OBC Module A Output DC Voltage","Şarj cihazı A çıkış gerilimi","V",447,"a","volt",null],
  [52,"CDD","OBC Module A Temperature","Şarj cihazı A sıcaklığı","°C",66,"a",null,null],
  [53,"CDD","OBC Available Power","Şarj cihazı kullanılabilir güç","W",19700,"a",null,null],
@@ -1506,24 +1506,24 @@ const CS_RAW = [
  [64,"IEM","ERAD Actual Torque","Motor torku","Nm",0,"s","tq","torque"],
  [65,"IEM","ERAD Motor Speed","Motor devri","rpm",0,"s","rpm","rpm"],
  [66,"IEM","ERAD Motor Temperature","Motor sıcaklığı","°C",42,"h","motor","motor"],
- [67,"IEM","ERAD Wheel Speed","Teker devri (motor tarafı)","rpm",0,"s","rpm",null],
- [68,"IEM","Electronic powertrain coolant temperature","Güç aktarma soğutma sıvısı (IEM)","°C",44,"h","cout",null],
+ [67,"IEM","ERAD Wheel Speed","Teker devri (motor tarafı)","rpm",0,"s","rpm","mrpm2"],
+ [68,"IEM","Electronic powertrain coolant temperature","Güç aktarma soğutma sıvısı (IEM)","°C",44,"h","cout","mcool"],
  [69,"IEM","HV System Current","Motor HV akımı","A",0.8,"h","cur",null],
  [70,"IEM","HV System Voltage","Motor HV gerilimi","V",441.4,"h","volt","mdcv"],
- ...Array.from({length:10},(_,i)=>[71+i,"?","(adı görülmedi)","Profilde var, kayıtlarda yok","",null,"h",null,null]),
- [81,"VCU","Accelerator pedal PWM signal","Gaz pedalı","%",7,"s","pedal",null],
- [82,"VCU","A/C Pressure","Klima basıncı","kPa",498,"h",null,null],
+ ...Array.from({length:10},(_,i)=>[71+i,"?",i===6?"[MGM] Vehicle Speed":"[MGM] (adı görülmedi)",i===6?"Araç hızı (MGM ünitesi)":"MGM ünitesi sensörü","",null,"h",null,null]),
+ [81,"VCU","Accelerator pedal PWM signal","Gaz pedalı","%",7,"s","pedal","ped"],
+ [82,"VCU","A/C Pressure","Klima basıncı","kPa",498,"h",null,"acp"],
  [83,"VCU","A/C Temperature","Klima sıcaklığı","°C",17.8,"h",null,null],
  [84,"VCU","A/C Temperature after compressor","Kompresör çıkışı","°C",19,"h",null,null],
  [85,"VCU","A/C Temperature after evaporator","Evaporatör çıkışı","°C",18.2,"h",null,null],
  [86,"VCU","A/C Temperature after inner condenser","İç kondenser çıkışı","°C",18.3,"h",null,null],
  [87,"VCU","A/C Temperature behind chiller","Chiller çıkışı","°C",16.3,"h",null,null],
- [88,"VCU","Coolant pump chamber requested speed","Soğutma pompası istenen hız","%",10,"h",null,null],
+ [88,"VCU","Coolant pump chamber requested speed","Soğutma pompası istenen hız","%",10,"h",null,"pump"],
  [89,"VCU","Electronic Powertrain Coolant pump: Coolant temperature","Güç aktarma soğutma sıvısı (VCU)","°C",44,"h","cout","cout"],
  [90,"VCU","Electronic Powertrain Coolant pump: Requested RPM","Güç aktarma pompası istenen hız","%",40,"h",null,null],
  [91,"VCU","Radiator cooling fan","Radyatör fanı","%",40,"h",null,null],
- [92,"VCU","HV Battery Cooling Valve: Actual position","Batarya soğutma valfi (gerçek)","%",0,"h",null,null],
- [93,"VCU","HV Battery Cooling Valve: Required position","Batarya soğutma valfi (istenen)","%",0,"h",null,null],
+ [92,"VCU","HV Battery Cooling Valve: Actual position","Batarya soğutma valfi (gerçek)","%",0,"h",null,"vlvA"],
+ [93,"VCU","HV Battery Cooling Valve: Required position","Batarya soğutma valfi (istenen)","%",0,"h",null,"vlvR"],
 ];
 const CS = CS_RAW.map(([n,u,cs,tr,unit,ex,when,ref,have])=>({id:14880000+n, n, u, tx:CS_UNIT[u]||null, cs, tr, unit, ex, when, ref, have}));
 const CS_WHEN = {s:"sürüşte", a:"AC şarjda", d:"DC şarjda", h:"her zaman"};
@@ -1532,13 +1532,22 @@ const CS_WHEN = {s:"sürüşte", a:"AC şarjda", d:"DC şarjda", h:"her zaman"};
 const CS_PLAN = {"1DD01635":["4800-49FF","4A00-4BFF","DD00-DDFF","EE00-EEFF","F400-F4FF"], "1DD01637":["E300-E3FF","4A00-4AFF","9800-98FF","EE00-EFFF","F400-F4FF","DD00-DDFF","E000-E2FF","E400-E4FF"],
   "1DD01601":["4A00-4AFF","EE00-EEFF","4000-49FF","4B00-4FFF","D900-D9FF","E300-E3FF"], "1DD01650":["EE00-EEFF","E000-EDFF","EF00-EFFF","4000-4FFF","D900-D9FF"],
   "1DD01701":["2B00-2BFF","FD00-FEFF","F400-F4FF","EE00-EEFF","2000-2AFF","2C00-2FFF"],
-  "1DD01631":["2B00-2BFF","FE00-FEFF","FD00-FDFF"], "1DD01634":["EE00-EEFF"], "1DD01602":["0300-03FF"], "1DD01630":["EE00-EFFF","0300-03FF"]};
+  "1DD01634":["EE00-EEFF"], "1DD01602":["0300-03FF"], "1DD01630":["EE00-EFFF","0300-03FF"]};
 // Polestar 2'de (OBDb) aynı sensörün bilinen yeri: eşleştirmede öne alınır, ayrıntıda gösterilir
+// 27.11 Car Scanner günlüğünde profilin araca gönderdiği, henüz anlamı ayrışmayan istekler (sensörün bunlardan birinde olduğu kesin)
+const CS_LOGREQ = {
+  7:"1635: DD02, EE02, EE06, 487A, DA17", 8:"1635: 487A, DA17, EE02, EE06", 10:"1635: DA17, 487A, EE02", 11:"1635: 487A, DA17, DD02", 14:"1635: DA17, 487A",
+  22:"1635: EE02 (iki eşit bayt), EE06", 23:"1635: EE02 (iki eşit bayt), EE06",
+  83:"1601: 4A28–4A33 (×0,1 −40 °C)", 84:"1601: 4A28–4A33", 85:"1601: 4A28–4A33", 86:"1601: 4A28–4A33", 87:"1601: 4A28–4A33", 90:"1601: 4A28–4A33, D901", 91:"1601: 4A28–4A33, D901",
+  40:"1650: EE1C, EE13, EE0E", 41:"1650: EE66–EE69", 42:"1650: EE66–EE69", 43:"1650: EE66–EE69", 44:"1650: EE66–EE69", 46:"1650: EE07, EE0E, EE13", 47:"1650: EE07, EE1F",
+  51:"1650: EE19/EE1A/EE1B (A/B/C modülleri)", 52:"1650: EE1F, EE19–EE1B", 53:"1650: EE66–EE69, EE13", 54:"1650: EE19–EE1B", 55:"1650: EE19–EE1B",
+  56:"1650: EE1A", 57:"1650: EE1F", 58:"1650: EE1A", 59:"1650: EE1A", 60:"1650: EE1B", 61:"1650: EE1B", 62:"1650: EE1F", 63:"1650: EE1B",
+  71:"MGM ünitesi (Car Scanner'da kapalı, istek görülmedi)",72:"MGM ünitesi",73:"MGM ünitesi",74:"MGM ünitesi",75:"MGM ünitesi",76:"MGM ünitesi",77:"MGM: araç hızı",78:"MGM ünitesi",79:"MGM ünitesi",80:"MGM ünitesi"};
 const CS_HINT = {
   3:["1DD01635","4809","2 bayt ÷100 V"], 9:["1DD01635","497C","2 bayt ÷100 V"], 13:["1DD01635","496D","4 bayt ÷100 %"], 11:["1DD01635","F442","2 bayt ÷1000 V"],
   15:["1DD01635","489C","3 bayt ×4÷15625 kW"], 16:["1DD01635","489E","3 bayt ×4÷15625 kW"],
-  17:["1DD01631","FEE7","bayt 0–1 ÷10 °C"], 25:["1DD01631","FEE7","bayt 2–3 ÷10 °C"], 26:["1DD01631","FEE7","bayt 4–5 ÷10 °C"], 27:["1DD01631","FEE7","bayt 6–7 ÷10 °C"],
-  32:["1DD01631","2B06","1 bayt km/s"], 33:["1DD01631","2B08","1 bayt km/s"], 34:["1DD01631","2B07","1 bayt km/s"], 35:["1DD01631","2B09","1 bayt km/s"],
+  17:["1DD01701","FEE7","bayt 0–1 ÷10 °C"], 25:["1DD01701","FEE7","bayt 2–3 ÷10 °C"], 26:["1DD01701","FEE7","bayt 4–5 ÷10 °C"], 27:["1DD01701","FEE7","bayt 6–7 ÷10 °C"],
+  32:["1DD01701","2B06","1 bayt km/s"], 33:["1DD01701","2B08","1 bayt km/s"], 34:["1DD01701","2B07","1 bayt km/s"], 35:["1DD01701","2B09","1 bayt km/s"],
   36:["1DD01637","F40D","1 bayt km/s"], 64:["1DD01637","EE09","2 bayt ×4 −8188 Nm"], 65:["1DD01637","4A0E","4 bayt ÷10 rpm"], 66:["1DD01637","4A00","4 bayt ÷10 °C (sargı)"],
   68:["1DD01637","985E","4 bayt −40 °C"], 69:["1DD01637","9861","2 bayt ÷10 +40 A"], 70:["1DD01637","985C","2 bayt ÷4 V"],
   81:["1DD01601","EE6F","1 bayt ×100÷255 %"], 82:["1DD01630","EE34","2 bayt ×2 kPa"], 91:["1DD01630","EE62","2 bayt ÷100 %"],
@@ -1560,6 +1569,8 @@ function csHaveVal(it){
     if (it.have==="cdelta") return sn.cmax!=null && sn.cmin!=null ? (sn.cmax-sn.cmin)*1000 : null;
     if (it.have.startsWith("w_")) return sn.ws ? sn.ws[it.have.slice(2)] : null;
     if (it.have==="torque") return sn.tq; if (it.have==="vspd") return sn.spd;
+    if (sn.x && sn.x[it.have]!=null) return sn.x[it.have];
+    if (["mrpm2","mtq2"].includes(it.have)) return null;
     return sn[it.have] ?? null; }catch{ return null; }
 }
 // Ünitenin tüm taramalarından (bilinen aralıklar, tam tarama, elle taramalar) kod → okumalar
@@ -1648,6 +1659,7 @@ function csDetail(it){
   const rows = csRows(it.tx), nCodes=new Set(rows.map(x=>x.r.did)).size;
   let h=`<div class="cs-det">`;
   const hint=CS_HINT[it.n];
+  if (CS_LOGREQ[it.n]) h+=`<p class="note" style="margin-top:0">Car Scanner'ın bu araçta gönderdiği isteklerden (günlüğünden): <span class="mono">${CS_LOGREQ[it.n]}</span>. Sensör bunlardan birinde; eşleştirme için değer gir.</p>`;
   if (hint) h+=`<p class="note" style="margin-top:0">Polestar 2'de (OBDb) bilinen yeri: <span class="mono">${hint[0].slice(4)}:22${hint[1]}</span>, ${hint[2]}. EX30'da aynı olması muhtemel; taramada çıkarsa aday listesinde öne alınır.</p>`;
   h+=`<p class="note" style="margin-top:0">${it.tx}: taramalarda cevap veren <b>${nCodes}</b> kod var. ${it.ref?`Eşleştirmede bizim okuduğumuz <b>${MT_SIG[it.ref]?.[0]||"değer"}</b> kullanılıyor; ayrıca Car Scanner değeri de girebilirsin.`:`Bizde karşılaştıracak değer yok: Car Scanner'da gördüğün değeri gir, sonra burada "Tekrar oku" ya da "Okumaları izle".`} Ölçüm zamanı: ${CS_WHEN[it.when]}.</p>`;
   h+=`<div class="row" style="margin-top:6px"><label>Car Scanner'da şu an <input id="csVal" inputmode="decimal" style="width:90px" placeholder="${it.ex??""}"> ${it.unit}</label><button class="sec mini" data-csadd="${it.id}">Değeri kaydet</button>
@@ -2478,7 +2490,13 @@ function pvHero(s){
 // Pedallar: gaz = motor torku / 343 Nm (yalnız çekişte), fren = fren basıncı / 60 bar
 function pvPedals(s){
   const set=(sel,frac,txt)=>{ const el=document.querySelector(sel); el.querySelector("i").style.width=(frac==null?0:Math.max(0,Math.min(1,frac))*100)+"%"; el.querySelector("b").innerHTML=txt; };
-  const tq = s?.tqRaw ?? s?.tq, gas = tq!=null ? Math.max(0,tq)/343 : null, br = s?.brake;
+  // Gaz: gerçek pedal (VCU E301, PWM %) varsa o; bırakılmış ~%7 → 0, tam basış öğrenilir (en yüksek görülen değer). Yoksa torktan tahmin
+  let gas=null;
+  if (s?.ped!=null){ const rest=store.get("pedRest",7); let full=store.get("pedFull",null);
+    if (s.ped>rest+20 && (full==null || s.ped>full)){ full=s.ped; store.set("pedFull", full); }
+    gas = (s.ped-rest)/((full ?? 90)-rest); }
+  else { const tq = s?.tqRaw ?? s?.tq; gas = tq!=null ? Math.max(0,tq)/343 : null; }
+  const br = s?.brake;
   set(".pd.gas", gas, gas==null ? "–" : `${f1(gas*100,0)}<small>%</small>`);
   set(".pd.brk", br!=null ? br/60 : null, br==null ? "–" : `${f1(br,0)}<small> bar</small>`);
 }
@@ -2938,7 +2956,7 @@ $("csFilter").onchange = renderCs;
 $("csAll").onclick = () => csRun(Object.entries(CS_PLAN), "Bilinen aralıklar");   // ünite cevap vermezse bloklar hızla geçer
 $("csDeep").onclick = () => { const tx=$("csDeepUnit").value; csRun([[tx, ["0000-FFFF"]]], `${KNOWN_UNITS[tx]||tx} tam tarama`); };
 $("csWatch").onclick = () => csWatch(!csWatchT);
-$("csDeepUnit").innerHTML = Object.entries(CS_UNIT).map(([k,tx])=>`<option value="${tx}">${CS_UNAME[k]}</option>`).join("") + ["1DD01631","1DD01634","1DD01602","1DD01630"].map(tx=>`<option value="${tx}">${KNOWN_UNITS[tx]}</option>`).join("");
+$("csDeepUnit").innerHTML = Object.entries(CS_UNIT).map(([k,tx])=>`<option value="${tx}">${CS_UNAME[k]}</option>`).join("") + ["1DD01634","1DD01602","1DD01630"].map(tx=>`<option value="${tx}">${KNOWN_UNITS[tx]}</option>`).join("");
 $("csList").onclick = e => { const b=e.target.closest("button"); if (!b) return; const d=b.dataset;
   const it = id => CS.find(x=>x.id===+id);
   if (d.cs){ csOpen = csOpen===+d.cs ? null : +d.cs; if (csOpen){ csRecalc([csOpen]); } renderCs(); return; }
@@ -3204,7 +3222,7 @@ const BMS = {tx:"1DD01635", rx:"1EC6AE80"};
 const u16 = d => d.length>=2 ? d[d.length-2]*256 + d[d.length-1] : NaN;
 const beN = d => { let v=0; for (const x of d) v=v*256+x; return v; };
 // Performans ekranı açıkken: sadece güç/tork/devir/hız her turda, gerisi seyrek → ~3 kat hızlı okuma
-let perfMode=false; const PERF_FAST = new Set(["cur","volt","rpm","torque","vspd","brk0","brk1","w_fl","w_fr","w_rl","w_rr"]);
+let perfMode=false; const PERF_FAST = new Set(["cur","volt","rpm","torque","vspd","brk0","brk1","w_fl","w_fr","w_rl","w_rr","ped","lacc"]);
 const effEvery = (id, ev) => perfMode ? (PERF_FAST.has(id) ? 1 : Math.max(8, ev)) : ev;
 window.ex30Perf = on => { perfMode=!!on; };
 const BMS_PIDS = [
@@ -3216,8 +3234,11 @@ const BMS_PIDS = [
   {id:"soc",  did:"4801", every:10, f:d => 1.0625*0.002*u16(d) - 3.125},
   // Bataryanın şu an izin verdiği en yüksek deşarj (çekiş) ve şarj (rejen/şarj) gücü, W → kW
   // 489E/489C: limit DEĞİL — anlık deşarj/şarj gücü (mW). Akım×voltajla örtüşüyor (15.11 tarama).
-  {id:"pdis", did:"489E", every:6,  f:d => beN(d)/1e6},
-  {id:"pchg", did:"489C", every:6,  f:d => beN(d)/1e6},
+  // 27.11 Car Scanner günlüğü + OBDb Polestar 2: 489E/489C şarj/deşarj GÜÇ SINIRI, 3 bayt ×4/15625 kW (park: deşarj sınırı 73,6 kW)
+  {id:"pdis", did:"489E", every:6,  f:d => beN(d.slice(-3))*4/15625},
+  {id:"pchg", did:"489C", every:6,  f:d => beN(d.slice(-3))*4/15625},
+  {id:"igm",  did:"4809", every:20, slow:true, f:d => u16(d)/100},
+  {id:"csum", did:"497C", every:10, f:d => u16(d)/100},
   // Hücre gerilimi en yüksek/en düşük (ilk bayt hücre no, sonra mV) ve en düşük sensör sıcaklığı
   {id:"cmax", did:"4907", every:6,  f:d => d.length>=3 ? (d[1]*256+d[2])/1000 : NaN},
   {id:"cmin", did:"4908", every:6,  f:d => d.length>=3 ? (d[1]*256+d[2])/1000 : NaN},
@@ -3243,6 +3264,11 @@ const CUSTOM_KEYS = [
   ["mx314","E314 (aday)"],["mx315","E315 (aday)"],["mx341","E341 (hızla orantılı)"],
   ["h28","Isı yön. 4A28 (°C, aday)"],["h29","Isı pompası 4A29 (°C, aday)"],["h30","Isı yön. 4A30 (°C, aday)"],["h31","Kabin ısıtma 4A31 (°C, aday)"],["h32","Kabin? 4A32 (°C, aday)"],["h33","Kabin ısıtma 4A33 (°C, aday)"],
   ["p_fl","Basınç sol ön (psi)"],["p_fr","Basınç sağ ön (psi)"],["p_rl","Basınç sol arka (psi)"],["p_rr","Basınç sağ arka (psi)"],
+  ["ped","Gaz pedalı PWM (%)"],["lacc","Boylamsal ivme (g, ölçek aday)"],
+  ["d_fl","Fren diski sol ön (°C)"],["d_fr","Fren diski sağ ön (°C)"],["d_rl","Fren diski sol arka (°C)"],["d_rr","Fren diski sağ arka (°C)"],
+  ["acp","Klima basıncı (kPa, aday)"],["pump","Soğutma pompası istenen (%, aday)"],["vlvA","Batarya soğutma valfi (%)"],["vlvR","Batarya soğutma valfi istenen (%)"],
+  ["mcool","Motor soğutma sıvısı EE9A (°C)"],["lvV","DC/DC 12 V gerilim (V)"],["lvA","DC/DC 12 V akım (A)"],["dcW","DC/DC giriş gücü (W)"],["dcSet","DC/DC çıkış ayarı (V)"],
+  ["acT1","AC soket sıcaklığı 1 (°C, aday)"],["acT2","AC soket sıcaklığı 2 (°C, aday)"],
   ["t_fl","Lastik sıc. sol ön (°C)"],["t_fr","Lastik sıc. sağ ön (°C)"],["t_rl","Lastik sıc. sol arka (°C)"],["t_rr","Lastik sıc. sağ arka (°C)"],
 ];
 // Car Scanner EX30 profilinin kaydından çıkarılan kaynaklar (kullanıcı değiştirebilir)
@@ -3264,6 +3290,16 @@ const M=(did,len,scale,offset,every)=>({tx:"1DD01637", rx:"1EC6EE80", did, start
 Object.assign(DEFAULT_SOURCES, {mdcv:M("E300",2,0.25,0,3), minv:M("E305",1,1,-50,6), mtq2:M("E301",2,1,-8192,2), mtq3:M("E308",2,0.1,-819.2,2), mrpm2:M("E312",2,1,-16384,4), mlim:M("E353",2,0.1,0,4), mx363:M("E363",1,1,0,4), mx314:M("E314",2,1,0,6), mx315:M("E315",2,1,0,6), mx341:M("E341",2,1,-13107,6)});
 // VCU ısı yönetimi (15.11 tarama): 4 bayt, son iki bayt ×0,1 − 40 °C; yavaş değişir
 for (const [k,d] of [["h28","4A28"],["h29","4A29"],["h30","4A30"],["h31","4A31"],["h32","4A32"],["h33","4A33"]]) DEFAULT_SOURCES[k] = {tx:"1DD01601", rx:"1EC02E80", did:d, start:"2", len:"2", scale:"0.1", offset:"-40", every:"10"};
+// 27.11: Car Scanner'ın EX30 profilinin araca gönderdiği istekler (kendi günlüğünden) — değerler o günlükle doğrulandı
+{ const S=(tx,rx,did,start,len,scale,offset,every,signed)=>({tx,rx,did,start:String(start),len:String(len),scale:String(scale),offset:String(offset),every:String(every),signed:!!signed});
+  const V="1DD01601",VR="1EC02E80", A="1DD01701",AR="1EE02E80", C="1DD01650",CR="1ECA0E80", Mo="1DD01637",MoR="1EC6EE80";
+  Object.assign(DEFAULT_SOURCES, {
+    ped:S(V,VR,"E301",0,1,1,0,1), acp:S(V,VR,"413A",0,4,1,0,10), pump:S(V,VR,"D901",0,4,0.1,0,10), vlvA:S(V,VR,"E349",0,1,1,0,10), vlvR:S(V,VR,"E34A",0,1,1,0,10),
+    lacc:S(A,AR,"2B11",0,2,1/4096,0,1,true),
+    d_fl:S(A,AR,"FEE7",0,2,0.1,0,10), d_fr:S(A,AR,"FEE7",2,2,0.1,0,10), d_rl:S(A,AR,"FEE7",4,2,0.1,0,10), d_rr:S(A,AR,"FEE7",6,2,0.1,0,10),
+    mcool:S(Mo,MoR,"EE9A",0,1,1,-40,10),
+    lvV:S(C,CR,"EE04",0,1,0.1,0,10), lvA:S(C,CR,"EE06",0,2,0.1,0,10), dcW:S(C,CR,"EE09",0,2,1,0,10), dcSet:S(C,CR,"EE0F",0,1,0.1,0,20),
+    acT1:S(C,CR,"EE22",0,1,1,-40,20), acT2:S(C,CR,"EE22",1,1,1,-40,20) }); }
 // D901 (göstergedeki şarj) bu araçta hep 0 döndü (15.11 log) → kaldırıldı
 const CANDIDATE = new Set([]);   // ekranda "aday" olarak işaretlenir
 const INIT = ["ATZ","ATE0","ATL0","ATS0","ATH1","ATAL","ATST64","ATAT1","ATSP7"];
@@ -3488,7 +3524,7 @@ async function loopBody(){
     defs.sort((a,b)=>(a[1].tx+a[1].rx).localeCompare(b[1].tx+b[1].rx));
     for (const [k,s] of defs){
       if (cycle % effEvery(k, Math.max(1, +s.every||5)) !== 0 && vals[k]!=null) continue;
-      add(s.tx.toUpperCase(), s.rx.toUpperCase(), s.did.toUpperCase(), b => { vals[k]=srcVal(s,b,false); raw[k]=b; valT[k]=Date.now(); });
+      add(s.tx.toUpperCase(), s.rx.toUpperCase(), s.did.toUpperCase(), b => { vals[k]=srcVal(s,b,!!s.signed); raw[k]=b; valT[k]=Date.now(); });
     }
     for (const e of extras){
       if (cycle % effEvery(e.id, Math.max(1, +e.every||3)) !== 0 && vals[e.id]!=null) continue;
@@ -3774,6 +3810,8 @@ window.ex30Snap = () => { const n=v=>(v==null||!isFinite(v))?null:+v;
     slip: (()=>{ const k=["w_fl","w_fr","w_rl","w_rr"]; if (!k.every(x=>vals[x]!=null && valT[x] && Date.now()-valT[x]<2500)) return null; return (vals.w_rl+vals.w_rr-vals.w_fl-vals.w_fr)/2; })(),
     inst: n(vals.inst), grade: n(gradeNow()), jt: journalNow(), batT: n(batTemp()), socAny: n(vals.soc ?? aaosSoc()), cab: n(aaos("HVAC_TEMPERATURE_CURRENT")), cabSet: n(aaos("HVAC_TEMPERATURE_SET")),
     yaw: geo.yaw!=null && Date.now()-geo.yawT<2500 ? geo.yaw : null,
+    x: (()=>{ const o={}; for (const k of ["ped","lacc","d_fl","d_fr","d_rl","d_rr","acp","pump","vlvA","vlvR","mcool","lvV","lvA","dcW","dcSet","acT1","acT2","igm","csum","pdis","pchg","odo","soh","soh2"]) if (vals[k]!=null && isFinite(vals[k])) o[k]=+vals[k]; return o; })(),
+    ped: n(vals.ped), lacc: n(vals.lacc),
     dsp: aaos("PERF_VEHICLE_SPEED_DISPLAY")!=null ? n(aaos("PERF_VEHICLE_SPEED_DISPLAY")*3.6) : null};
 };
 // Android Auto ekranı için tek seferde gönderilen özet
@@ -3990,7 +4028,10 @@ const LOG_COLS = [["avg","bat_ort_C"],["cin","sogutma_giris_C"],["cout","guc_akt
   ["t_fl","lastik_sol_on_C"],["t_fr","lastik_sag_on_C"],["t_rl","lastik_sol_arka_C"],["t_rr","lastik_sag_arka_C"],["alt","irtifa_m"],["auto","oto_yolculuk"],["torqueCalc","tork_hesap_Nm"],
   ["brake","fren_bar"],["w_fl","teker_sol_on_kmsa"],["w_fr","teker_sag_on_kmsa"],["w_rl","teker_sol_arka_kmsa"],["w_rr","teker_sag_arka_kmsa"],["slip","arka_eksi_on_kmsa"],
   ["a_kw","aaos_guc_kW"],["a_kwh","aaos_kalan_kWh"],["a_cap","aaos_kapasite_kWh"],["a_rng","aaos_menzil_km"],["a_spd","aaos_hiz_kmsa"],["a_dsp","aaos_gosterge_kmsa"],["a_out","aaos_dis_C"],["a_rgn","aaos_rejen_mod"],["a_chg","aaos_sarj_durum"],["socd","sarj_gosterge"],["v12","aku_12V"],["cmax","hucre_maks_V"],["cmin","hucre_min_V"],["tmin","bat_min_C"],["erem","kalan_enerji_kWh_aday"],["soh2","soh2_yuzde"],["soh","soh_yuzde"],["mdcv","inv_dc_V"],["minv","inv_C_aday"],["mtq2","E301_tork_aday"],["mtq3","E308_tork_aday"],["mrpm2","E312_devir_aday"],["mlim","E353_sinir_yuzde"],["mx363","E363_aday"],["mx314","E314_aday"],["mx315","E315_aday"],["mx341","E341_aday"],
-  ["h28","vcu_4A28_C"],["h29","vcu_4A29_C"],["h30","vcu_4A30_C"],["h31","vcu_4A31_C"],["h32","vcu_4A32_C"],["h33","vcu_4A33_C"],["eused","harcanan_enerji_kWh_aday"],["pdis","bms_desarj_kW"],["pchg","bms_sarj_kW"],
+  ["ped","gaz_pedali_pwm"],["lacc","boylamsal_ivme_g_aday"],["d_fl","fren_diski_sol_on_C"],["d_fr","fren_diski_sag_on_C"],["d_rl","fren_diski_sol_arka_C"],["d_rr","fren_diski_sag_arka_C"],
+  ["acp","klima_basinc_kPa_aday"],["pump","sogutma_pompasi_yuzde"],["vlvA","bat_valf_yuzde"],["vlvR","bat_valf_istenen_yuzde"],["mcool","motor_sogutma_EE9A_C"],
+  ["lvV","dcdc_12V_V"],["lvA","dcdc_12V_A"],["dcW","dcdc_giris_W"],["dcSet","dcdc_ayar_V"],["acT1","ac_soket1_C"],["acT2","ac_soket2_C"],["igm","bat_igm_sigorta_V"],["csum","hucre_toplam_V"],
+  ["h28","vcu_4A28_C"],["h29","vcu_4A29_C"],["h30","vcu_4A30_C"],["h31","vcu_4A31_C"],["h32","vcu_4A32_C"],["h33","vcu_4A33_C"],["eused","harcanan_enerji_kWh_aday"],["pdis","bms_desarj_sinir_kW"],["pchg","bms_sarj_sinir_kW"],
   ["a_soc","aaos_sarj_yuzde"],["a_batT","aaos_bat_C"],["a_gear","aaos_vites"],["a_port","aaos_kablo_takili"],["a_tRem","aaos_sarj_kalan_dk"],["a_lim","aaos_sarj_hedef_yuzde"],["a_stop","aaos_durma_modu"],["a_pb","aaos_el_freni"],["a_ign","aaos_kontak"],["a_eff","aaos_anlik_verim_ham"],["grade","egim_yuzde_tahmini"],["acc_g","ivme_g"],["brk_kw","mekanik_fren_kW_tahmini"]];
 const p2=n=>String(n).padStart(2,"0");
 const localStamp = t => { const d=new Date(t); return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3,"0")}`; };

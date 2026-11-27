@@ -230,7 +230,7 @@ const BMS = {tx:"1DD01635", rx:"1EC6AE80"};
 const u16 = d => d.length>=2 ? d[d.length-2]*256 + d[d.length-1] : NaN;
 const beN = d => { let v=0; for (const x of d) v=v*256+x; return v; };
 // Performans ekranı açıkken: sadece güç/tork/devir/hız her turda, gerisi seyrek → ~3 kat hızlı okuma
-let perfMode=false; const PERF_FAST = new Set(["cur","volt","rpm","torque","vspd","brk0","brk1","w_fl","w_fr","w_rl","w_rr"]);
+let perfMode=false; const PERF_FAST = new Set(["cur","volt","rpm","torque","vspd","brk0","brk1","w_fl","w_fr","w_rl","w_rr","ped","lacc"]);
 const effEvery = (id, ev) => perfMode ? (PERF_FAST.has(id) ? 1 : Math.max(8, ev)) : ev;
 window.ex30Perf = on => { perfMode=!!on; };
 const BMS_PIDS = [
@@ -242,8 +242,11 @@ const BMS_PIDS = [
   {id:"soc",  did:"4801", every:10, f:d => 1.0625*0.002*u16(d) - 3.125},
   // Bataryanın şu an izin verdiği en yüksek deşarj (çekiş) ve şarj (rejen/şarj) gücü, W → kW
   // 489E/489C: limit DEĞİL — anlık deşarj/şarj gücü (mW). Akım×voltajla örtüşüyor (15.11 tarama).
-  {id:"pdis", did:"489E", every:6,  f:d => beN(d)/1e6},
-  {id:"pchg", did:"489C", every:6,  f:d => beN(d)/1e6},
+  // 27.11 Car Scanner günlüğü + OBDb Polestar 2: 489E/489C şarj/deşarj GÜÇ SINIRI, 3 bayt ×4/15625 kW (park: deşarj sınırı 73,6 kW)
+  {id:"pdis", did:"489E", every:6,  f:d => beN(d.slice(-3))*4/15625},
+  {id:"pchg", did:"489C", every:6,  f:d => beN(d.slice(-3))*4/15625},
+  {id:"igm",  did:"4809", every:20, slow:true, f:d => u16(d)/100},
+  {id:"csum", did:"497C", every:10, f:d => u16(d)/100},
   // Hücre gerilimi en yüksek/en düşük (ilk bayt hücre no, sonra mV) ve en düşük sensör sıcaklığı
   {id:"cmax", did:"4907", every:6,  f:d => d.length>=3 ? (d[1]*256+d[2])/1000 : NaN},
   {id:"cmin", did:"4908", every:6,  f:d => d.length>=3 ? (d[1]*256+d[2])/1000 : NaN},
@@ -269,6 +272,11 @@ const CUSTOM_KEYS = [
   ["mx314","E314 (aday)"],["mx315","E315 (aday)"],["mx341","E341 (hızla orantılı)"],
   ["h28","Isı yön. 4A28 (°C, aday)"],["h29","Isı pompası 4A29 (°C, aday)"],["h30","Isı yön. 4A30 (°C, aday)"],["h31","Kabin ısıtma 4A31 (°C, aday)"],["h32","Kabin? 4A32 (°C, aday)"],["h33","Kabin ısıtma 4A33 (°C, aday)"],
   ["p_fl","Basınç sol ön (psi)"],["p_fr","Basınç sağ ön (psi)"],["p_rl","Basınç sol arka (psi)"],["p_rr","Basınç sağ arka (psi)"],
+  ["ped","Gaz pedalı PWM (%)"],["lacc","Boylamsal ivme (g, ölçek aday)"],
+  ["d_fl","Fren diski sol ön (°C)"],["d_fr","Fren diski sağ ön (°C)"],["d_rl","Fren diski sol arka (°C)"],["d_rr","Fren diski sağ arka (°C)"],
+  ["acp","Klima basıncı (kPa, aday)"],["pump","Soğutma pompası istenen (%, aday)"],["vlvA","Batarya soğutma valfi (%)"],["vlvR","Batarya soğutma valfi istenen (%)"],
+  ["mcool","Motor soğutma sıvısı EE9A (°C)"],["lvV","DC/DC 12 V gerilim (V)"],["lvA","DC/DC 12 V akım (A)"],["dcW","DC/DC giriş gücü (W)"],["dcSet","DC/DC çıkış ayarı (V)"],
+  ["acT1","AC soket sıcaklığı 1 (°C, aday)"],["acT2","AC soket sıcaklığı 2 (°C, aday)"],
   ["t_fl","Lastik sıc. sol ön (°C)"],["t_fr","Lastik sıc. sağ ön (°C)"],["t_rl","Lastik sıc. sol arka (°C)"],["t_rr","Lastik sıc. sağ arka (°C)"],
 ];
 // Car Scanner EX30 profilinin kaydından çıkarılan kaynaklar (kullanıcı değiştirebilir)
@@ -290,6 +298,16 @@ const M=(did,len,scale,offset,every)=>({tx:"1DD01637", rx:"1EC6EE80", did, start
 Object.assign(DEFAULT_SOURCES, {mdcv:M("E300",2,0.25,0,3), minv:M("E305",1,1,-50,6), mtq2:M("E301",2,1,-8192,2), mtq3:M("E308",2,0.1,-819.2,2), mrpm2:M("E312",2,1,-16384,4), mlim:M("E353",2,0.1,0,4), mx363:M("E363",1,1,0,4), mx314:M("E314",2,1,0,6), mx315:M("E315",2,1,0,6), mx341:M("E341",2,1,-13107,6)});
 // VCU ısı yönetimi (15.11 tarama): 4 bayt, son iki bayt ×0,1 − 40 °C; yavaş değişir
 for (const [k,d] of [["h28","4A28"],["h29","4A29"],["h30","4A30"],["h31","4A31"],["h32","4A32"],["h33","4A33"]]) DEFAULT_SOURCES[k] = {tx:"1DD01601", rx:"1EC02E80", did:d, start:"2", len:"2", scale:"0.1", offset:"-40", every:"10"};
+// 27.11: Car Scanner'ın EX30 profilinin araca gönderdiği istekler (kendi günlüğünden) — değerler o günlükle doğrulandı
+{ const S=(tx,rx,did,start,len,scale,offset,every,signed)=>({tx,rx,did,start:String(start),len:String(len),scale:String(scale),offset:String(offset),every:String(every),signed:!!signed});
+  const V="1DD01601",VR="1EC02E80", A="1DD01701",AR="1EE02E80", C="1DD01650",CR="1ECA0E80", Mo="1DD01637",MoR="1EC6EE80";
+  Object.assign(DEFAULT_SOURCES, {
+    ped:S(V,VR,"E301",0,1,1,0,1), acp:S(V,VR,"413A",0,4,1,0,10), pump:S(V,VR,"D901",0,4,0.1,0,10), vlvA:S(V,VR,"E349",0,1,1,0,10), vlvR:S(V,VR,"E34A",0,1,1,0,10),
+    lacc:S(A,AR,"2B11",0,2,1/4096,0,1,true),
+    d_fl:S(A,AR,"FEE7",0,2,0.1,0,10), d_fr:S(A,AR,"FEE7",2,2,0.1,0,10), d_rl:S(A,AR,"FEE7",4,2,0.1,0,10), d_rr:S(A,AR,"FEE7",6,2,0.1,0,10),
+    mcool:S(Mo,MoR,"EE9A",0,1,1,-40,10),
+    lvV:S(C,CR,"EE04",0,1,0.1,0,10), lvA:S(C,CR,"EE06",0,2,0.1,0,10), dcW:S(C,CR,"EE09",0,2,1,0,10), dcSet:S(C,CR,"EE0F",0,1,0.1,0,20),
+    acT1:S(C,CR,"EE22",0,1,1,-40,20), acT2:S(C,CR,"EE22",1,1,1,-40,20) }); }
 // D901 (göstergedeki şarj) bu araçta hep 0 döndü (15.11 log) → kaldırıldı
 const CANDIDATE = new Set([]);   // ekranda "aday" olarak işaretlenir
 const INIT = ["ATZ","ATE0","ATL0","ATS0","ATH1","ATAL","ATST64","ATAT1","ATSP7"];
@@ -514,7 +532,7 @@ async function loopBody(){
     defs.sort((a,b)=>(a[1].tx+a[1].rx).localeCompare(b[1].tx+b[1].rx));
     for (const [k,s] of defs){
       if (cycle % effEvery(k, Math.max(1, +s.every||5)) !== 0 && vals[k]!=null) continue;
-      add(s.tx.toUpperCase(), s.rx.toUpperCase(), s.did.toUpperCase(), b => { vals[k]=srcVal(s,b,false); raw[k]=b; valT[k]=Date.now(); });
+      add(s.tx.toUpperCase(), s.rx.toUpperCase(), s.did.toUpperCase(), b => { vals[k]=srcVal(s,b,!!s.signed); raw[k]=b; valT[k]=Date.now(); });
     }
     for (const e of extras){
       if (cycle % effEvery(e.id, Math.max(1, +e.every||3)) !== 0 && vals[e.id]!=null) continue;
@@ -800,6 +818,8 @@ window.ex30Snap = () => { const n=v=>(v==null||!isFinite(v))?null:+v;
     slip: (()=>{ const k=["w_fl","w_fr","w_rl","w_rr"]; if (!k.every(x=>vals[x]!=null && valT[x] && Date.now()-valT[x]<2500)) return null; return (vals.w_rl+vals.w_rr-vals.w_fl-vals.w_fr)/2; })(),
     inst: n(vals.inst), grade: n(gradeNow()), jt: journalNow(), batT: n(batTemp()), socAny: n(vals.soc ?? aaosSoc()), cab: n(aaos("HVAC_TEMPERATURE_CURRENT")), cabSet: n(aaos("HVAC_TEMPERATURE_SET")),
     yaw: geo.yaw!=null && Date.now()-geo.yawT<2500 ? geo.yaw : null,
+    x: (()=>{ const o={}; for (const k of ["ped","lacc","d_fl","d_fr","d_rl","d_rr","acp","pump","vlvA","vlvR","mcool","lvV","lvA","dcW","dcSet","acT1","acT2","igm","csum","pdis","pchg","odo","soh","soh2"]) if (vals[k]!=null && isFinite(vals[k])) o[k]=+vals[k]; return o; })(),
+    ped: n(vals.ped), lacc: n(vals.lacc),
     dsp: aaos("PERF_VEHICLE_SPEED_DISPLAY")!=null ? n(aaos("PERF_VEHICLE_SPEED_DISPLAY")*3.6) : null};
 };
 // Android Auto ekranı için tek seferde gönderilen özet
@@ -1016,7 +1036,10 @@ const LOG_COLS = [["avg","bat_ort_C"],["cin","sogutma_giris_C"],["cout","guc_akt
   ["t_fl","lastik_sol_on_C"],["t_fr","lastik_sag_on_C"],["t_rl","lastik_sol_arka_C"],["t_rr","lastik_sag_arka_C"],["alt","irtifa_m"],["auto","oto_yolculuk"],["torqueCalc","tork_hesap_Nm"],
   ["brake","fren_bar"],["w_fl","teker_sol_on_kmsa"],["w_fr","teker_sag_on_kmsa"],["w_rl","teker_sol_arka_kmsa"],["w_rr","teker_sag_arka_kmsa"],["slip","arka_eksi_on_kmsa"],
   ["a_kw","aaos_guc_kW"],["a_kwh","aaos_kalan_kWh"],["a_cap","aaos_kapasite_kWh"],["a_rng","aaos_menzil_km"],["a_spd","aaos_hiz_kmsa"],["a_dsp","aaos_gosterge_kmsa"],["a_out","aaos_dis_C"],["a_rgn","aaos_rejen_mod"],["a_chg","aaos_sarj_durum"],["socd","sarj_gosterge"],["v12","aku_12V"],["cmax","hucre_maks_V"],["cmin","hucre_min_V"],["tmin","bat_min_C"],["erem","kalan_enerji_kWh_aday"],["soh2","soh2_yuzde"],["soh","soh_yuzde"],["mdcv","inv_dc_V"],["minv","inv_C_aday"],["mtq2","E301_tork_aday"],["mtq3","E308_tork_aday"],["mrpm2","E312_devir_aday"],["mlim","E353_sinir_yuzde"],["mx363","E363_aday"],["mx314","E314_aday"],["mx315","E315_aday"],["mx341","E341_aday"],
-  ["h28","vcu_4A28_C"],["h29","vcu_4A29_C"],["h30","vcu_4A30_C"],["h31","vcu_4A31_C"],["h32","vcu_4A32_C"],["h33","vcu_4A33_C"],["eused","harcanan_enerji_kWh_aday"],["pdis","bms_desarj_kW"],["pchg","bms_sarj_kW"],
+  ["ped","gaz_pedali_pwm"],["lacc","boylamsal_ivme_g_aday"],["d_fl","fren_diski_sol_on_C"],["d_fr","fren_diski_sag_on_C"],["d_rl","fren_diski_sol_arka_C"],["d_rr","fren_diski_sag_arka_C"],
+  ["acp","klima_basinc_kPa_aday"],["pump","sogutma_pompasi_yuzde"],["vlvA","bat_valf_yuzde"],["vlvR","bat_valf_istenen_yuzde"],["mcool","motor_sogutma_EE9A_C"],
+  ["lvV","dcdc_12V_V"],["lvA","dcdc_12V_A"],["dcW","dcdc_giris_W"],["dcSet","dcdc_ayar_V"],["acT1","ac_soket1_C"],["acT2","ac_soket2_C"],["igm","bat_igm_sigorta_V"],["csum","hucre_toplam_V"],
+  ["h28","vcu_4A28_C"],["h29","vcu_4A29_C"],["h30","vcu_4A30_C"],["h31","vcu_4A31_C"],["h32","vcu_4A32_C"],["h33","vcu_4A33_C"],["eused","harcanan_enerji_kWh_aday"],["pdis","bms_desarj_sinir_kW"],["pchg","bms_sarj_sinir_kW"],
   ["a_soc","aaos_sarj_yuzde"],["a_batT","aaos_bat_C"],["a_gear","aaos_vites"],["a_port","aaos_kablo_takili"],["a_tRem","aaos_sarj_kalan_dk"],["a_lim","aaos_sarj_hedef_yuzde"],["a_stop","aaos_durma_modu"],["a_pb","aaos_el_freni"],["a_ign","aaos_kontak"],["a_eff","aaos_anlik_verim_ham"],["grade","egim_yuzde_tahmini"],["acc_g","ivme_g"],["brk_kw","mekanik_fren_kW_tahmini"]];
 const p2=n=>String(n).padStart(2,"0");
 const localStamp = t => { const d=new Date(t); return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3,"0")}`; };
