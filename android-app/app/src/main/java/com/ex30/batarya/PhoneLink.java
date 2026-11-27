@@ -69,6 +69,10 @@ final class PhoneLink {
 
     boolean isCar() { return isCar; }
     boolean connected() { return sock != null && out != null; }
+
+    /** Bağlantı açık görünüp veri akmıyorsa sayfa yeniden bağlanmayı ister. */
+    @JavascriptInterface
+    public void reconnect() { BluetoothSocket s = sock; try { if (s != null) s.close(); } catch (Exception ignored) { } }
     @JavascriptInterface
     public String state() {
         try { return new JSONObject().put("role", isCar ? "car" : "phone").put("up", connected()).put("peer", peer).put("state", state).toString(); }
@@ -226,7 +230,11 @@ final class PhoneLink {
                 OutputStream o = out;
                 if (o == null || sock != mine) break;
                 if (l.isEmpty()) continue;
-                o.write((l + "\n").getBytes(StandardCharsets.UTF_8));
+                // Yazma 8 sn'den uzun takılırsa (karşı taraf okumuyorsa) bağlantı kapatılır, kendiliğinden yeniden kurulur
+                final BluetoothSocket ws = mine;
+                Runnable wd = () -> { try { ws.close(); } catch (Exception ignored) { } };
+                main.postDelayed(wd, 8000);
+                try { o.write((l + "\n").getBytes(StandardCharsets.UTF_8)); } finally { main.removeCallbacks(wd); }
                 if (q.isEmpty() && carLatest.isEmpty()) o.flush();
             }
         } catch (Throwable e) {

@@ -2533,7 +2533,11 @@ function linkApplyCfg(m){
   if (!chW && !moving && !window.ex30Replay){ log("Ayarlar diğer cihazdan alındı, uygulama yenileniyor"); setTimeout(()=>{ try{ sessionStorage.setItem("linkGot", JSON.stringify(linkGot)); }catch{} location.reload(); }, 1500); }
   else { window.__cfgApplied = false; log("Ayarlar diğer cihazdan alındı; uygulama yeniden açılınca geçerli olur"); }
 }
-let linkLastCar=0, liveWanted=0, remoteT=0;
+let linkLastCar=0, liveWanted=0, remoteT=0, linkDogT=0;
+// Bağlantı "bağlı" görünüp araç verisi 12 sn'den uzun donarsa (daha önce akıyorduysa) bağlantıyı yenile; en sık dakikada bir
+setInterval(()=>{ if (!LINK || !linkSt.up || linkSt.role!=="phone" || Date.now()-linkDogT<60000) return;
+  let cS=0; try{ const cv = panelWin && panelWin.ex30Car ? panelWin.ex30Car() : null; if (cv) for (const k in cv.t) if (/^(PERF_VEHICLE_SPEED|EV_BATTERY_INSTANTANEOUS)/.test(k) && cv.t[k]>cS) cS=cv.t[k]; }catch{}
+  if (cS && Date.now()-cS>12000 && typeof LINK.reconnect==="function"){ linkDogT=Date.now(); log("Araç verisi durdu, orta ekran bağlantısı yenileniyor"); try{ LINK.reconnect(); }catch{} } }, 5000);
 // Orta ekran: telefon canlı istiyorsa (son 8 sn içinde istemişse) panel durumunu yolla
 setInterval(()=>{ if (!LINK || !linkSt.up || linkSt.role!=="car" || Date.now()-liveWanted>8000) return;
   try{ ensurePanel(); const p = panelWin && panelWin.ex30MirrorState ? panelWin.ex30MirrorState() : null; if (p) linkSend({k:"st", p}); }catch{} }, 1000);

@@ -715,8 +715,10 @@ function sample(fromLoop){
   if (fromLoop){ lastSampleT=now; speed.cyc.push(now); while (speed.cyc.length && now-speed.cyc[0]>10000) speed.cyc.shift(); }
   // OBD bağlıyken batarya gücü BMS'den (daha hassas); bağlı değilken eski OBD değerleri değil aracın kendi verisi kullanılır
   const obdP = running && vals.volt!=null && vals.cur!=null;
-  const P = obdP ? vals.volt*vals.cur/1000*sign : (aaos("EV_BATTERY_INSTANTANEOUS_CHARGE_RATE")!=null ? aaosPower() : null);
-  vals.kw = obdP ? P : running ? vals.kw : null;
+  // Güç: aracın kendi değeri taze (<2,5 sn) ise o (saniyede onlarca ölçüm, zaman damgalı); değilse BMS (V×I, ~1,6 sn'de bir). İki kaynağın enerji toplamı kayıtlarda %1 içinde aynı.
+  const aP = aaosPower(), aFresh = aP!=null && Date.now()-(carT["EV_BATTERY_INSTANTANEOUS_CHARGE_RATE"]||0) < 2500;
+  const P = aFresh ? aP : obdP ? vals.volt*vals.cur/1000*sign : aP;
+  vals.kw = running && (aFresh || obdP) ? P : running ? vals.kw : null;
   const vs = carSpeed().v;
   if (lastS){
     const dth = Math.min(now-lastS.t, 15000)/3600e3;

@@ -2536,7 +2536,11 @@ function linkApplyCfg(m){
   if (!chW && !moving && !window.ex30Replay){ log("Ayarlar diğer cihazdan alındı, uygulama yenileniyor"); setTimeout(()=>{ try{ sessionStorage.setItem("linkGot", JSON.stringify(linkGot)); }catch{} location.reload(); }, 1500); }
   else { window.__cfgApplied = false; log("Ayarlar diğer cihazdan alındı; uygulama yeniden açılınca geçerli olur"); }
 }
-let linkLastCar=0, liveWanted=0, remoteT=0;
+let linkLastCar=0, liveWanted=0, remoteT=0, linkDogT=0;
+// Bağlantı "bağlı" görünüp araç verisi 12 sn'den uzun donarsa (daha önce akıyorduysa) bağlantıyı yenile; en sık dakikada bir
+setInterval(()=>{ if (!LINK || !linkSt.up || linkSt.role!=="phone" || Date.now()-linkDogT<60000) return;
+  let cS=0; try{ const cv = panelWin && panelWin.ex30Car ? panelWin.ex30Car() : null; if (cv) for (const k in cv.t) if (/^(PERF_VEHICLE_SPEED|EV_BATTERY_INSTANTANEOUS)/.test(k) && cv.t[k]>cS) cS=cv.t[k]; }catch{}
+  if (cS && Date.now()-cS>12000 && typeof LINK.reconnect==="function"){ linkDogT=Date.now(); log("Araç verisi durdu, orta ekran bağlantısı yenileniyor"); try{ LINK.reconnect(); }catch{} } }, 5000);
 // Orta ekran: telefon canlı istiyorsa (son 8 sn içinde istemişse) panel durumunu yolla
 setInterval(()=>{ if (!LINK || !linkSt.up || linkSt.role!=="car" || Date.now()-liveWanted>8000) return;
   try{ ensurePanel(); const p = panelWin && panelWin.ex30MirrorState ? panelWin.ex30MirrorState() : null; if (p) linkSend({k:"st", p}); }catch{} }, 1000);
@@ -3872,8 +3876,10 @@ function sample(fromLoop){
   if (fromLoop){ lastSampleT=now; speed.cyc.push(now); while (speed.cyc.length && now-speed.cyc[0]>10000) speed.cyc.shift(); }
   // OBD bağlıyken batarya gücü BMS'den (daha hassas); bağlı değilken eski OBD değerleri değil aracın kendi verisi kullanılır
   const obdP = running && vals.volt!=null && vals.cur!=null;
-  const P = obdP ? vals.volt*vals.cur/1000*sign : (aaos("EV_BATTERY_INSTANTANEOUS_CHARGE_RATE")!=null ? aaosPower() : null);
-  vals.kw = obdP ? P : running ? vals.kw : null;
+  // Güç: aracın kendi değeri taze (<2,5 sn) ise o (saniyede onlarca ölçüm, zaman damgalı); değilse BMS (V×I, ~1,6 sn'de bir). İki kaynağın enerji toplamı kayıtlarda %1 içinde aynı.
+  const aP = aaosPower(), aFresh = aP!=null && Date.now()-(carT["EV_BATTERY_INSTANTANEOUS_CHARGE_RATE"]||0) < 2500;
+  const P = aFresh ? aP : obdP ? vals.volt*vals.cur/1000*sign : aP;
+  vals.kw = running && (aFresh || obdP) ? P : running ? vals.kw : null;
   const vs = carSpeed().v;
   if (lastS){
     const dth = Math.min(now-lastS.t, 15000)/3600e3;
