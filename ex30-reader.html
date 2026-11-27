@@ -3690,7 +3690,8 @@ async function readEcu(txA, rxA, dids){   // → {did: bayt dizisi | null}
   return out;
 }
 window.ex30Multi = () => Object.fromEntries(Object.entries(multiSt).map(([k,s])=>[UNIT_NAMES[k.slice(0,8)]||k.slice(4,8), s.off?"kapalı":s.ok?"açık":"–"]));
-const srcVal = (s, b, signed) => { const st=+s.start||0, ln=Math.min(4, Math.max(1,+s.len||1)); let v=0; for (let i=0;i<ln;i++) v=v*256+(b[st+i]??0);
+const srcVal = (s, b, signed) => { const st=+s.start||0, ln=Math.min(4, Math.max(1,+s.len||1)); if (b.length < st+ln) return null;   // cevap kısaysa 0 değil boş (eksik cevap sıfır gibi görünmesin)
+  let v=0; for (let i=0;i<ln;i++) v=v*256+(b[st+i]??0);
   if (signed && v >= 2**(8*ln-1)) v -= 2**(8*ln); return v*(+s.scale||1) + (+s.offset||0); };
 async function loopBody(){
   while (running && chW){
