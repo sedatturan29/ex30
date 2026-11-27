@@ -290,7 +290,7 @@ Object.assign(DEFAULT_SOURCES, {mdcv:M("E300",2,0.25,0,3), minv:M("E305",1,1,-50
 for (const [k,d] of [["h28","4A28"],["h29","4A29"],["h30","4A30"],["h31","4A31"],["h32","4A32"],["h33","4A33"]]) DEFAULT_SOURCES[k] = {tx:"1DD01601", rx:"1EC02E80", did:d, start:"2", len:"2", scale:"0.1", offset:"-40", every:"10"};
 // D901 (göstergedeki şarj) bu araçta hep 0 döndü (15.11 log) → kaldırıldı
 const CANDIDATE = new Set([]);   // ekranda "aday" olarak işaretlenir
-const INIT = ["ATZ","ATE0","ATL0","ATS0","ATH1","ATAL","ATST64","ATSP7"];
+const INIT = ["ATZ","ATE0","ATL0","ATS0","ATH1","ATAL","ATST64","ATAT1","ATSP7"];
 const SERVICES = [0xfff0, 0xffe0, 0x18f0, "e7810a71-73ae-499d-8c15-faa9aef0c3f2"];
 
 // ============ Kalıcı ayarlar ============
@@ -438,7 +438,7 @@ async function loop(){
 // ---- Çoklu okuma: aynı üniteden birkaç kodu tek istekte okur (UDS 22 çoklu DID, cevap ISO-TP ile birleşir) ----
 // Önce beklenen çerçeve sayısıyla, olmazsa sayısız dener; ünite desteklemiyorsa ya da yavaşsa kapanır, tek tek okumaya dönülür.
 // Yöntem: ifmeidan/ex-30-driver-display (MIT) — fren kanallarında gecikmeyi belirgin düşürdüğü bildirilmiş.
-const didLen = {}, multiSt = {};
+const didLen = {}, multiSt = {}, missMap = {};
 function isoPayload(resp, rxA){
   let hex="", len=null;
   for (const rawLn of resp.toUpperCase().split(/[\r\n]+/)){
@@ -465,7 +465,8 @@ async function readEcu(txA, rxA, dids){   // → {did: bayt dizisi | null}
   const out = {}, ek = txA+rxA, st = multiSt[ek] || (multiSt[ek] = {fails:0, ok:0, slow:0, mode:0, off:false});
   const nextMode = why => { st.fails=0; st.slow=0; if (st.mode===0 && suffix){ st.mode=1; } else { st.off=true; log(`Çoklu okuma ${UNIT_NAMES[txA]||txA.slice(4)}: ${why}; tek tek okunuyor`); } };
   await useEcu(txA, rxA);
-  const todo = [...new Set(dids)];
+  // Üst üste 3 kez cevapsız kalan kod 60 tur atlanır: her cevapsız istek bir zaman aşımı kadar süre yakar
+  const todo = [...new Set(dids)].filter(d=>{ const m=missMap[ek+d]; return !(m && m.skipUntil > cycle); }), misses=[];
   while (todo.length && running){
     const d1 = todo.shift();
     const pack = [d1]; let total = 1 + 2 + (didLen[ek+d1]||0);
@@ -487,7 +488,11 @@ async function readEcu(txA, rxA, dids){   // → {did: bayt dizisi | null}
     }
     const b = parseDid(await readDid(d1), d1);
     out[d1] = b; if (b && b.length<=4) didLen[ek+d1] = b.length;
+    if (!b) misses.push(d1); else if (missMap[ek+d1]) missMap[ek+d1].n=0;
   }
+  // Yalnızca ünitenin diğer kodları cevap verirken susan kodlar sayılır (araç uykudaysa hiçbiri atlanmaz)
+  if (misses.length && Object.values(out).some(Boolean)) for (const d of misses){ const m = missMap[ek+d] || (missMap[ek+d]={n:0, skipUntil:0});
+    if (++m.n>=3){ m.skipUntil = cycle+60; m.n=0; log(`${UNIT_NAMES[txA]||txA.slice(4)} ${d} cevap vermiyor, bir süre atlanacak`); } }
   return out;
 }
 window.ex30Multi = () => Object.fromEntries(Object.entries(multiSt).map(([k,s])=>[UNIT_NAMES[k.slice(0,8)]||k.slice(4,8), s.off?"kapalı":s.ok?"açık":"–"]));
@@ -775,7 +780,7 @@ window.ex30Snap = () => { const n=v=>(v==null||!isFinite(v))?null:+v;
   // OBD yokken orta ekranda: aracın kendi verileri geldikçe Sürüş/Performans ekranları canlı sayılır
   const tLive = running ? lastSampleT : (CARAPI || Object.keys(carv).length) && Date.now()-lastCarT<60000 ? Date.now() : lastSampleT;
   return {t:tLive, running, kw:n(vals.kw), volt:n(vals.volt), cur:n(vals.cur!=null?vals.cur*sign:null), rpm:n(vals.rpm), tq:n(tq), tqRaw:n(vals.torque),
-    spd:n(carSpeed().v ?? geo.spd), minv:n(vals.minv), mdcv:n(vals.mdcv), cmax:n(vals.cmax), cmin:n(vals.cmin), tmin:n(vals.tmin), erem:n(vals.erem), soh2:n(vals.soh2), soc:n(vals.soc), avg:n(vals.avg), max:n(vals.max), cin:n(vals.cin), cout:n(vals.cout), motor:n(vals.motor),
+    spd:n(carSpeed().v ?? geo.spd), spdT: carT.PERF_VEHICLE_SPEED || null, minv:n(vals.minv), mdcv:n(vals.mdcv), cmax:n(vals.cmax), cmin:n(vals.cmin), tmin:n(vals.tmin), erem:n(vals.erem), soh2:n(vals.soh2), soc:n(vals.soc), avg:n(vals.avg), max:n(vals.max), cin:n(vals.cin), cout:n(vals.cout), motor:n(vals.motor),
     brake:n(vals.brake), v12:n(vals.v12), socd:n(vals.socd), ws:{fl:n(vals.w_fl),fr:n(vals.w_fr),rl:n(vals.w_rl),rr:n(vals.w_rr)}, multi:window.ex30Multi(),
     out:n(aaos("ENV_OUTSIDE_TEMPERATURE")), tp:{fl:n(tirePsi("fl")),fr:n(tirePsi("fr")),rl:n(tirePsi("rl")),rr:n(tirePsi("rr"))}, tt:{fl:tc("fl"),fr:tc("fr"),rl:tc("rl"),rr:tc("rr")}, hz:speed.cyc.length>2?(speed.cyc.length-1)*1000/(speed.cyc.at(-1)-speed.cyc[0]):null, perf:perfMode,
     kwAny: n(vals.kw ?? aaosPower()), trip:(()=>{ try{ return autoSnap(Date.now(), carSpeed().v ?? geo.spd).trip; }catch{ return null; } })(),

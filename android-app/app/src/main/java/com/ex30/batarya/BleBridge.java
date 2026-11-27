@@ -659,13 +659,19 @@ public class BleBridge {
                 + "," + q(c.getUuid().toString()) + "," + q(Base64.encodeToString(v, Base64.NO_WRAP)) + ")");
     }
 
+    private volatile Runnable mtuNext;
     private final BluetoothGattCallback gattCb = new BluetoothGattCallback() {
         @Override
         public void onConnectionStateChange(final BluetoothGatt g, final int status, int newState) {
             final String id = g.getDevice().getAddress();
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 g.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH);
-                main.postDelayed(g::discoverServices, 300);
+                // Büyük paket (MTU): uzun çok çerçeveli cevaplar tek bildirimde gelir; olmazsa 1,5 sn sonra yine servisler aranır
+                final boolean[] done = {false};
+                mtuNext = () -> { if (!done[0]) { done[0] = true; main.postDelayed(g::discoverServices, 150); } };
+                boolean asked = false;
+                try { asked = g.requestMtu(247); } catch (Exception ignored) { }
+                if (!asked) mtuNext.run(); else main.postDelayed(() -> { if (mtuNext != null) mtuNext.run(); }, 1500);
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 main.post(() -> {
                     String cb = connectCb;
@@ -719,6 +725,12 @@ public class BleBridge {
                 if (result != null) resolve(cb, result);
                 else reject(cb, "NetworkError", "Servisler okunamadı");
             });
+        }
+
+        @Override
+        public void onMtuChanged(BluetoothGatt g, int mtu, int status) {
+            Runnable r = mtuNext; mtuNext = null;
+            if (r != null) main.post(r);
         }
 
         @Override

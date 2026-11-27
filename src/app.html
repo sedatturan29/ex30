@@ -723,7 +723,7 @@
 // =====================================================================
 //  EX30 / Geely SEA BMS: istek 29-bit 1DD01635, cevap 1EC6AE80
 // =====================================================================
-const INIT = ["ATZ","ATE0","ATL0","ATS0","ATH1","ATAL","ATST64","ATSP7",
+const INIT = ["ATZ","ATE0","ATL0","ATS0","ATH1","ATAL","ATST64","ATAT1","ATSP7",
   "ATSHD01635","ATCP1D","ATCRA1EC6AE80","ATFCSH1DD01635","ATFCSD300000","ATFCSM1"];
 const u16 = d => d.length>=2 ? d[d.length-2]*256 + d[d.length-1] : NaN;
 const PIDS = [
@@ -2078,7 +2078,9 @@ function pfUpdatePeaks(s){
 const pfHist=[]; let pfAx=null, pfLat=null, pfTrail=[];
 function pfAccel(s){
   if (s.spd==null || !s.t) return;
-  if (!pfHist.length || pfHist.at(-1).t!==s.t){ pfHist.push({t:s.t, v:s.spd/3.6}); while (pfHist.length && s.t-pfHist[0].t>1600) pfHist.shift(); }
+  // Orta ekranda aracın kendi hızı OBD'den çok daha sık güncellenir: zamanı onun güncellenme anı
+  const st = s.spdT && Date.now()-s.spdT < 2000 ? s.spdT : s.t;
+  if (!pfHist.length || pfHist.at(-1).t!==st){ pfHist.push({t:st, v:s.spd/3.6}); while (pfHist.length && st-pfHist[0].t>1600) pfHist.shift(); }
   if (pfHist.length>=3){ const n=pfHist.length, mt=pfHist.reduce((q,p)=>q+p.t,0)/n, mv=pfHist.reduce((q,p)=>q+p.v,0)/n;
     let num=0, den=0; for (const p of pfHist){ num+=(p.t-mt)*(p.v-mv); den+=(p.t-mt)**2; }
     const ax = den>0 ? num/den*1000/9.81 : null; if (ax!=null && Math.abs(ax)<1.5) pfAx = pfAx==null ? ax : pfAx*0.65+ax*0.35; }
