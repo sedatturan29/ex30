@@ -69,6 +69,8 @@ public class DashScreen extends Screen {
             h.post(() -> { if (mirror != null) mirror.evaluateJavascript("window.scrollBy(0," + Math.round(dy) + ")", null); });
         }
         @Override public void onFling(float vx, float vy) {
+            // Belirgin yatay kaydırma: ekranlar arasında geç (sola kaydır → sonraki, sağa kaydır → önceki)
+            if (Math.abs(vx) > 1500 && Math.abs(vx) > 2 * Math.abs(vy)) { h.post(() -> swipePage(vx < 0 ? 1 : -1)); return; }
             h.post(() -> { if (mirror != null) mirror.evaluateJavascript("window.scrollBy({top:" + Math.round(-vy / 4) + ",behavior:'smooth'})", null); });
         }
     };
@@ -119,6 +121,14 @@ public class DashScreen extends Screen {
         try { if (mirror != null) mirror.destroy(); } catch (Throwable ignored) { }
         try { if (vd != null) vd.release(); } catch (Throwable ignored) { }
         pres = null; mirror = null; vd = null;
+    }
+
+    private static final String[] ORDER = {"drive", "perf", "alper", "charge", "trip", "panel"};
+    private void swipePage(int dir) {
+        int i = 0;
+        for (int k = 0; k < ORDER.length; k++) if (ORDER[k].equals(page)) i = k;
+        if ("follow".equals(page)) i = 0;
+        show(ORDER[(i + dir + ORDER.length) % ORDER.length]);
     }
 
     void show(String p) {

@@ -133,14 +133,13 @@
   body.aaos header .bar{background:rgba(18,23,27,.9);border:1px solid var(--line);border-radius:999px;padding:5px 6px;gap:6px;pointer-events:auto;box-shadow:0 4px 18px rgba(0,0,0,.45)}
   body.aaos header h1{display:none}
   body.aaos header .bar button{padding:8px 14px;font-size:15px}
-  body.aaos #btnSet .lbl{display:none}
-  body.aaos #btnMenu{display:inline-flex}
-  body.aaos #tabs{display:none;position:absolute;right:0;top:calc(100% + 8px);flex-direction:column;align-items:stretch;gap:2px;padding:8px;background:var(--card);border:1px solid var(--line);border-radius:14px;min-width:220px;pointer-events:auto;box-shadow:0 10px 30px rgba(0,0,0,.5)}
-  body.aaos header.open #tabs{display:flex}
-  body.aaos #tabs button{text-align:left;padding:12px 14px;font-size:17px;border-radius:10px}
-  body.aaos #tabs button.act{background:#1B2227}
+  #btnSet .lbl{display:none}
+  #btnMenu{display:inline-flex}
+  #tabs{display:none;position:absolute;right:0;top:calc(100% + 8px);flex-direction:column;align-items:stretch;gap:2px;padding:8px;background:var(--card);border:1px solid var(--line);border-radius:14px;min-width:220px;pointer-events:auto;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+  header.open #tabs{display:flex;max-height:calc(100vh - 90px);overflow-y:auto}
+  #tabs button{text-align:left;padding:12px 14px;font-size:17px;border-radius:10px}
+  #tabs button.act{background:#1B2227;box-shadow:none}
   body.aaos main{padding-top:64px}
-  #btnMenu{display:none}
   .al-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden}
   .al-c{background:var(--card);padding:10px 12px;min-height:74px;display:flex;flex-direction:column;justify-content:space-between;gap:6px}
   .al-c .v.s{font-size:17px;white-space:normal;line-height:1.15;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
@@ -399,7 +398,7 @@
     <span class="leds" id="leds" aria-label="Durum ışıkları">
       <span class="led" id="ledLink" title="Telefon / orta ekran"><i></i><b>Telefon</b></span>
       <span class="led" id="ledBt" title="Bluetooth"><i></i><b>BT</b></span>
-      <span class="led" id="ledCar" title="Aracın kendi verileri (AAOS)" style="display:none"><i></i><b>Araç</b></span>
+      <span class="led" id="ledCar" title="Aracın kendi verileri (AAOS)"><i></i><b>Araç</b></span>
       <span class="led" id="ledObd" title="OBD adaptörü (ELM327)"><i></i><b>OBD</b></span>
       <span class="led rec" id="ledRec" title="Kayıt"><i></i><b>Kayıt</b></span>
     </span>
@@ -419,6 +418,7 @@
     <button data-tab="heat">Isıtma testi<span class="rec"></span></button>
     <button data-tab="scan">Tarayıcı</button>
     <button data-tab="tests">Denenecekler</button>
+    <button data-tab="sess">Oturumlar</button>
   </nav>
   <div id="rpBar" class="rp" hidden>
     <div class="rp-top"><b>Test modu</b><span id="rpName"></span><span id="rpTime" class="rp-time">–</span><button class="sec mini" id="rpExit">Testten çık</button></div>
@@ -1116,7 +1116,7 @@ const r2 = v => v==null||!isFinite(v) ? null : Math.round(v*100)/100;
 let panelWin = null, lastPanelFeed = 0;
 async function restoreBms(){ if (!chW) return; for (const c of ["ATCP1D","ATSHD01635","ATCRA1EC6AE80","ATFCSH1DD01635"]) await send(c); }
 window.EX30_HOST = {
-  register(w){ panelWin = w; stopPolling(); try{ w.ex30Perf && w.ex30Perf(tab==="perf"); }catch{} },
+  register(w){ panelWin = w; setTimeout(()=>{ try{ while (evPre.length) panelWin.ex30Ev(evPre.shift(),"uygulama"); }catch{} }, 0); stopPolling(); try{ w.ex30Perf && w.ex30Perf(tab==="perf"); }catch{} },
   connected: () => !!chW,
   send: (c, t) => send(c, t),
   suffix: () => reqSuffix,
@@ -2355,7 +2355,9 @@ const __tw=new Set();
 // Arka planda (başka uygulama açıkken) tarayıcı zamanlayıcıları yavaşlar; Android uygulaması 100 ms'de bir __ex30tick çağırarak bekleyenleri zamanında uyandırır.
 window.__ex30tick=()=>{ const n=performance.now(); for (const t of [...__tw]) if (n>=t.at){ __tw.delete(t); t.r(); } try{ if (typeof panelWin!=="undefined" && panelWin && panelWin.__ex30tick) panelWin.__ex30tick(); }catch{} };
 const sleep = ms => new Promise(r=>{ const t={at:performance.now()+ms, r}; __tw.add(t); setTimeout(()=>{ if (__tw.delete(t)) r(); }, ms); });
-function log(s){ const el=$("log"); const t=new Date().toLocaleTimeString("tr-TR"); el.textContent += t+"  "+s+"\n"; if (el.textContent.length>40000) el.textContent=el.textContent.slice(-30000); el.scrollTop=el.scrollHeight; }
+var evPre=[];
+function evFwd(s){ try{ if (panelWin && panelWin.ex30Ev){ while (evPre.length){ const e=evPre.shift(); panelWin.ex30Ev(e,"uygulama"); } panelWin.ex30Ev(s,"uygulama"); return; } }catch{} if (evPre.length<200) evPre.push(s); }
+function log(s){ evFwd(s); const el=$("log"); const t=new Date().toLocaleTimeString("tr-TR"); el.textContent += t+"  "+s+"\n"; if (el.textContent.length>40000) el.textContent=el.textContent.slice(-30000); el.scrollTop=el.scrollHeight; }
 function setPill(cls,txt){ const p=$("pill"); p.className="pill "+cls; p.textContent=txt; }
 function showBanner(t){ const b=$("banner"); b.textContent=t; b.style.display="block"; }
 
@@ -2430,7 +2432,8 @@ function renderLeds(){
   let cT=0, cS=0; try{ const cv = panelWin && panelWin.ex30Car ? panelWin.ex30Car() : null; if (cv) for (const k in cv.t){ if (cv.t[k]>cT) cT=cv.t[k]; if (/^(PERF_VEHICLE_SPEED|EV_BATTERY_INSTANTANEOUS)/.test(k) && cv.t[k]>cS) cS=cv.t[k]; } }catch{}
   const carStale = cS && Date.now()-cS >= 10000 && Date.now()-cT < 10000 || (cS && Date.now()-cS >= 10000 && !car && typeof linkSt!=="undefined" && linkSt.up);
   const carOn = Date.now()-(cS||cT) < 10000, showCar = car || carOn || (typeof linkSt!=="undefined" && linkSt.up);
-  $("ledCar").style.display = showCar ? "" : "none";
+  $("ledCar").style.display = "";   // telefonda ve orta ekranda aynı ışıklar, aynı sırada
+  { const lb=$("ledLink").querySelector("b"); if (lb) lb.textContent = car ? "Telefon" : "Orta ekran"; }
   set("ledCar", carOn ? "on" : (car||carStale ? "wait" : ""), carStale ? "Araç verisi bayat: hız ve güç yenilenmiyor" : carOn ? (car ? "Aracın kendi verileri okunuyor" : "Aracın kendi verileri orta ekrandan geliyor") : car ? "Aracın verileri bekleniyor" : "Araç verisi yok");
   $("ledObd").classList.toggle("off", !(chW || remote) && !autoBusy);
   set("ledObd", chW || remote ? "on" : (autoBusy ? "wait" : ""), chW ? "OBD bağlı" : remote ? "OBD orta ekrandan canlı" : autoBusy ? "OBD'ye bağlanılıyor" : "OBD bağlı değil");
@@ -2921,7 +2924,18 @@ $("btnSet").onclick = () => {
     dlg.addEventListener("close", ()=>{ setBtnState(false); if (setFrom){ const b=setFrom; setFrom=null; goTab(b.tab); setTimeout(()=>window.scrollTo({top:b.y}), 30); } }, {once:true}); };
   open();
 };
-$("tabs").onclick = e => { const b=e.target.closest("button[data-tab]"); if(b){ setFrom=null; setBtnState(false); goTab(b.dataset.tab); } };
+// Oturumlar: panelin "Oturumlar" penceresi (oturum kayıtları, Telegram, olay kaydı); kapanınca önceki sekmeye dönülür
+function openSessions(){
+  const back = tab!=="panel" && tab!=="sess" ? {tab, y:window.scrollY} : null;
+  goTab("panel");
+  const open = () => { const {dlg} = panelDlg(); if (!dlg || !panelWin || !panelWin.ex30OpenSessions){ setTimeout(open, 150); return; }
+    evFwd("Oturumlar penceresi açıldı"); panelWin.ex30OpenSessions();
+    for (const x of document.querySelectorAll("nav button")) x.classList.toggle("act", x.dataset.tab==="sess");
+    const sd = panelWin.document.getElementById("dlgSess");
+    sd.addEventListener("close", ()=>{ if (back){ goTab(back.tab); setTimeout(()=>window.scrollTo({top:back.y}), 30); } }, {once:true}); };
+  open();
+}
+$("tabs").onclick = e => { const b=e.target.closest("button[data-tab]"); if(b){ setFrom=null; setBtnState(false); if (b.dataset.tab==="sess") openSessions(); else goTab(b.dataset.tab); } };
 $("cnFind").onclick = () => connect(false);
 $("cnAll").onclick = () => connect(true);
 $("cnCopy").onclick = () => copyText(["EX30 Reader hata raporu "+new Date().toISOString(), "Adres: "+location.protocol+"//"+location.host, "UA: "+navigator.userAgent, "",
