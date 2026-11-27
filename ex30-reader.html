@@ -2636,7 +2636,7 @@ function pvPedals(s){
   let gas=null;
   if (s?.ped!=null){ const rest=store.get("pedRest",7); let full=store.get("pedFull",null);
     if (s.ped>rest+20 && (full==null || s.ped>full)){ full=s.ped; store.set("pedFull", full); }
-    gas = (s.ped-rest)/((full ?? 90)-rest); }
+    gas = (s.ped-rest)/((full ?? 87)-rest); }
   else { const tq = s?.tqRaw ?? s?.tq; gas = tq!=null ? Math.max(0,tq)/343 : null; }
   const br = s?.brake;
   set(".pd.gas", gas, gas==null ? "–" : `${f1(gas*100,0)}<small>%</small>`);
