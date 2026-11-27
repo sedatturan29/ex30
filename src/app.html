@@ -153,6 +153,7 @@
   .led{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--mut);font-weight:500;white-space:nowrap}
   .led i{width:9px;height:9px;border-radius:50%;background:#3A444C;flex:none}
   .led.on i{background:#59D68A;box-shadow:0 0 6px #59D68A} .led.wait i{background:var(--warn);box-shadow:0 0 6px var(--warn)}
+  .led.off i{background:#EC5A4F;box-shadow:0 0 6px rgba(236,90,79,.7)}
   .led.rec.on i{background:#EC5A4F;box-shadow:0 0 8px #EC5A4F;animation:recb 1.2s ease-in-out infinite} .led.rec.on b{color:#EC5A4F}
   @keyframes recb{50%{opacity:.35}}
   @media (prefers-reduced-motion: reduce){ .led.rec.on i{animation:none} }
@@ -381,6 +382,7 @@
     <span class="leds" id="leds" aria-label="Durum ışıkları">
       <span class="led" id="ledLink" title="Telefon / orta ekran"><i></i><b>Telefon</b></span>
       <span class="led" id="ledBt" title="Bluetooth"><i></i><b>BT</b></span>
+      <span class="led" id="ledCar" title="Aracın kendi verileri (AAOS)" style="display:none"><i></i><b>Araç</b></span>
       <span class="led" id="ledObd" title="OBD adaptörü (ELM327)"><i></i><b>OBD</b></span>
       <span class="led rec" id="ledRec" title="Kayıt"><i></i><b>Kayıt</b></span>
     </span>
@@ -1932,6 +1934,12 @@ function renderLeds(){
   let bt=null; try{ bt = window.AndroidBle ? !!AndroidBle.available() : !!navigator.bluetooth; }catch{}
   set("ledBt", bt ? "on" : "", bt ? "Bluetooth açık" : "Bluetooth kapalı ya da yok");
   const remote = Date.now()-remoteT < 6000;
+  // Araç verisi (AAOS): son 10 sn içinde değer geldiyse yeşil
+  let cT=0; try{ const cv = panelWin && panelWin.ex30Car ? panelWin.ex30Car() : null; if (cv) for (const k in cv.t) if (cv.t[k]>cT) cT=cv.t[k]; }catch{}
+  const carOn = Date.now()-cT < 10000, showCar = car || carOn || (typeof linkSt!=="undefined" && linkSt.up);
+  $("ledCar").style.display = showCar ? "" : "none";
+  set("ledCar", carOn ? "on" : (car ? "wait" : ""), carOn ? (car ? "Aracın kendi verileri okunuyor" : "Aracın kendi verileri orta ekrandan geliyor") : car ? "Aracın verileri bekleniyor" : "Araç verisi yok");
+  $("ledObd").classList.toggle("off", !(chW || remote) && !autoBusy);
   set("ledObd", chW || remote ? "on" : (autoBusy ? "wait" : ""), chW ? "OBD bağlı" : remote ? "OBD orta ekrandan canlı" : autoBusy ? "OBD'ye bağlanılıyor" : "OBD bağlı değil");
   $("ledObd").querySelector("b").textContent = remote && !chW ? "OBD (orta ekran)" : "OBD";
   let rec=null; try{ rec = panelWin && panelWin.ex30Rec ? panelWin.ex30Rec() : null; }catch{}
@@ -2572,6 +2580,8 @@ window.ex30MirrorApply = s => { try{
 // Android Auto görünür alanı (CSS piksel): medya kartı ve düğmelerin altında içerik kalmasın
 window.ex30Inset = (l,t,r,b) => { const d=document.documentElement.style; d.setProperty("--aa-l",l+"px"); d.setProperty("--aa-t",t+"px"); d.setProperty("--aa-r",r+"px"); d.setProperty("--aa-b",b+"px");
   try{ if (tab==="drive") dvSize(); if (tab==="perf") dvSize("pv"); if (tab==="charge") renderCharge(); }catch{} };
+// Orta ekran: aracın kendi verileri (AAOS) uygulama açılır açılmaz okunmaya başlasın, OBD beklenmez
+try{ if (window.AndroidCar && !/mirror/.test(location.hash)) ensurePanel(); }catch{}
 try{ if (autoMode()) setTimeout(()=>ex30AutoConnect(), 500); }catch{}
 // Orta ekranda (Android Automotive) panel her zaman yüklü: OBD bağlı olmasa da aracın kendi verileriyle yolculuk ve kayıt tutulur
 if (window.AndroidCar && !/mirror/.test(location.hash)){ const ep=()=>{ try{ ensurePanel(); }catch{} }; if (document.readyState==="complete") ep(); else window.addEventListener("load", ep); }
