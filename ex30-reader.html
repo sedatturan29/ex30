@@ -1499,6 +1499,7 @@ const TESTS = [
   {id:"baglanti", t:"Orta ekranın adaptöre bağlanması", why:"Adaptör doğrulamanın neden uzun sürdüğünü görmek.",
    how:["Orta ekranda Bağlan'a bas.","Son el sıkışma kaydı aşağıda kendiliğinden görünür; kaç saniye sürdüğünü nota yaz."], read:null, auto:()=>store.get("lastHandshake",null)},
   {id:"alper", t:"Sürüş menüsünde Alper", why:"Sürüşte menü en fazla 6 satır alır; Alper'in 3. satırda görünmesi gerekiyor.", how:["Sürüş sırasında ☰ menüyü aç; Alper'i 3. satırda görüyor musun, nota yaz.","Android Auto'da da aynı menüye bak, orada da var mı yaz."], read:null},
+  {id:"cokcerceve", t:"Düzeltilen okumalar (fren diski, modül sıcaklığı, hücre SoC)", why:"Çok çerçeveli cevap düzeltmesinden sonra bu değerlerin gerçekten dolduğunu görmek.", how:["OBD bağlıyken 5 dk sür, sonra Performans'ta dört tekerleğin altında fren diski °C var mı bak (ön ikili ve arka ikili birbirine yakın olmalı).","Şarj sekmesinde modül sıcaklık haritası (20 kutu) dolu mu bak.","Panelde hücre SoC en yüksek / en düşük değer geliyor mu bak. Hangisi boşsa nota yaz."], read:null},
   {id:"bayat", t:"Araç verisi donması", why:"Telefonda araç hızı/gücü donarsa LED sarıya dönmeli ve değerler boş kalmalı.", how:["Orta ekran ve telefon bağlıyken 10 dk sür; Alper'de hız ve güç değişiyor mu bak.","Header'daki Araç LED'i sarıya döndüyse saatini ve ne yaptığını nota yaz."], read:null},
 ];
 const tsAscii = h => h ? h.split(" ").map(x=>parseInt(x,16)).filter(c=>c>=32&&c<127).map(c=>String.fromCharCode(c)).join("").trim() : "";
