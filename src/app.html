@@ -663,7 +663,7 @@
       <p class="note" style="margin-top:0" id="csSum"></p>
       <div class="cs-bar"><i id="csBarHave"></i><i id="csBarFound"></i><i id="csBarCand"></i></div>
       <div class="row" style="margin-top:10px">
-        <button id="csAll" disabled>Bilinen aralıkları tara (5 ünite)</button>
+        <button id="csAll" disabled>Bilinen aralıkları tara</button>
         <button class="sec" id="csWatch" disabled>Okumaları izle</button>
         <label>Göster <select id="csFilter"><option value="all">Hepsi</option><option value="miss">Eksikler</option><option value="have">Okuduklarımız</option></select></label>
       </div>
@@ -1281,7 +1281,7 @@ function parseUds(resp, did){
   }
   return null;
 }
-const KNOWN_UNITS = {"1DD01601":"VCU","1DD01631":"Ön motor","1DD01635":"Batarya (BMS)","1DD01637":"Arka motor","1DD01650":"Şarj cihazı","1DD01701":"Şasi"};
+const KNOWN_UNITS = {"1DD01601":"VCU","1DD01602":"Klima kompresörü? (1602)","1DD01630":"Isı yönetimi? (1630)","1DD01631":"Fren/ABS? (1631)","1DD01634":"Şarj cihazı? (1634)","1DD01635":"Batarya (BMS)","1DD01637":"Arka motor","1DD01650":"Şarj cihazı","1DD01701":"Şasi"};
 const UNIT_PRESETS = {"1DD01635":["4800-49FF","DD00-DDFF","EE00-EEFF"],"1DD01637":["E300-E3FF","EE00-EEFF"],"1DD01601":["4000-4FFF","4A00-4AFF","D900-D9FF","E300-E3FF"],"1DD01650":["EE00-EEFF"],"1DD01701":["2B00-2BFF","F400-F4FF","FD00-FEFF"]};
 const rxFor = tx => (0x1EC00E80 + ((parseInt(tx.slice(4),16) - 0x1600) << 13)).toString(16).toUpperCase();
 let units = store.get("units", []);   // [{tx, rx, name, part}]
@@ -1525,9 +1525,21 @@ const CS_RAW = [
 const CS = CS_RAW.map(([n,u,cs,tr,unit,ex,when,ref,have])=>({id:14880000+n, n, u, tx:CS_UNIT[u]||null, cs, tr, unit, ex, when, ref, have}));
 const CS_WHEN = {s:"sürüşte", a:"AC şarjda", d:"DC şarjda", h:"her zaman"};
 // Bilinen (ve Geely SEA'da sık kullanılan) aralıklar; "Tam tarama" bütün alanı tarar
-const CS_PLAN = {"1DD01635":["4800-49FF","4A00-4BFF","DD00-DDFF","EE00-EEFF"], "1DD01637":["E300-E3FF","E000-E2FF","E400-E4FF","EE00-EEFF"],
-  "1DD01601":["4A00-4AFF","4000-49FF","4B00-4FFF","D900-D9FF","E300-E3FF"], "1DD01650":["EE00-EEFF","E000-EDFF","EF00-EFFF","4000-4FFF","D900-D9FF"],
-  "1DD01701":["2B00-2BFF","FD00-FEFF","F400-F4FF","2000-2AFF","2C00-2FFF"]};
+// OBDb (github.com/OBDb, CC BY-SA 4.0) Polestar 2 sinyallerinden: aynı Geely 29-bit adresleme, BMS kodları EX30 ile birebir aynı
+const CS_PLAN = {"1DD01635":["4800-49FF","4A00-4BFF","DD00-DDFF","EE00-EEFF","F400-F4FF"], "1DD01637":["E300-E3FF","4A00-4AFF","9800-98FF","EE00-EFFF","F400-F4FF","DD00-DDFF","E000-E2FF","E400-E4FF"],
+  "1DD01601":["4A00-4AFF","EE00-EEFF","4000-49FF","4B00-4FFF","D900-D9FF","E300-E3FF"], "1DD01650":["EE00-EEFF","E000-EDFF","EF00-EFFF","4000-4FFF","D900-D9FF"],
+  "1DD01701":["2B00-2BFF","FD00-FEFF","F400-F4FF","EE00-EEFF","2000-2AFF","2C00-2FFF"],
+  "1DD01631":["2B00-2BFF","FE00-FEFF","FD00-FDFF"], "1DD01634":["EE00-EEFF"], "1DD01602":["0300-03FF"], "1DD01630":["EE00-EFFF","0300-03FF"]};
+// Polestar 2'de (OBDb) aynı sensörün bilinen yeri: eşleştirmede öne alınır, ayrıntıda gösterilir
+const CS_HINT = {
+  3:["1DD01635","4809","2 bayt ÷100 V"], 9:["1DD01635","497C","2 bayt ÷100 V"], 13:["1DD01635","496D","4 bayt ÷100 %"], 11:["1DD01635","F442","2 bayt ÷1000 V"],
+  15:["1DD01635","489C","3 bayt ×4÷15625 kW"], 16:["1DD01635","489E","3 bayt ×4÷15625 kW"],
+  17:["1DD01631","FEE7","bayt 0–1 ÷10 °C"], 25:["1DD01631","FEE7","bayt 2–3 ÷10 °C"], 26:["1DD01631","FEE7","bayt 4–5 ÷10 °C"], 27:["1DD01631","FEE7","bayt 6–7 ÷10 °C"],
+  32:["1DD01631","2B06","1 bayt km/s"], 33:["1DD01631","2B08","1 bayt km/s"], 34:["1DD01631","2B07","1 bayt km/s"], 35:["1DD01631","2B09","1 bayt km/s"],
+  36:["1DD01637","F40D","1 bayt km/s"], 64:["1DD01637","EE09","2 bayt ×4 −8188 Nm"], 65:["1DD01637","4A0E","4 bayt ÷10 rpm"], 66:["1DD01637","4A00","4 bayt ÷10 °C (sargı)"],
+  68:["1DD01637","985E","4 bayt −40 °C"], 69:["1DD01637","9861","2 bayt ÷10 +40 A"], 70:["1DD01637","985C","2 bayt ÷4 V"],
+  81:["1DD01601","EE6F","1 bayt ×100÷255 %"], 82:["1DD01630","EE34","2 bayt ×2 kPa"], 91:["1DD01630","EE62","2 bayt ÷100 %"],
+  43:["1DD01634","EE15","2 bayt ÷10 A"], 52:["1DD01634","EE19","1 bayt °C"]};
 // Birime göre eşleşme toleransı (en az)
 const CS_TOL = {"°C":1.0, "V":0.6, "A":1.5, "%":1.0, "W":150, "kPa":6, "bar":0.5, "km/h":1.5, "rpm":30, "Nm":3, "g":0.03, "mV":3, "km":2};
 let csMap = store.get("csMap", {});        // {id: {tx,rx,did,st,len,sg,a,b}} onaylanan eşleşmeler
@@ -1563,7 +1575,8 @@ function csFormulas(len){
 function csPoints(it){
   // Her kod için (bayt dizisi, referans değer) çiftleri: bizim bilinen değerden ya da elle girilen Car Scanner değerinden
   const ent = csEntries[it.id] || [], pts = new Map();
-  for (const {s, r} of csRows(it.tx)){
+  const txs=[it.tx]; const hh=CS_HINT[it.n]; if (hh && hh[0]!==it.tx) txs.push(hh[0]);
+  for (const {s, r} of txs.flatMap(csRows)){
     s.snaps.forEach((sn,i)=>{ const hx=r.v[i]; if (!hx) return;
       let y = csRefVal(it.ref, sn.ref);
       if (y==null && ent.length){ let best=null; for (const e of ent){ const d=Math.abs(e.t-sn.t); if (d<=300000 && (!best || d<best.d)) best={d, v:e.v}; } if (best) y=best.v; }
@@ -1595,7 +1608,8 @@ function csMatch(it){
     } }
   }
   // aynı kod için en iyisi kalsın
-  const by={}; for (const c of res){ const k=c.did; if (!by[k] || c.score>by[k].score) by[k]=c; }
+  const h=CS_HINT[it.n]; if (h) for (const c of res) if (c.tx===h[0] && c.did===h[1]){ c.score+=1; c.hint=true; }
+  const by={}; for (const c of res){ const k=c.tx+c.did; if (!by[k] || c.score>by[k].score) by[k]=c; }
   return Object.values(by).sort((a,b)=>b.score-a.score).slice(0,8);
 }
 function csStatus(it){
@@ -1630,12 +1644,14 @@ function csDetail(it){
   const ent=csEntries[it.id]||[], c=csCands[it.id]||[], m=csMap[it.id];
   const rows = csRows(it.tx), nCodes=new Set(rows.map(x=>x.r.did)).size;
   let h=`<div class="cs-det">`;
+  const hint=CS_HINT[it.n];
+  if (hint) h+=`<p class="note" style="margin-top:0">Polestar 2'de (OBDb) bilinen yeri: <span class="mono">${hint[0].slice(4)}:22${hint[1]}</span>, ${hint[2]}. EX30'da aynı olması muhtemel; taramada çıkarsa aday listesinde öne alınır.</p>`;
   h+=`<p class="note" style="margin-top:0">${it.tx}: taramalarda cevap veren <b>${nCodes}</b> kod var. ${it.ref?`Eşleştirmede bizim okuduğumuz <b>${MT_SIG[it.ref]?.[0]||"değer"}</b> kullanılıyor; ayrıca Car Scanner değeri de girebilirsin.`:`Bizde karşılaştıracak değer yok: Car Scanner'da gördüğün değeri gir, sonra burada "Tekrar oku" ya da "Okumaları izle".`} Ölçüm zamanı: ${CS_WHEN[it.when]}.</p>`;
   h+=`<div class="row" style="margin-top:6px"><label>Car Scanner'da şu an <input id="csVal" inputmode="decimal" style="width:90px" placeholder="${it.ex??""}"> ${it.unit}</label><button class="sec mini" data-csadd="${it.id}">Değeri kaydet</button>
     <button class="sec mini" data-csscan="${it.id}">Bu üniteyi tara</button><button class="sec mini" data-csre="${it.id}">Tekrar oku</button></div>`;
   if (ent.length) h+=`<p class="note">Girilen değerler: ${ent.slice(-6).map((e,i)=>`${csFmt(e.v)} (${localTime(e.t)})`).join(", ")} <button class="sec mini" data-csclr="${it.id}">Temizle</button></p>`;
   if (m) h+=`<p class="note">Onaylandı: <span class="mono">22${m.did}</span>, bayt ${m.st}${m.len>1?"–"+(m.st+m.len-1):""}${m.sg?" işaretli":""}, ham × ${mtNum(m.a)} ${m.b<0?"−":"+"} ${mtNum(Math.abs(m.b))}. Panelde ve kayıtlarda. <button class="sec mini" data-csun="${it.id}">Onayı kaldır</button></p>`;
-  if (c.length) h+=`<table><tr><th>Kod</th><th>Baytlar</th><th>Formül</th><th>Şu an</th><th>Kanıt</th><th></th></tr>`+c.map((x,i)=>`<tr><td class="mono">${x.did}</td><td class="mono">${x.st}${x.len>1?"–"+(x.st+x.len-1):""}${x.sg?" işaretli":""}</td><td class="mono">× ${mtNum(x.a)} ${x.b<0?"−":"+"} ${mtNum(Math.abs(x.b))}</td><td>${csFmt(x.x*x.a+x.b)} ${it.unit}</td><td>${x.n} okuma, ${x.fit==="eğri"?"birlikte değişiyor":"değer tutuyor"}</td><td><button class="sec mini" data-csok="${it.id}:${i}">Onayla</button></td></tr>`).join("")+`</table><p class="note">Tek okumada tutan aday şans eseri olabilir. En sağlamı: değer değiştiğinde (ör. şarj başında ve sonunda, klima açık/kapalı) tekrar değer girip okumak.</p>`;
+  if (c.length) h+=`<table><tr><th>Kod</th><th>Baytlar</th><th>Formül</th><th>Şu an</th><th>Kanıt</th><th></th></tr>`+c.map((x,i)=>`<tr><td class="mono">${x.tx!==it.tx?x.tx.slice(4)+":":""}${x.did}</td><td class="mono">${x.st}${x.len>1?"–"+(x.st+x.len-1):""}${x.sg?" işaretli":""}</td><td class="mono">× ${mtNum(x.a)} ${x.b<0?"−":"+"} ${mtNum(Math.abs(x.b))}</td><td>${csFmt(x.x*x.a+x.b)} ${it.unit}</td><td>${x.n} okuma, ${x.fit==="eğri"?"birlikte değişiyor":"değer tutuyor"}${x.hint?", Polestar'daki yerle aynı":""}</td><td><button class="sec mini" data-csok="${it.id}:${i}">Onayla</button></td></tr>`).join("")+`</table><p class="note">Tek okumada tutan aday şans eseri olabilir. En sağlamı: değer değiştiğinde (ör. şarj başında ve sonunda, klima açık/kapalı) tekrar değer girip okumak.</p>`;
   else if (!m) h+=`<p class="note">${nCodes ? "Henüz eşleşen kod yok." : "Bu ünite henüz taranmadı."}</p>`;
   return h+`</div>`;
 }
@@ -1652,7 +1668,12 @@ async function csRun(plan, label){
   const P=$("csProg"); P.max=blocks.reduce((q,b)=>q+b[2]-b[1]+1,0); P.value=0; let done=0, found=0, cur="";
   try{
     for (const [tx, a, b] of blocks){ if (csJob.stop || !chW) break;
-      const u=unitList().find(x=>x.tx===tx) || {tx, rx:rxFor(tx)}; if (cur!==tx){ await setUnit(u.tx, u.rx); cur=tx; }
+      const u=unitList().find(x=>x.tx===tx) || {tx, rx:rxFor(tx)};
+      if (csJob.skip && csJob.skip[tx]){ done+=b-a+1; P.value=done; continue; }
+      if (cur!==tx){ await setUnit(u.tx, u.rx); cur=tx;
+        // ünite var mı: parça numarası isteğine hiç cevap yoksa (olumsuz cevap bile) atla
+        const pr=parseUds(await send("22F187", 800), "F187");
+        if (!pr){ (csJob.skip=csJob.skip||{})[tx]=1; csJob.absent=(csJob.absent||[]).concat(tx.slice(4)); done+=b-a+1; P.value=done; continue; } }
       const s=csScanFor(tx);
       if (!csJob.snapped) csJob.snapped={};
       if (!csJob.snapped[tx]){ csJob.snapped[tx]=1; if (s.rows.length){ s.snaps.push({t:Date.now(), ref:scanRef()}); for (const r of s.rows) r.v.push(""); } else s.snaps[s.snaps.length-1]={t:Date.now(), ref:scanRef()}; }
@@ -1668,8 +1689,9 @@ async function csRun(plan, label){
     }
   } finally {
     await send("ATST64"); await restoreBms();
-    const stopped=csJob.stop; csJob=null; $("csAll").textContent="Bilinen aralıkları tara (5 ünite)"; $("csDeep").textContent="0000–FFFF tara (uzun, kaldığı yerden sürer)";
-    $("csInfo").textContent = `${label} ${stopped?"durduruldu (kaldığı yerden sürer)":"bitti"}: ${found} yeni kod. Şimdi "Okumaları izle"yi açıp değerlerin değiştiği durumları (sürüş, şarj, klima) yaşatın.`;
+    const stopped=csJob.stop, absent=csJob.absent||[]; csJob=null; $("csAll").textContent="Bilinen aralıkları tara"; $("csDeep").textContent="0000–FFFF tara (uzun, kaldığı yerden sürer)";
+    const abs = absent;
+    $("csInfo").textContent = `${label} ${stopped?"durduruldu (kaldığı yerden sürer)":"bitti"}: ${found} yeni kod.${abs.length?" Cevap vermeyen ünite: "+abs.join(", ")+" (bu araçta yok ya da adresi farklı; sonra tekrar denenir).":""} Şimdi "Okumaları izle"yi açıp değerlerin değiştiği durumları (sürüş, şarj, klima) yaşatın.`;
     fillScanHist(); csRecalc(); renderCs(); if (chW) startPolling();
   }
 }
@@ -2910,10 +2932,10 @@ if (window.AndroidCar && !/mirror/.test(location.hash)){ const ep=()=>{ try{ ens
 $("scRe").onclick = rescan;
 // Car Scanner kapsamı
 $("csFilter").onchange = renderCs;
-$("csAll").onclick = () => csRun(Object.entries(CS_PLAN), "Bilinen aralıklar");
+$("csAll").onclick = () => csRun(Object.entries(CS_PLAN), "Bilinen aralıklar");   // ünite cevap vermezse bloklar hızla geçer
 $("csDeep").onclick = () => { const tx=$("csDeepUnit").value; csRun([[tx, ["0000-FFFF"]]], `${KNOWN_UNITS[tx]||tx} tam tarama`); };
 $("csWatch").onclick = () => csWatch(!csWatchT);
-$("csDeepUnit").innerHTML = Object.entries(CS_UNIT).map(([k,tx])=>`<option value="${tx}">${CS_UNAME[k]}</option>`).join("");
+$("csDeepUnit").innerHTML = Object.entries(CS_UNIT).map(([k,tx])=>`<option value="${tx}">${CS_UNAME[k]}</option>`).join("") + ["1DD01631","1DD01634","1DD01602","1DD01630"].map(tx=>`<option value="${tx}">${KNOWN_UNITS[tx]}</option>`).join("");
 $("csList").onclick = e => { const b=e.target.closest("button"); if (!b) return; const d=b.dataset;
   const it = id => CS.find(x=>x.id===+id);
   if (d.cs){ csOpen = csOpen===+d.cs ? null : +d.cs; if (csOpen){ csRecalc([csOpen]); } renderCs(); return; }
