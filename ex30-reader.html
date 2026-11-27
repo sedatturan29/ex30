@@ -357,6 +357,9 @@
   .tbl{overflow-x:auto}
   progress{width:100%;height:8px;accent-color:var(--acc)}
   .empty{color:var(--mut);font-size:13px;padding:6px 0}
+  .ts-card.done{opacity:.6} .ts-h{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .ts-ck{display:flex;align-items:center;gap:8px;font-size:16px} .ts-how{margin:6px 0 4px 18px;padding:0;color:var(--mut);font-size:13px;line-height:1.5}
+  .ts-card textarea{width:100%;box-sizing:border-box;margin-top:6px;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit;font-size:13px}
   .mod-map{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;margin-top:6px}
   .mod-map div{border-radius:6px;padding:8px 0;text-align:center;font-weight:700;font-size:15px;color:#0d1114}
   .mod-map div.lo{outline:2px solid #6CB4FF} .mod-map div.hi{outline:2px solid #FF7A5C}
@@ -417,6 +420,7 @@
     <button data-tab="trip">Yolculuklar</button>
     <button data-tab="heat">Isıtma testi<span class="rec"></span></button>
     <button data-tab="scan">Tarayıcı</button>
+    <button data-tab="tests">Denenecekler</button>
   </nav>
   <div id="rpBar" class="rp" hidden>
     <div class="rp-top"><b>Test modu</b><span id="rpName"></span><span id="rpTime" class="rp-time">–</span><button class="sec mini" id="rpExit">Testten çık</button></div>
@@ -433,6 +437,16 @@
   <div id="banner" class="banner"></div>
 
   <!-- ============ CANLI ============ -->
+  <section id="tab-tests">
+    <div class="card" style="margin-top:0">
+      <h2>Denenecekler</h2>
+      <p class="note" style="margin-top:0" id="tsSum"></p>
+      <div class="row"><button id="tsDl">Sonuçları indir</button><button class="sec" id="tsTg">Telegram'a gönder</button></div>
+      <p class="note" id="tsInfo">Ölç düğmeleri OBD bağlıyken çalışır; sadece okuma yapar.</p>
+    </div>
+    <div id="tsList"></div>
+  </section>
+
   <section id="tab-alper">
     <div class="card" style="margin-top:0">
       <h2>Aracın kendi verileri</h2>
@@ -978,6 +992,7 @@ async function connect(all=false, auto=false){
       if (!/ELM|OK|v\d/i.test(elmId)){ const r=await send("ATI", 1500); if (/ELM|v\d/i.test(r)) elmId=r; else await sleep(300); }
     }
     log("Adaptör el sıkışması "+Math.round(performance.now()-tH)+" ms: "+tries.join(", "));
+    store.set("lastHandshake", `${new Date().toLocaleString("tr-TR")} · ${window.AndroidCar?"orta ekran":"telefon"} · ${Math.round(performance.now()-tH)} ms\n${tries.join("\n")}`);
     if (!/ELM|OK|v\d/i.test(elmId)) throw Object.assign(new Error("Adaptör komutlara cevap vermedi ("+tries.join(", ")+"). Adaptörü çıkarıp takın; telefonda başka bir uygulama bağlıysa kapatın."), {step:"elm"});
     store.set("bleWriteAck", writeAck);
     await sleep(300);
@@ -1450,6 +1465,94 @@ function openMatch(x){
   addPreview();
 }
 
+// =====================================================================
+//  Denenecekler: araçta yapılacak ölçümler; sonuçlar tek dosyada indirilir ya da Telegram'a gönderilir
+// =====================================================================
+const TV="1DD01601", TB="1DD01635", TM="1DD01637", TA="1DD01701", TC="1DD01650";
+const tsList = (tx, dids) => dids.map(d=>[tx,d]);
+const TESTS = [
+  {id:"pedal", t:"Gaz pedalı: tam basış", why:"Pedal çubuğunun %100'ünü doğru ayarlamak (bırakılmış hâli %7).",
+   how:["Araç açık ve P konumunda.","Ölç'e bas; 10 saniye boyunca pedala iki kez sonuna kadar bas, bir kez de yarıya kadar.","Bitince en küçük/en büyük değer burada görünür."],
+   read:tsList(TV,["E301"]), dur:10000, ms:120, sum:r=>{ const v=r.samples.map(s=>s.v["1601:E301"]).filter(Boolean).map(h=>parseInt(h.split(" ").pop(),16)); return v.length?`pedal ham değer: en düşük ${Math.min(...v)}, en yüksek ${Math.max(...v)}`:"pedal okunamadı"; }},
+  {id:"tpms", t:"Lastik basıncı (FD05)", why:"Şasideki FD05'in dört baytı lastik basıncı mı, anlamak.",
+   how:["Önce Ölç'e bas.","Bir lastiği 2–3 psi indir (ya da şişir); hangi teker olduğunu nota yaz.","Tekrar Ölç'e bas. Sonra lastiği düzeltmeyi unutma."],
+   read:tsList(TA,["FD05","FD07","FE08"]), n:3, ms:700,
+   sum:r=>{ const s=r.samples.at(-1); return s?`FD05 ${s.v["1701:FD05"]||"–"} · FD07 ${s.v["1701:FD07"]||"–"}`:""; }},
+  {id:"klima", t:"Klima kapalı / açık", why:"Klima basıncı ve 5 klima sıcaklığının hangi kod olduğunu ayırmak.",
+   how:["Klima kapalıyken Ölç'e bas.","Klimayı aç (soğutma), 2 dakika bekle, tekrar Ölç'e bas.","Car Scanner'daki 5 klima sıcaklığını ve klima basıncını nota yaz (uygunsa)."],
+   read:tsList(TV,["413A","4A28","4A29","4A30","4A31","4A32","4A33","4A34","D901","D911","D912","D913","D922","D923","E349","E34A"]), n:2, ms:1500},
+  {id:"acsarj", t:"AC şarj", why:"Şebeke gerilimi, OBC akımı, pilot sinyali ve soket sıcaklıklarını kesinleştirmek.",
+   how:["AC şarj başlayınca Ölç'e bas.","10 dakika sonra tekrar Ölç'e bas.","Car Scanner'daki şebeke gerilimi, şebeke akımı, pilot % ve OBC A akımını nota yaz (uygunsa)."],
+   read:tsList(TC,["EE00","EE02","EE04","EE06","EE07","EE09","EE0A","EE0B","EE0C","EE0D","EE0E","EE0F","EE11","EE12","EE13","EE17","EE18","EE19","EE1A","EE1B","EE1C","EE1F","EE22","EE24","EE28","EE2A","EE2D","EE2F","EE30","EE31","EE32","EE50","EE51","EE62","EE65","EE66","EE67","EE68","EE69","EE6A","EE6B","EE6C","EE6D","EE71","EE72","EE73","EE74","EE75","EE76","EE77","EE78","EE79","EE7A","EEE0","EEE1","EEE2"])
+     .concat(tsList(TB,["4802","4803","489C","F45B"])), n:1, ms:0},
+  {id:"dcsarj", t:"DC şarj (soket sıcaklıkları)", why:"DC soket +/− sıcaklıklarının kodunu bulmak; şarj sınırını doğrulamak.",
+   how:["DC şarjın ilk dakikalarında Ölç'e bas.","Şarjın sonuna doğru tekrar Ölç'e bas.","Car Scanner'daki DC soket sıcaklıklarını nota yaz (uygunsa)."],
+   read:tsList(TB,["4802","4803","489C","489E","4945","491B","EE02","EE03","EE04","EE06","EE07","EE10","EE12","EE15","EE16","EE17","EE18","EE21","EE22","EE23","EE24","EE51","EE52","EE54","EE80","EE81","EE94","EE96","EE97","EE98","F45B","49F6","DA17","DA18"]), n:1, ms:0},
+  {id:"surus", t:"Sert hızlanma ve fren", why:"Boylamsal ivme (2B11) ölçeğini ve deşarj sınırını (489E) doğrulamak.",
+   how:["Boş ve güvenli bir yolda, hareket etmeden önce Ölç'e bas (25 sn kaydeder).","Bir kez kuvvetli hızlan, sonra kuvvetli fren yap.","Kullanırken ekranla uğraşma; ölçüm kendiliğinden biter."],
+   read:tsList(TA,["2B11","F40D","FD00","FE08"]).concat(tsList(TB,["489E","4802"])).concat(tsList(TM,["E303"])), dur:25000, ms:200},
+  {id:"moduller", t:"Ünite adları (MGM dahil)", why:"Araçtaki ünitelerin adlarını okuyup Car Scanner'ın MGM ünitesinin adresini bulmak.",
+   how:["Araç açıkken Ölç'e bas; her adreste ünitenin adını (F80A) ve parça numarasını (F187) okur.","Car Scanner'da MGM sensörlerini açıp kısa bir günlük alabilirsen onu da gönder."],
+   read:["1001","1201","1601","1631","1635","1637","1650","1656","1672","1701","1A01","1A13","1C01","1601","1630","1634","1602","1610","1611","1612","1620","1640","1660","1680"].filter((x,i,a)=>a.indexOf(x)===i).flatMap(a=>[["1DD0"+a,"F80A"],["1DD0"+a,"F187"]]), n:1, ms:0,
+   sum:r=>{ const s=r.samples.at(-1); if (!s) return ""; const nm=Object.entries(s.v).filter(([k,v])=>k.endsWith("F80A")&&v&&v!=="NRC").map(([k,v])=>k.split(":")[0]+" "+tsAscii(v)); return nm.length?nm.join(" · "):"ad okunamadı"; }},
+  {id:"hiz", t:"Okuma hızı", why:"Son güncellemelerin okuma hızına etkisini görmek.", how:["Sürüşte Performans sekmesinin sağ üstündeki okuma/sn değerini nota yaz."], read:null},
+  {id:"baglanti", t:"Orta ekranın adaptöre bağlanması", why:"Adaptör doğrulamanın neden uzun sürdüğünü görmek.",
+   how:["Orta ekranda Bağlan'a bas.","Son el sıkışma kaydı aşağıda kendiliğinden görünür; kaç saniye sürdüğünü nota yaz."], read:null, auto:()=>store.get("lastHandshake",null)},
+  {id:"alper", t:"Sürüş menüsünde Alper", why:"Orta ekranın sürüş menüsünde 7. satırın (Alper) görünüp görünmediği.", how:["EX30 Sürüş'te ☰ menüsünü aç; Alper satırı var mı, nota yaz."], read:null},
+];
+const tsAscii = h => h ? h.split(" ").map(x=>parseInt(x,16)).filter(c=>c>=32&&c<127).map(c=>String.fromCharCode(c)).join("").trim() : "";
+let tsData = store.get("tests", {}), tsRun = null;
+const tsSave = () => store.set("tests", tsData);
+const tsOf = id => tsData[id] || (tsData[id]={done:false, note:"", runs:[]});
+async function tsMeasure(T){
+  if (tsRun){ tsRun.stop=true; return; }
+  if (!chW){ $("tsInfo").textContent="Önce OBD'ye bağlan (Bağlan)."; return; }
+  const list = T.read.slice().sort((a,b)=>a[0].localeCompare(b[0]));
+  const n = T.dur ? Math.ceil(T.dur/Math.max(T.ms,1)) : (T.n||1);
+  tsRun={stop:false, id:T.id}; renderTests();
+  const run={t:Date.now(), samples:[]}; let cur="";
+  try{
+    await pausePolling();
+    const tEnd = T.dur ? Date.now()+T.dur : Infinity;
+    for (let i=0; i<n && !tsRun.stop && chW && Date.now()<tEnd; i++){
+      const t0=Date.now(), v={};
+      for (const [tx,did] of list){
+        if (cur!==tx){ await setUnit(tx, rxFor(tx)); cur=tx; }
+        const r=parseUds(await send("22"+did, T.dur?400:700), did);
+        v[tx.slice(4)+":"+did] = r && r.ok ? hexb(r.data) : r ? "NRC" : "";
+      }
+      run.samples.push({t:t0, ref:scanRef(), v});
+      $("tsInfo").textContent = `${T.t}: ${run.samples.length}${T.dur?"":"/"+n} okuma`;
+      const w=T.ms-(Date.now()-t0); if (w>0 && i<n-1) await sleep(w);
+    }
+  } finally {
+    await restoreBms(); if (chW) startPolling();
+    const st=tsOf(T.id); if (run.samples.length){ st.runs.push(run); while (st.runs.length>6) st.runs.shift(); } tsSave();
+    $("tsInfo").textContent = `${T.t}: ${run.samples.length} okuma kaydedildi${tsRun.stop?" (durduruldu)":""}.`; tsRun=null; renderTests();
+  }
+}
+function tsExport(){
+  const tests = TESTS.map(T=>{ const st=tsOf(T.id); return {id:T.id, baslik:T.t, yapildi:st.done, not:st.note, ek: T.auto ? T.auto() : undefined, olcumler:st.runs}; });
+  return JSON.stringify({uygulama:"EX30 Reader", cihaz: window.AndroidCar ? "orta ekran" : "telefon", olusturma:new Date().toISOString(), testler:tests}, null, 1);
+}
+const tsName = () => "EX30_denemeler_"+new Date().toISOString().slice(0,16).replace(/[:T]/g,"-")+".json";
+function renderTests(){
+  const el=$("tsList"); if (!el) return;
+  if (document.activeElement && document.activeElement.closest && document.activeElement.closest("#tsList textarea")) return;
+  const doneN = TESTS.filter(T=>tsOf(T.id).done).length;
+  $("tsSum").textContent = `${TESTS.length} denemeden ${doneN} tamam. Ölçümler bu cihazda saklanır; bitince "Sonuçları indir" ya da "Telegram'a gönder" ile bana ilet.`;
+  el.innerHTML = TESTS.map(T=>{ const st=tsOf(T.id), last=st.runs.at(-1), busy=tsRun&&tsRun.id===T.id;
+    const auto = T.auto ? T.auto() : null;
+    return `<div class="card ts-card ${st.done?"done":""}">
+      <div class="ts-h"><label class="ts-ck"><input type="checkbox" data-tsdone="${T.id}" ${st.done?"checked":""}> <b>${T.t}</b></label>
+        ${T.read?`<button class="${busy?"":"sec"} mini" data-tsrun="${T.id}" ${!chW&&!busy?"disabled":""}>${busy?"Durdur":"Ölç"}</button>`:""}</div>
+      <p class="note" style="margin-top:4px">${T.why}</p>
+      <ol class="ts-how">${T.how.map(h=>`<li>${h}</li>`).join("")}</ol>
+      ${T.read?`<p class="note">${st.runs.length?`${st.runs.length} ölçüm (son: ${localTime(last.t)}, ${last.samples.length} okuma)${T.sum?" · "+T.sum(last):""} <button class="sec mini" data-tsclr="${T.id}">Ölçümleri sil</button>`:"Henüz ölçüm yok."}</p>`:""}
+      ${auto?`<p class="note mono" style="white-space:pre-wrap">${String(auto).replace(/[<>&]/g,"")}</p>`:""}
+      <textarea data-tsnote="${T.id}" rows="2" placeholder="Not (ör. sol ön lastik 3 psi indirildi; Car Scanner değerleri…)">${(st.note||"").replace(/[<>&]/g,"")}</textarea>
+    </div>`; }).join("");
+}
 // =====================================================================
 //  Car Scanner kapsamı: EX30 profilindeki tüm sensörler, kodlarının bulunması ve eşleştirilmesi
 // =====================================================================
@@ -2512,7 +2615,9 @@ const heat = (t, cold, ok, warm) => t==null ? "#2A333A" : t<cold ? "var(--dv-reg
 // Üst şerit: hız ve anlık kW (göstergelerle aynı boyda) + yatay güç çubuğu (rejen −80 … 200 çekiş)
 function pvHero(s){
   const kw=s?.kwAny ?? s?.kw, lo=-80, hi=200, X=v=>(Math.min(hi,Math.max(lo,v))-lo)/(hi-lo)*100, z=X(0);
-  $("pvSpd").textContent = s?.spd==null ? "–" : f1(s.spd,0);
+  // Orta ekranda göstergedeki hız (aracın kendi gösterge değeri, çok sık güncellenir); yoksa ölçülen hız
+  const shown = s?.dsp ?? s?.spd;
+  $("pvSpd").textContent = shown==null ? "–" : f1(shown,0);
   $("pvKw").textContent = kw==null ? "–" : (kw>0.5?"+":"")+f1(kw,0);
   const h=$("pvHero"); h.classList.toggle("pos", kw!=null && kw>0.5); h.classList.toggle("neg", kw!=null && kw<-0.5);
   const r=$("pvRib"), fn=r.querySelector(".f.n"), fp=r.querySelector(".f.p");
@@ -2705,7 +2810,7 @@ function dvTick(){
   if (kw!=null && kw<0){ fn.style.left=X(kw)+"%"; fn.style.width=(z-X(kw))+"%"; } else fn.style.width="0";
   if (kw!=null && kw>0){ fp.style.left=z+"%"; fp.style.width=(X(kw)-z)+"%"; } else fp.style.width="0";
   if (pf.kw!=null){ pk.style.display=""; pk.style.left=X(pf.kw)+"%"; } else pk.style.display="none";
-  $("dvSpd").textContent = live ? f1(s.spd,0) : "–";
+  $("dvSpd").textContent = live ? f1(s.dsp ?? s.spd,0) : "–";
   $("dvSoc").textContent = live ? f1(s.soc,0) : "–";
   $("dvInst").textContent = live && s.inst!=null ? f1(Math.max(-99,Math.min(99,s.inst)),0) : "–";
   dvEco(live ? s.inst : null, s.jt && s.jt.cons, live ? s.spd : null);
@@ -2995,6 +3100,17 @@ try{ if (autoMode()) setTimeout(()=>ex30AutoConnect(), 500); }catch{}
 // Orta ekranda (Android Automotive) panel her zaman yüklü: OBD bağlı olmasa da aracın kendi verileriyle yolculuk ve kayıt tutulur
 if (window.AndroidCar && !/mirror/.test(location.hash)){ const ep=()=>{ try{ ensurePanel(); }catch{} }; if (document.readyState==="complete") ep(); else window.addEventListener("load", ep); }
 $("scRe").onclick = rescan;
+// Denenecekler
+$("tsList").addEventListener("click", e => { const b=e.target.closest("[data-tsrun],[data-tsclr]"); if (!b) return;
+  if (b.dataset.tsrun) tsMeasure(TESTS.find(T=>T.id===b.dataset.tsrun));
+  if (b.dataset.tsclr){ tsOf(b.dataset.tsclr).runs=[]; tsSave(); renderTests(); } });
+$("tsList").addEventListener("change", e => { const c=e.target.closest("[data-tsdone]"); if (c){ tsOf(c.dataset.tsdone).done=c.checked; tsSave(); renderTests(); } });
+$("tsList").addEventListener("input", e => { const t=e.target.closest("[data-tsnote]"); if (t){ tsOf(t.dataset.tsnote).note=t.value; tsSave(); } });
+$("tsDl").onclick = () => saveFileText(tsName(), tsExport());
+$("tsTg").onclick = async () => { const b=$("tsTg"); b.disabled=true; b.textContent="Gönderiliyor…";
+  let ok=false; try{ ok = panelWin && panelWin.ex30TgDoc ? await panelWin.ex30TgDoc(tsName(), tsExport(), "EX30 denemeleri ("+(window.AndroidCar?"orta ekran":"telefon")+")") : false; }catch{}
+  b.disabled=false; b.textContent = ok ? "Gönderildi ✓" : "Gönderilemedi (Telegram ayarlı mı?)"; setTimeout(()=>b.textContent="Telegram'a gönder", 4000); };
+setInterval(()=>{ if (tab==="tests") renderTests(); }, 3000);
 // Car Scanner kapsamı
 $("csFilter").onchange = renderCs;
 $("csAll").onclick = () => csRun(Object.entries(CS_PLAN), "Bilinen aralıklar");   // ünite cevap vermezse bloklar hızla geçer
@@ -4288,6 +4404,7 @@ const TG = Object.assign({token:"", chat:null, chatName:"", bot:"", sum:true, cs
 const TG_PRIVATE = /enlem|boylam|irtifa|konum|^lat|^lon|km_sayac|odo|vin|sasi|şasi|plaka|mac|adres/i;
 let tgQ = store.get("tgQueue", []), tgBusy=false, tgSeq=0; const tgWait={};
 window.__tgDone = (id, ok, body) => { const w=tgWait[id]; if (w){ delete tgWait[id]; w(body); } };
+window.ex30TgDoc = async (name, text, caption) => { if (!TG.token || !TG.chat) return false; const r = await tgCall("sendDocument", {chat_id:TG.chat, caption}, {name, text}); return !!(r && r.ok); };
 function tgCall(method, params, file){
   const AB = window.AndroidBle || (HOST && window.parent.AndroidBle);
   if (AB && AB.tg) return new Promise(res=>{

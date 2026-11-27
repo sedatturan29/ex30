@@ -1252,6 +1252,7 @@ const TG = Object.assign({token:"", chat:null, chatName:"", bot:"", sum:true, cs
 const TG_PRIVATE = /enlem|boylam|irtifa|konum|^lat|^lon|km_sayac|odo|vin|sasi|şasi|plaka|mac|adres/i;
 let tgQ = store.get("tgQueue", []), tgBusy=false, tgSeq=0; const tgWait={};
 window.__tgDone = (id, ok, body) => { const w=tgWait[id]; if (w){ delete tgWait[id]; w(body); } };
+window.ex30TgDoc = async (name, text, caption) => { if (!TG.token || !TG.chat) return false; const r = await tgCall("sendDocument", {chat_id:TG.chat, caption}, {name, text}); return !!(r && r.ok); };
 function tgCall(method, params, file){
   const AB = window.AndroidBle || (HOST && window.parent.AndroidBle);
   if (AB && AB.tg) return new Promise(res=>{
