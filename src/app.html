@@ -824,7 +824,7 @@ function saveSessions(now){
 // =====================================================================
 let dev=null, chW=null, chN=null, buf="", waiter=null, busy=Promise.resolve(), wake=null, manual=false;
 // Yazma biçimi: bazı Bluetooth yığınları (ör. orta ekran) cevapsız yazmaları düşürebilir; işe yarayan biçim hatırlanır
-let writeAck = store.get("bleWriteAck", false);
+let writeAck = store.get("bleWriteAck", !!window.AndroidCar);   // orta ekranda onaylı yazmayla başla
 const enc = new TextEncoder(), dec = new TextDecoder();
 function onNotify(e){
   buf += dec.decode(e.target.value);
@@ -900,14 +900,18 @@ const autoMode = () => { try{ return !!(window.AndroidCar || (window.AndroidBle 
 function autoStatus(t){ try{ window.AndroidBle && AndroidBle.publish(JSON.stringify({conn:false, status:t})); }catch{} }
 // "Kes"e basınca otomatik bağlanma, "Bağlan"a basılana kadar bekler (başka bir uygulama OBD'yi kullanabilsin ya da adaptör sökülebilsin)
 const obdHold = () => store.get("obdHold", false);
+let autoGot = false;   // telefon adaptörü otomatik mi aldı (orta ekran bağlanınca bırakılır)
+setInterval(()=>{ if (!window.AndroidCar && linkSt.up && chW && autoGot){ autoGot=false; log("Orta ekran bağlandı: OBD adaptörü orta ekrana bırakılıyor"); disconnect(); } }, 3000);
 window.ex30AutoConnect = async () => {
   if (autoBusy || chW || !window.AndroidBle || !navigator.bluetooth || !navigator.bluetooth.lastDevice) return;
   if (obdHold()){ autoStatus((window.AndroidCar?"Araç verileriyle kayıt sürüyor. ":"")+"OBD otomatik bağlanması durduruldu; Bağlan'a basınca devam eder."); return; }
+  // Telefon orta ekrana bağlıyken adaptörü orta ekran kullanır (iki cihaz aynı adaptör için yarışmasın); veriler bağlantı üzerinden gelir
+  if (!window.AndroidCar && linkSt.up){ autoStatus("Orta ekran bağlı: OBD'yi orta ekran kullanıyor, veriler oradan geliyor."); clearTimeout(autoTimer); autoTimer=setTimeout(()=>{ if (autoMode() && !obdHold()) ex30AutoConnect(); }, 30000); return; }
   clearTimeout(autoTimer);
   if (!navigator.bluetooth.lastDevice()){ autoStatus("Kayıtlı adaptör yok. Telefonda EX30 Reader'ı açıp bir kez Bağlan'a basın ve adaptörü seçin; sonrakilerde Android Auto'dan açmanız yeter."); return; }
   autoBusy=true; autoStatus("OBD adaptörüne bağlanılıyor…");
   try{ await connect(false, true); }catch{}
-  autoBusy=false;
+  autoBusy=false; autoGot = !!chW;
   if (!chW){ autoStatus((window.AndroidCar?"Araç verileriyle kayıt sürüyor. ":"")+"Adaptöre bağlanılamadı; tekrar denenecek. Araç açık, adaptör takılı ve Car Scanner kapalı olmalı.");
     autoFails++; autoTimer=setTimeout(()=>{ if (autoMode() && !obdHold()) ex30AutoConnect(); }, autoFails>40 ? 60000 : 15000); }
   else autoFails=0;
@@ -955,16 +959,22 @@ async function connect(all=false, auto=false){
     log("Bağlandı: "+(dev.name||"OBD"));
     setPill("busy","Başlatılıyor"); setStep("elm","run","Adaptör ayarlanıyor");
     // Adaptörle el sıkışma: kanal yerleşsin, sonra sıfırla; cevap yoksa yeniden dene ve diğer yazma biçimine geç
-    let elmId="", tries=[];
-    await sleep(400);
-    for (let attempt=0; attempt<4 && !/ELM|OK|v\d/i.test(elmId); attempt++){
-      if (attempt===2 && chW.properties.write && chW.properties.writeWithoutResponse){ writeAck=!writeAck; log("Yazma biçimi değiştirildi: "+(writeAck?"onaylı":"onaysız")); }
-      setStep("elm","run", attempt ? `Adaptör ayarlanıyor (deneme ${attempt+1}/4)` : "Adaptör ayarlanıyor");
-      await send("", 800);                                       // uyandır, yarım kalan satırı temizle
-      const cmd = attempt%2 ? "ATWS" : "ATZ";                    // soğuk / sıcak başlatma
-      elmId = await send(cmd, 3500); tries.push(cmd+"→"+(elmId.replace(/\s+/g," ").slice(0,24)||"boş")); log(cmd+" → "+elmId.replace(/\s+/g," "));
-      if (!/ELM|OK|v\d/i.test(elmId)){ const r=await send("ATI", 2000); if (/ELM|v\d/i.test(r)) elmId=r; else await sleep(600); }
+    let elmId="", tries=[]; const tH=performance.now();
+    await sleep(300);
+    const both = chW.properties.write && chW.properties.writeWithoutResponse;
+    for (let attempt=0; attempt<5 && !/ELM|OK|v\d/i.test(elmId); attempt++){
+      // Orta ekranın Bluetooth'u onaysız yazmaları kaybedebiliyor: ilk cevapsız denemeden sonra yazma biçimini değiştir
+      if ((attempt===1 || attempt===3) && both){ writeAck=!writeAck; log("Yazma biçimi değiştirildi: "+(writeAck?"onaylı":"onaysız")); }
+      setStep("elm","run", attempt ? `Adaptör ayarlanıyor (deneme ${attempt+1}/5${both?", "+(writeAck?"onaylı":"onaysız")+" yazma":""})` : "Adaptör ayarlanıyor");
+      await send("", 500);                                       // uyandır, yarım kalan satırı temizle
+      // İlk deneme: ATI (adaptör açıksa anında cevap verir, sıfırlama beklemesi yok); sonra sıcak/soğuk başlatma
+      const cmd = attempt===0 ? "ATI" : attempt%2 ? "ATWS" : "ATZ";
+      const t0=performance.now(); elmId = await send(cmd, attempt===0 ? 1500 : 3000);
+      tries.push(cmd+"→"+(elmId.replace(/\s+/g," ").slice(0,24)||"boş")+" "+Math.round(performance.now()-t0)+"ms"); log(cmd+" → "+elmId.replace(/\s+/g," "));
+      if (attempt===0 && /ELM|v\d/i.test(elmId)){ await send("ATD", 1500); break; }
+      if (!/ELM|OK|v\d/i.test(elmId)){ const r=await send("ATI", 1500); if (/ELM|v\d/i.test(r)) elmId=r; else await sleep(300); }
     }
+    log("Adaptör el sıkışması "+Math.round(performance.now()-tH)+" ms: "+tries.join(", "));
     if (!/ELM|OK|v\d/i.test(elmId)) throw Object.assign(new Error("Adaptör komutlara cevap vermedi ("+tries.join(", ")+"). Adaptörü çıkarıp takın; telefonda başka bir uygulama bağlıysa kapatın."), {step:"elm"});
     store.set("bleWriteAck", writeAck);
     await sleep(300);
@@ -1456,11 +1466,11 @@ const CS_RAW = [
  [7,"BECM","12V Battery voltage","12 V akü (BECM)","V",14,"h","v12",null],
  [8,"BECM","SOC Percent Battery 1","Şarj (batarya 1)","%",85.4,"h","soc",null],
  [9,"BECM","HV Battery Cell voltage sum","Hücre gerilimleri toplamı","V",445.8,"h","volt","csum"],
- [10,"BECM","SOC Display","Göstergedeki şarj","%",87.1,"h","soc",null],
- [11,"BECM","ECU Power supply voltage","BECM besleme gerilimi","V",35.7,"h",null,null],
+ [10,"BECM","SOC Display","Göstergedeki şarj","%",87.1,"h","soc","socd"],
+ [11,"BECM","ECU Power supply voltage","BECM besleme gerilimi","V",35.7,"h",null,"bsup"],
  [12,"BECM","? Total odometer","Kilometre sayacı","km",17844,"h",null,"odo"],
  [13,"BECM","HV Battery SoH","Batarya sağlığı (SoH, ABRP'nin okuduğu)","%",100,"h",null,"soh"],
- [14,"BECM","Cell Min State Of Charge","En düşük hücre şarjı","%",85.3,"h","soc",null],
+ [14,"BECM","Cell Min State Of Charge","En düşük hücre şarjı","%",85.3,"h","soc","csocMin"],
  [15,"BECM","Charging power limit","Şarj güç sınırı","kW",19.1,"h",null,"pchg"],
  [16,"BECM","Discharging power limit","Deşarj güç sınırı","kW",0,"s",null,"pdis"],
  [17,"ABS","Brake disc temperature: front left","Fren diski sıcaklığı sol ön","°C",16.4,"h",null,"d_fl"],
@@ -1490,7 +1500,7 @@ const CS_RAW = [
  [41,"CDD","Charging: DC Voltage","Şarj DC gerilimi","V",460.4,"a","volt",null],
  [42,"CDD","Charging: Direct Current","Şarj DC akımı","A",51.9,"a","chgA",null],
  [43,"CDD","Charging: Grid Current","Şebeke akımı","A",31.7,"a",null,null],
- [44,"CDD","Charging: Grid Voltage","Şebeke gerilimi","V",237.1,"a",null,null],
+ [44,"CDD","Charging: Grid Voltage","Şebeke gerilimi","V",237.1,"a",null,"gridV"],
  [45,"CDD","DC/DC Actual Input Power","DC/DC giriş gücü","W",313,"h",null,"dcW"],
  [46,"CDD","DC/DC Converter Power Request","DC/DC güç isteği","W",20460,"h",null,null],
  [47,"CDD","DC/DC Converter Circuit Board Temperature","DC/DC kart sıcaklığı","°C",53,"h",null,null],
@@ -1498,7 +1508,7 @@ const CS_RAW = [
  [49,"CDD","Low voltage side, voltage","12 V tarafı gerilim","V",14.4,"h","v12","lvV"],
  [50,"CDD","Low voltage side, current","12 V tarafı akım","A",19,"h",null,"lvA"],
  [51,"CDD","OBC Module A Output DC Voltage","Şarj cihazı A çıkış gerilimi","V",447,"a","volt",null],
- [52,"CDD","OBC Module A Temperature","Şarj cihazı A sıcaklığı","°C",66,"a",null,null],
+ [52,"CDD","OBC Module A Temperature","Şarj cihazı A sıcaklığı","°C",66,"a",null,"obcT"],
  [53,"CDD","OBC Available Power","Şarj cihazı kullanılabilir güç","W",19700,"a",null,null],
  [54,"CDD","OBC Module A PFC Voltage","Şarj cihazı A PFC gerilimi","V",813,"a",null,null],
  [55,"CDD","OBC Module A Output DC Current","Şarj cihazı A çıkış akımı","A",44,"a","chgA",null],
@@ -1544,7 +1554,7 @@ const CS_PLAN = {"1DD01635":["4800-49FF","4A00-4BFF","DD00-DDFF","EE00-EEFF","F4
 // 27.11 Car Scanner günlüğünde profilin araca gönderdiği, henüz anlamı ayrışmayan istekler (sensörün bunlardan birinde olduğu kesin)
 const CS_LOGREQ = {
   7:"1635: DD02, EE02, EE06, 487A, DA17", 8:"1635: 487A, DA17, EE02, EE06", 10:"1635: DA17, 487A, EE02", 11:"1635: 487A, DA17, DD02", 14:"1635: DA17, 487A",
-  22:"1635: EE02 (iki eşit bayt), EE06", 23:"1635: EE02 (iki eşit bayt), EE06",
+  22:"1635: henüz bulunamadı (EE02 besleme gerilimi, EE06/EE07 dış hava çıktı)", 23:"1635: henüz bulunamadı",
   83:"1601: 4A28–4A33 (×0,1 −40 °C)", 84:"1601: 4A28–4A33", 85:"1601: 4A28–4A33", 86:"1601: 4A28–4A33", 87:"1601: 4A28–4A33", 90:"1601: 4A28–4A33, D901", 91:"1601: 4A28–4A33, D901",
   40:"1650: EE1C, EE13, EE0E", 41:"1650: EE66–EE69", 42:"1650: EE66–EE69", 43:"1650: EE66–EE69", 44:"1650: EE66–EE69", 46:"1650: EE07, EE0E, EE13", 47:"1650: EE07, EE1F",
   51:"1650: EE19/EE1A/EE1B (A/B/C modülleri)", 52:"1650: EE1F, EE19–EE1B", 53:"1650: EE66–EE69, EE13", 54:"1650: EE19–EE1B", 55:"1650: EE19–EE1B",
@@ -1559,6 +1569,8 @@ const CS_HINT = {
   68:["1DD01637","985E","4 bayt −40 °C"], 69:["1DD01637","9861","2 bayt ÷10 +40 A"], 70:["1DD01637","985C","2 bayt ÷4 V"],
   81:["1DD01601","EE6F","1 bayt ×100÷255 %"], 82:["1DD01630","EE34","2 bayt ×2 kPa"], 91:["1DD01630","EE62","2 bayt ÷100 %"],
   43:["1DD01634","EE15","2 bayt ÷10 A"], 52:["1DD01634","EE19","1 bayt °C"]};
+// Okunmaması gereken kodlar (SEA kardeşlerinde modülü susturduğu ya da ağdan düşürdüğü bildirildi)
+const CS_DANGER = {"1DD01601":["D927","D928","D929","D92A","D92B","D92C"], "1DD01301":["EE13","EE14"]};
 // Birime göre eşleşme toleransı (en az)
 const CS_TOL = {"°C":1.0, "V":0.6, "A":1.5, "%":1.0, "W":150, "kPa":6, "bar":0.5, "km/h":1.5, "rpm":30, "Nm":3, "g":0.03, "mV":3, "km":2};
 let csMap = store.get("csMap", {});        // {id: {tx,rx,did,st,len,sg,a,b}} onaylanan eşleşmeler
@@ -1702,6 +1714,7 @@ async function csRun(plan, label){
       const nSn=s.snaps.length;
       for (let d=a; d<=b && !csJob.stop && chW; d++){
         const did=d.toString(16).toUpperCase().padStart(4,"0");
+        if (CS_DANGER[tx] && CS_DANGER[tx].includes(did)){ done++; continue; }
         const r=parseUds(await send("22"+did, 500), did);
         if (r && r.ok && r.data.length && !s.rows.some(x=>x.did===did)){ const v=Array(nSn).fill(""); v[nSn-1]=hexb(r.data); s.rows.push({did, v}); found++; }
         done++; P.value=done; if (done%8===0) $("csInfo").textContent=`${label}: ${KNOWN_UNITS[tx]||tx} ${did} · ${found} yeni kod`;
@@ -2270,9 +2283,11 @@ function renderAlper(){
   const el=$("alGrid"), now=Date.now();
   const has = x => x!=null && x!=="";
   let live = !!(cv && Object.keys(cv.v).some(k=>has(cv.v[k]) && now-(cv.t[k]||0)<30000));
-  if (live && now-alSaveT>15000){ alSaveT=now; try{ const v={}, t={}; for (const k in cv.v) if (has(cv.v[k])){ v[k]=cv.v[k]; t[k]=cv.t[k]||now; } localStorage.setItem("ex30.alperLast", JSON.stringify({v,t})); }catch{} }
+  if (live && now-alSaveT>2000){ alSaveT=now; try{ const v={}, t={}; for (const k in cv.v) if (has(cv.v[k])){ v[k]=cv.v[k]; t[k]=cv.t[k]||now; } localStorage.setItem("ex30.alperLast", JSON.stringify({v,t})); }catch{} }
   let src = cv && Object.keys(cv.v).some(k=>has(cv.v[k])) ? cv : null, saved=false;
-  if (!live){ const L=alLoad(); if (L && L.v && (!src || Math.max(...Object.values(L.t))>Math.max(0,...Object.values(src.t)))){ src=L; saved=true; } }
+  if (!live){ const L=alLoad(); if (L && L.v && (!src || Math.max(...Object.values(L.t))>Math.max(0,...Object.values(src.t)))){ src=L; saved=true;
+    // Sürüş ekranı (ayna): uygulamanın kendisi 2 sn'de bir kaydediyor; tazeyse canlı say
+    if (document.body.classList.contains("mirror") && now-Math.max(...Object.values(L.t)) < 10000){ live=true; saved=false; } } }
   // Okuduğumuz tüm parametreler tek ekranda: gelmeyenler boş kutu
   const v = Object.assign({}, src?src.v:{}), t = Object.assign({}, src?src.t:{});
   for (const b in AL) if (!Object.keys(v).some(k=>k.split("@")[0]===b)) v[b]=null;
@@ -2945,9 +2960,9 @@ $("scDel").onclick = () => { const b=$("scDel"); if (!curScan) return;
   delete b.dataset.ok; b.textContent="Sil"; scans=scans.filter(s=>s!==curScan); saveScans(); fillScanHist(); loadScan(scans[scans.length-1]); };
 if (location.hash==="#panel") setTimeout(()=>goTab("panel"), 0);
 // Ayna modu (Android Auto / orta ekran sürüş ekranı): sadece Panel ya da Performans, üst çubuk ve sekmeler gizli
-if (/mirror/.test(location.hash)){ document.body.classList.add("mirror"); const go=()=>goTab(/perf/.test(location.hash)?"perf":/panel/.test(location.hash)?"panel":/trip/.test(location.hash)?"trip":/charge/.test(location.hash)?"charge":"drive"); if (document.readyState==="complete") go(); else window.addEventListener("load", go); }
+if (/mirror/.test(location.hash)){ document.body.classList.add("mirror"); const go=()=>goTab(/perf/.test(location.hash)?"perf":/panel/.test(location.hash)?"panel":/trip/.test(location.hash)?"trip":/charge/.test(location.hash)?"charge":/alper/.test(location.hash)?"alper":"drive"); if (document.readyState==="complete") go(); else window.addEventListener("load", go); }
 // Ayna durumu: panelin durumu + telefonda açık sekme + süren şarj (Android Auto'da Şarj ve "telefondaki ekran" için)
-const MIRROR_TABS = ["drive","panel","perf","trip","charge"];
+const MIRROR_TABS = ["drive","panel","perf","trip","charge","alper"];
 window.ex30MirrorState = () => { try{ ensurePanel(); const p = panelWin && panelWin.ex30MirrorState ? panelWin.ex30MirrorState() : null;
   const c = active.charge, last = hist[hist.length-1] || null;
   let chg = null;

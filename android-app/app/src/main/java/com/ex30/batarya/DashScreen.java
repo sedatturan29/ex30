@@ -183,6 +183,7 @@ public class DashScreen extends Screen {
                     .addItem(row("Telefondaki ekran", "Telefonda hangi sekme açıksa onu gösterir", "follow"))
                     .addItem(row("Şarj", "Şarj gücü, şarj yüzdesi ve şarj eğrisi", "charge"))
                     .addItem(row("Yolculuklar", "Otomatik yolculuklar ve tüketim", "trip"))
+                    .addItem(row("Alper", "Aracın kendi verileri, tüm değerler", "alper"))
                     .build();
             return new ListTemplate.Builder().setTitle("EX30 ekranları").setHeaderAction(Action.BACK).setSingleList(list).build();
         }
