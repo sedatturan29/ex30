@@ -221,7 +221,7 @@ public class CarBridge {
 
     private void sendLink(String j, String key) {
         PhoneLink l = PhoneLink.peek();
-        if (l != null) { l.car(j); linkSent.put(key, SystemClock.elapsedRealtime()); }
+        if (l != null) { l.car(j, key); linkSent.put(key, SystemClock.elapsedRealtime()); }
     }
 
     // Değerler 40 ms'de bir tek seferde sayfaya verilir (her değer için ayrı JavaScript çağrısı yerine)
@@ -235,7 +235,6 @@ public class CarBridge {
         String arr;
         synchronized (batch) {
             flushQueued = false; lastFlush = SystemClock.elapsedRealtime();
-            if (batch.length() == 0) return;
             arr = "[" + batch + "]"; batch.setLength(0);
             long now = SystemClock.elapsedRealtime();
             java.util.Iterator<java.util.Map.Entry<String, String>> it = linkPend.entrySet().iterator();
@@ -246,6 +245,7 @@ public class CarBridge {
             }
             if (!linkPend.isEmpty()) main.postDelayed(this::scheduleFlush, 200);
         }
+        if (arr.length() <= 2) return;
         web.evaluateJavascript("(function(a){if(window.__carB)__carB(a);else if(window.__car)a.forEach(function(o){__car(o)});})(" + arr + ")", null);
     }
 

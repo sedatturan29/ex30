@@ -176,15 +176,24 @@ public class DashScreen extends Screen {
         @NonNull
         @Override
         public Template onGetTemplate() {
-            ItemList list = new ItemList.Builder()
-                    .addItem(row("Sürüş", "Güç, yolculuk, ekonomi çizgisi, sıcaklıklar", "drive"))
-                    .addItem(row("Performans", "Hız, kW, pedallar, G-metre", "perf"))
-                    .addItem(row("Panel", "Tüm değerler", "panel"))
-                    .addItem(row("Telefondaki ekran", "Telefonda hangi sekme açıksa onu gösterir", "follow"))
-                    .addItem(row("Şarj", "Şarj gücü, şarj yüzdesi ve şarj eğrisi", "charge"))
-                    .addItem(row("Yolculuklar", "Otomatik yolculuklar ve tüketim", "trip"))
-                    .addItem(row("Alper", "Aracın kendi verileri, tüm değerler", "alper"))
-                    .build();
+            // Araç sürerken liste en fazla 6 satır alabilir: sıra önem sırası, fazlası kesilir
+            int lim = 6;
+            try {
+                lim = getCarContext().getCarService(androidx.car.app.constraints.ConstraintManager.class)
+                        .getContentLimit(androidx.car.app.constraints.ConstraintManager.CONTENT_LIMIT_TYPE_LIST);
+            } catch (Throwable ignored) { }
+            Row[] rows = {
+                row("Sürüş", "Güç, yolculuk, ekonomi çizgisi, sıcaklıklar", "drive"),
+                row("Performans", "Hız, kW, pedallar, G-metre", "perf"),
+                row("Alper", "Aracın kendi verileri, tüm değerler", "alper"),
+                row("Şarj", "Şarj gücü, şarj yüzdesi ve şarj eğrisi", "charge"),
+                row("Yolculuklar", "Otomatik yolculuklar ve tüketim", "trip"),
+                row("Panel", "Tüm değerler", "panel"),
+                row("Telefondaki ekran", "Telefonda hangi sekme açıksa onu gösterir", "follow")
+            };
+            ItemList.Builder lb = new ItemList.Builder();
+            for (int i = 0; i < rows.length && i < Math.max(1, lim); i++) lb.addItem(rows[i]);
+            ItemList list = lb.build();
             return new ListTemplate.Builder().setTitle("EX30 ekranları").setHeaderAction(Action.BACK).setSingleList(list).build();
         }
     }

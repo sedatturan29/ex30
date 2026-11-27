@@ -2427,10 +2427,11 @@ function renderLeds(){
   set("ledBt", bt ? "on" : "", bt ? "Bluetooth açık" : "Bluetooth kapalı ya da yok");
   const remote = Date.now()-remoteT < 6000;
   // Araç verisi (AAOS): son 10 sn içinde değer geldiyse yeşil
-  let cT=0; try{ const cv = panelWin && panelWin.ex30Car ? panelWin.ex30Car() : null; if (cv) for (const k in cv.t) if (cv.t[k]>cT) cT=cv.t[k]; }catch{}
-  const carOn = Date.now()-cT < 10000, showCar = car || carOn || (typeof linkSt!=="undefined" && linkSt.up);
+  let cT=0, cS=0; try{ const cv = panelWin && panelWin.ex30Car ? panelWin.ex30Car() : null; if (cv) for (const k in cv.t){ if (cv.t[k]>cT) cT=cv.t[k]; if (/^(PERF_VEHICLE_SPEED|EV_BATTERY_INSTANTANEOUS)/.test(k) && cv.t[k]>cS) cS=cv.t[k]; } }catch{}
+  const carStale = cS && Date.now()-cS >= 10000 && Date.now()-cT < 10000 || (cS && Date.now()-cS >= 10000 && !car && typeof linkSt!=="undefined" && linkSt.up);
+  const carOn = Date.now()-(cS||cT) < 10000, showCar = car || carOn || (typeof linkSt!=="undefined" && linkSt.up);
   $("ledCar").style.display = showCar ? "" : "none";
-  set("ledCar", carOn ? "on" : (car ? "wait" : ""), carOn ? (car ? "Aracın kendi verileri okunuyor" : "Aracın kendi verileri orta ekrandan geliyor") : car ? "Aracın verileri bekleniyor" : "Araç verisi yok");
+  set("ledCar", carOn ? "on" : (car||carStale ? "wait" : ""), carStale ? "Araç verisi bayat: hız ve güç yenilenmiyor" : carOn ? (car ? "Aracın kendi verileri okunuyor" : "Aracın kendi verileri orta ekrandan geliyor") : car ? "Aracın verileri bekleniyor" : "Araç verisi yok");
   $("ledObd").classList.toggle("off", !(chW || remote) && !autoBusy);
   set("ledObd", chW || remote ? "on" : (autoBusy ? "wait" : ""), chW ? "OBD bağlı" : remote ? "OBD orta ekrandan canlı" : autoBusy ? "OBD'ye bağlanılıyor" : "OBD bağlı değil");
   $("ledObd").querySelector("b").textContent = remote && !chW ? "OBD (orta ekran)" : "OBD";
@@ -3723,7 +3724,9 @@ async function loopBody(){
 
 // ============ Android Automotive (orta ekran): aracın kendi verileri ============
 const carv = {};   // "AD" ya da "AD@alan" → değer
-const aaos = k => { const v = carv[k]; return typeof v === "number" && isFinite(v) ? v : null; };
+// Sürekli akan değerler 8 sn'den uzun yenilenmediyse bayat sayılır (bağlantı donarsa eski hız/güç kayda ve hesaba girmesin)
+const STALE_MS = 8000, STALE_RE = /^(PERF_VEHICLE_SPEED|PERF_VEHICLE_SPEED_DISPLAY|EV_BATTERY_INSTANTANEOUS_CHARGE_RATE)(@|$)/;
+const aaos = k => { const v = carv[k]; if (STALE_RE.test(k) && Date.now()-(carT[k]||0) > STALE_MS) return null; return typeof v === "number" && isFinite(v) ? v : null; };
 const WHEEL_AREA = {fl:1, fr:2, rl:4, rr:8};
 let lastCarT=0;
 const carT = {};

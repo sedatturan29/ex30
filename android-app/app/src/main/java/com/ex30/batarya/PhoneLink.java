@@ -216,13 +216,18 @@ final class PhoneLink {
     private void writer() {
         BluetoothSocket mine = sock;
         try {
+            boolean lastWasCar = false;
             while (sock == mine && mine != null) {
-                String l = q.take();
+                // Canlı araç verisi kendi yuvasında (anahtar başına en yeni değer): eşitleme kuyruğu dolsa da, yavaşlasa da atılmaz
+                String l = null;
+                if (!lastWasCar || q.isEmpty()) l = nextCar();
+                lastWasCar = l != null;
+                if (l == null) l = q.take();
                 OutputStream o = out;
                 if (o == null || sock != mine) break;
                 if (l.isEmpty()) continue;
                 o.write((l + "\n").getBytes(StandardCharsets.UTF_8));
-                if (q.isEmpty()) o.flush();
+                if (q.isEmpty() && carLatest.isEmpty()) o.flush();
             }
         } catch (Throwable e) {
             try { if (mine != null) mine.close(); } catch (Exception ignored) { }
@@ -237,8 +242,19 @@ final class PhoneLink {
     }
 
     /** Orta ekran: aracın her yeni değerini telefona da ilet. */
-    void car(String json) {
-        if (isCar && connected() && q.size() < 2000) q.offer("{\"k\":\"car\",\"o\":" + json + "}");
+    void car(String json, String key) {
+        if (!isCar || !connected()) return;
+        synchronized (carLatest) { carLatest.put(key, "{\"k\":\"car\",\"o\":" + json + "}"); }
+        q.offer("");   // yazıcıyı uyandır (kuyruk doluysa zaten uyanık)
+    }
+
+    private final java.util.LinkedHashMap<String, String> carLatest = new java.util.LinkedHashMap<>();
+    private String nextCar() {
+        synchronized (carLatest) {
+            java.util.Iterator<java.util.Map.Entry<String, String>> it = carLatest.entrySet().iterator();
+            if (!it.hasNext()) return null;
+            String v = it.next().getValue(); it.remove(); return v;
+        }
     }
 
     private void setState(String s) {

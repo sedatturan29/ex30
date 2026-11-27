@@ -571,7 +571,9 @@ async function loopBody(){
 
 // ============ Android Automotive (orta ekran): aracın kendi verileri ============
 const carv = {};   // "AD" ya da "AD@alan" → değer
-const aaos = k => { const v = carv[k]; return typeof v === "number" && isFinite(v) ? v : null; };
+// Sürekli akan değerler 8 sn'den uzun yenilenmediyse bayat sayılır (bağlantı donarsa eski hız/güç kayda ve hesaba girmesin)
+const STALE_MS = 8000, STALE_RE = /^(PERF_VEHICLE_SPEED|PERF_VEHICLE_SPEED_DISPLAY|EV_BATTERY_INSTANTANEOUS_CHARGE_RATE)(@|$)/;
+const aaos = k => { const v = carv[k]; if (STALE_RE.test(k) && Date.now()-(carT[k]||0) > STALE_MS) return null; return typeof v === "number" && isFinite(v) ? v : null; };
 const WHEEL_AREA = {fl:1, fr:2, rl:4, rr:8};
 let lastCarT=0;
 const carT = {};
