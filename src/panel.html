@@ -296,11 +296,13 @@ const SERVICES = [0xfff0, 0xffe0, 0x18f0, "e7810a71-73ae-499d-8c15-faa9aef0c3f2"
 // ============ Kalıcı ayarlar ============
 // Test modu (kayıt oynatma): açıkken hiçbir şey kalıcı yazılmaz, Telegram'a gönderilmez; çıkışta sayfa yeniden yüklenir
 const REPLAY = {on:false};
+// Telefon: orta ekrandaki uygulamanın canlı durumunu gösterirken (kendi OBD'si yokken) kendi hesaplarını durdurur
+const REMOTE = {on:false, t:0, saved:null};
 // Eşitlenen ayarlar değişince zaman damgası (telefon ↔ orta ekran: yeni olan kazanır)
 const SYNC_KEYS = ["cfg","panel","tg","panelExtras","units"];
 function syncBump(k, v){ if (!SYNC_KEYS.includes(k)) return; try{ if (window.parent.__cfgApplied) throw 1; }catch(e){ if (e===1) throw 0; } const nm=x=>{ try{ const o=JSON.parse(JSON.stringify(x)); if (o && typeof o==="object") delete o.last; return JSON.stringify(o); }catch{ return ""; } };
   let ov=null; try{ ov=JSON.parse(localStorage.getItem("ex30."+k)); }catch{} if (nm(ov)!==nm(v)) localStorage.setItem("ex30.syncT", String(Date.now())); }
-const store = { get(k,d){ try{ const v=localStorage.getItem("ex30."+k); return v==null?d:JSON.parse(v);}catch{return d;} }, set(k,v){ if (MIRROR || REPLAY.on) return; try{ syncBump(k,v); localStorage.setItem("ex30."+k, JSON.stringify(v)); }catch{} } };
+const store = { get(k,d){ try{ const v=localStorage.getItem("ex30."+k); return v==null?d:JSON.parse(v);}catch{return d;} }, set(k,v){ if (MIRROR || REPLAY.on || (REMOTE.on && (k==="trips"||k==="tripHistory"))) return; try{ syncBump(k,v); localStorage.setItem("ex30."+k, JSON.stringify(v)); }catch{} } };
 const mainCfg = store.get("cfg", {});
 const sign = mainCfg.sign || 1;
 const pcfg = Object.assign({interval:0, sources:{}, logOn:true, logMode:"1000"}, store.get("panel", {}));
@@ -651,6 +653,7 @@ function brakeEst(now, vs, P){
 function aaosSoc(){ const l=aaos("EV_BATTERY_LEVEL"), c=aaos("EV_CURRENT_BATTERY_CAPACITY"); return l!=null && c ? l/c*100 : null; }
 function batTemp(){ return vals.avg ?? aaos("EV_BATTERY_AVERAGE_TEMPERATURE"); }
 function sample(fromLoop){
+  if (REMOTE.on) return;   // veriler orta ekrandan geliyor: yolculuk, kayıt ve şarj hesabı orada yapılıyor
   const now=Date.now();
   if (fromLoop){ lastSampleT=now; speed.cyc.push(now); while (speed.cyc.length && now-speed.cyc[0]>10000) speed.cyc.shift(); }
   // OBD bağlıyken batarya gücü BMS'den (daha hassas); bağlı değilken eski OBD değerleri değil aracın kendi verisi kullanılır
@@ -686,7 +689,10 @@ function gradeTick(now, P, vs){
   if (GR.last){ const dt=(now-GR.last.t)/1000;
     if (dt<1) return;   // OBD ölçümleri çok sık gelir: ivme için en az 1 sn aralık (başlangıç noktası korunur)
     if (dt<10){ const a=(v-GR.last.v)/dt; GR.dist += (v+GR.last.v)/2*dt;
-      if (v>4 && P!=null && !(brk>2)){ const m=MASS+80, pw=P*1000*(P>0?0.9:1/0.85)-1500;
+      // OBD yoksa fren basıncı bilinmez: sert yavaşlamada mekanik fren olabilir, hesaba katma
+      const noBrk = brk==null && a < -0.8;
+      let upd=false;
+      if (v>4 && P!=null && !(brk>2) && !noBrk){ const m=MASS+80, pw=P*1000*(P>0?0.9:1/0.85)-1500; upd=true;
         const g=(pw/v - m*a - 0.009*m*9.81 - 0.5*1.25*0.62*v*v)/(m*9.81)*100;
         if (isFinite(g) && Math.abs(g)<40) GR.ema = GR.ema==null ? g : GR.ema + (g-GR.ema)*Math.min(1, dt/6); }
       if (GR.ema!=null){ GR.buf.push({d:GR.dist, h:geo.alt!=null && now-geo.altT<5000 ? geo.alt : null, g:GR.ema});
@@ -694,8 +700,8 @@ function gradeTick(now, P, vs){
         const hs=GR.buf.filter(x=>x.h!=null);
         if (hs.length>5 && hs.at(-1).d-hs[0].d > 350){ const gps=(hs.at(-1).h-hs[0].h)/(hs.at(-1).d-hs[0].d)*100, phys=hs.reduce((a,x)=>a+x.g,0)/hs.length;
           const b=Math.max(-4, Math.min(4, gps-phys)); GR.bias += (b-GR.bias)*Math.min(1, dt/20); }
-        GR.val = GR.ema + GR.bias; GR.t = now; } } }
-  if (v<1){ GR.ema=null; }
+        GR.val = GR.ema + GR.bias; if (upd) GR.t = now; } } }
+  if (v<4 && now-GR.t>3000){ GR.ema=null; GR.val=null; }   // yavaş/dururken eski değer ekranda kalmasın
   GR.last={t:now, v};
 }
 const gradeNow = () => GR.val!=null && Date.now()-GR.t<8000 ? GR.val : null;
@@ -1024,7 +1030,7 @@ async function logStart(src="obd"){
 }
 function logRow(now){
   if (!logSess) return; if (+pcfg.logMode && now-lastLogRow < +pcfg.logMode) return; lastLogRow=now;
-  const v = Object.assign({}, vals, {vspd: carSpeed().v, p_fl: aaosTire("fl") ?? vals.p_fl, p_fr: aaosTire("fr") ?? vals.p_fr, p_rl: aaosTire("rl") ?? vals.p_rl, p_rr: aaosTire("rr") ?? vals.p_rr, gps: (geo.t && now-geo.t<5000) ? geo.spd : null, lat: geo.last?.lat, lon: geo.last?.lon, alt: (geo.alt!=null && now-geo.altT<15000) ? geo.alt : null, auto: trips.auto ? 1 : 0});
+  const v = Object.assign({}, vals, {vspd: carSpeed().v, p_fl: aaosTire("fl") ?? vals.p_fl, p_fr: aaosTire("fr") ?? vals.p_fr, p_rl: aaosTire("rl") ?? vals.p_rl, p_rr: aaosTire("rr") ?? vals.p_rr, gps: (geo.t && now-geo.t<5000) ? geo.spd : null, lat: geo.t && now-geo.t<10000 ? geo.last?.lat : null, lon: geo.t && now-geo.t<10000 ? geo.last?.lon : null, alt: (geo.alt!=null && now-geo.altT<15000) ? geo.alt : null, auto: trips.auto ? 1 : 0});
   for (const w of ["w_fl","w_fr","w_rl","w_rr"]) if (!valT[w] || now-valT[w] > 2500) v[w]=null;
   if (logSess.src==="arac") for (const k in valT) if (now-valT[k] > 10000) v[k]=null;   // OBD koptuysa eski OBD değerlerini yazma
   Object.assign(v, {a_kw: aaosPower(), a_kwh: aaos("EV_BATTERY_LEVEL")!=null ? aaos("EV_BATTERY_LEVEL")/1000 : null, a_cap: aaos("EV_CURRENT_BATTERY_CAPACITY")!=null ? aaos("EV_CURRENT_BATTERY_CAPACITY")/1000 : null,
@@ -1334,6 +1340,16 @@ window.ex30MirrorApply = s => { try{ if (typeof s==="string") s=JSON.parse(s); i
   trips = s.trips || trips; tripView = s.tripView || tripView;
   for (const k in carv) delete carv[k]; Object.assign(carv, s.carv||{}); Object.assign(geo, s.geo||{});
   for (const k in s.age||{}) valT[k]=now-s.age[k]; running=!!s.running; lastSampleT=now-(s.sT||0); lastCarT=now-(s.cT??1e9); render(); }catch(e){} };
+window.ex30RemoteApply = st => { try{ if (typeof st==="string") st=JSON.parse(st); if (!st) return;
+  if (!REMOTE.on){ REMOTE.on=true; REMOTE.saved=trips; if (logSess) logStop(); log("Orta ekrandaki uygulamanın canlı verisi gösteriliyor"); }
+  REMOTE.t=Date.now(); const now=REMOTE.t;
+  for (const k in vals) delete vals[k]; Object.assign(vals, st.vals||{});
+  trips = st.trips || trips; tripView = tripView || st.tripView;
+  for (const k in carv) delete carv[k]; Object.assign(carv, st.carv||{}); Object.assign(geo, st.geo||{});
+  for (const k in st.age||{}) valT[k]=now-st.age[k]; lastSampleT=now-(st.sT||0); lastCarT=now-(st.cT??1e9); render(); }catch(e){} };
+window.ex30RemoteEnd = () => { if (!REMOTE.on) return; REMOTE.on=false; trips=REMOTE.saved||trips; REMOTE.saved=null; for (const k in vals) delete vals[k]; log("Orta ekran canlı verisi bitti"); render(); };
+window.ex30RemoteOn = () => REMOTE.on;
+setInterval(()=>{ if (REMOTE.on && Date.now()-REMOTE.t>6000) window.ex30RemoteEnd(); }, 2000);
 loadExtras();
 window.addEventListener("storage", e=>{ if (e.key==="ex30.panelExtras") window.ex30ReloadExtras(); });
 if (HOST){ try{ HOST.register(window); }catch{} }

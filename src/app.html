@@ -1837,7 +1837,9 @@ function renderLeds(){
   set("ledLink", typeof linkSt!=="undefined" && linkSt.up ? "on" : "", typeof linkSt!=="undefined" && linkSt.up ? (car?"Telefon bağlı":"Orta ekran bağlı") : (car?"Telefon bağlı değil":"Orta ekran bağlı değil"));
   let bt=null; try{ bt = window.AndroidBle ? !!AndroidBle.available() : !!navigator.bluetooth; }catch{}
   set("ledBt", bt ? "on" : "", bt ? "Bluetooth açık" : "Bluetooth kapalı ya da yok");
-  set("ledObd", chW ? "on" : (autoBusy ? "wait" : ""), chW ? "OBD bağlı" : autoBusy ? "OBD'ye bağlanılıyor" : "OBD bağlı değil");
+  const remote = Date.now()-remoteT < 6000;
+  set("ledObd", chW || remote ? "on" : (autoBusy ? "wait" : ""), chW ? "OBD bağlı" : remote ? "OBD orta ekrandan canlı" : autoBusy ? "OBD'ye bağlanılıyor" : "OBD bağlı değil");
+  $("ledObd").querySelector("b").textContent = remote && !chW ? "OBD (orta ekran)" : "OBD";
   let rec=null; try{ rec = panelWin && panelWin.ex30Rec ? panelWin.ex30Rec() : null; }catch{}
   set("ledRec", rec ? "on" : "", rec ? (rec==="arac" ? "Kayıt sürüyor (araç verisi)" : "Kayıt sürüyor (OBD)") : "Kayıt yok");
 }
@@ -1921,6 +1923,9 @@ function linkRecv(m){
   if (m.k==="smeta"){ const x=sessions.find(y=>y.id===m.id); if (x && m.meta && (m.meta.mt||0) > ((x.meta&&x.meta.mt)||0)){ x.meta=m.meta; saveSessions(true); renderAll(); } return; }
   if (m.k==="logm"||m.k==="logc"||m.k==="loge"){ if (m.k==="loge") linkGot.logs++; return withPanel(pw=>pw.ex30Sync.logRecv(m)); }
   if (m.k==="cfg") return linkApplyCfg(m);
+  // Canlı: telefon isterse orta ekran durumunu saniyede bir yollar
+  if (m.k==="live"){ liveWanted = m.on ? Date.now() : 0; return; }
+  if (m.k==="st"){ if (linkSt.role==="phone" && !chW && m.p) withPanel(pw=>{ pw.ex30RemoteApply(m.p); remoteT=Date.now(); }); return; }
   if (m.k==="prog"){ linkProg(m.n ? `Alınıyor: sürüş kaydı ${m.n}/${m.total}` : `Eşitleniyor: ${m.total} sürüş kaydı gelecek`); return; }
   if (m.k==="done"){ linkProg(""); linkStat={t:Date.now(), peer:linkSt.peer, got:Object.assign({}, linkGot)}; store.set("linkStat", linkStat); renderLink(); }
 }
@@ -1933,7 +1938,13 @@ function linkApplyCfg(m){
   if (!chW && !moving && !window.ex30Replay){ log("Ayarlar diğer cihazdan alındı, uygulama yenileniyor"); setTimeout(()=>{ try{ sessionStorage.setItem("linkGot", JSON.stringify(linkGot)); }catch{} location.reload(); }, 1500); }
   else { window.__cfgApplied = false; log("Ayarlar diğer cihazdan alındı; uygulama yeniden açılınca geçerli olur"); }
 }
-let linkLastCar=0;
+let linkLastCar=0, liveWanted=0, remoteT=0;
+// Orta ekran: telefon canlı istiyorsa (son 8 sn içinde istemişse) panel durumunu yolla
+setInterval(()=>{ if (!LINK || !linkSt.up || linkSt.role!=="car" || Date.now()-liveWanted>8000) return;
+  try{ ensurePanel(); const p = panelWin && panelWin.ex30MirrorState ? panelWin.ex30MirrorState() : null; if (p) linkSend({k:"st", p}); }catch{} }, 1000);
+// Telefon: kendi OBD'si bağlı değilken ve uygulama ekrandayken orta ekrandan canlı veri iste
+setInterval(()=>{ if (!LINK || !linkSt.up || linkSt.role!=="phone") return;
+  const want = !chW && document.visibilityState==="visible"; linkSend({k:"live", on: want?1:0}); }, 4000);
 const linkProg = t => { const el=$("lkProg"); if (el){ el.textContent=t; el.style.display=t?"":"none"; } };
 function renderLink(){
   if (!LINK) return; $("lkCard").style.display="";
