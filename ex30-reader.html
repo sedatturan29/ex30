@@ -786,6 +786,8 @@ function saveSessions(now){
 //  BLE ELM327 taşıma
 // =====================================================================
 let dev=null, chW=null, chN=null, buf="", waiter=null, busy=Promise.resolve(), wake=null, manual=false;
+// Yazma biçimi: bazı Bluetooth yığınları (ör. orta ekran) cevapsız yazmaları düşürebilir; işe yarayan biçim hatırlanır
+let writeAck = store.get("bleWriteAck", false);
 const enc = new TextEncoder(), dec = new TextDecoder();
 function onNotify(e){
   buf += dec.decode(e.target.value);
@@ -800,7 +802,7 @@ function send(cmd, timeout=3000){
       const data = enc.encode(cmd+"\r");
       for (let i=0;i<data.length;i+=20){
         const part = data.slice(i,i+20);
-        if (chW.properties.writeWithoutResponse) await chW.writeValueWithoutResponse(part); else await chW.writeValue(part);
+        if (chW.properties.writeWithoutResponse && !(writeAck && chW.properties.write)) await chW.writeValueWithoutResponse(part); else await chW.writeValue(part);
       }
     }catch(err){ clearTimeout(t); waiter=null; res("ERR "+err.message); }
   }));
@@ -915,9 +917,21 @@ async function connect(all=false, auto=false){
     setStep("notify","ok");
     log("Bağlandı: "+(dev.name||"OBD"));
     setPill("busy","Başlatılıyor"); setStep("elm","run","Adaptör ayarlanıyor");
-    let elmId="";
-    for (const c of INIT){ const r = await send(c, c==="ATZ"?4000:2000); log(c+" → "+r.replace(/\s+/g," ")); if (c==="ATZ"){ elmId=r; await sleep(500); } }
-    if (/TIMEOUT/.test(elmId) || !elmId) throw Object.assign(new Error("Adaptör komutlara cevap vermedi. Adaptörü çıkarıp takın, tekrar deneyin."), {step:"elm"});
+    // Adaptörle el sıkışma: kanal yerleşsin, sonra sıfırla; cevap yoksa yeniden dene ve diğer yazma biçimine geç
+    let elmId="", tries=[];
+    await sleep(400);
+    for (let attempt=0; attempt<4 && !/ELM|OK|v\d/i.test(elmId); attempt++){
+      if (attempt===2 && chW.properties.write && chW.properties.writeWithoutResponse){ writeAck=!writeAck; log("Yazma biçimi değiştirildi: "+(writeAck?"onaylı":"onaysız")); }
+      setStep("elm","run", attempt ? `Adaptör ayarlanıyor (deneme ${attempt+1}/4)` : "Adaptör ayarlanıyor");
+      await send("", 800);                                       // uyandır, yarım kalan satırı temizle
+      const cmd = attempt%2 ? "ATWS" : "ATZ";                    // soğuk / sıcak başlatma
+      elmId = await send(cmd, 3500); tries.push(cmd+"→"+(elmId.replace(/\s+/g," ").slice(0,24)||"boş")); log(cmd+" → "+elmId.replace(/\s+/g," "));
+      if (!/ELM|OK|v\d/i.test(elmId)){ const r=await send("ATI", 2000); if (/ELM|v\d/i.test(r)) elmId=r; else await sleep(600); }
+    }
+    if (!/ELM|OK|v\d/i.test(elmId)) throw Object.assign(new Error("Adaptör komutlara cevap vermedi ("+tries.join(", ")+"). Adaptörü çıkarıp takın; telefonda başka bir uygulama bağlıysa kapatın."), {step:"elm"});
+    store.set("bleWriteAck", writeAck);
+    await sleep(300);
+    for (const c of INIT.slice(1)){ let r = await send(c, 2000); if (/TIMEOUT/.test(r)) r = await send(c, 2500); log(c+" → "+r.replace(/\s+/g," ")); }
     setStep("elm","ok", (elmId.match(/ELM\S*\s*v?[\d.]+/i)||[elmId.replace(/\s+/g," ").slice(0,30)])[0]);
     setStep("car","run","Batarya sıcaklığı isteniyor");
     let carOk=false, lastR="";
