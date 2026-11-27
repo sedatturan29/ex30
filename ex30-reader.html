@@ -3555,7 +3555,10 @@ function send(cmd, timeout=2500){
   }));
   busy = p.catch(()=>{}); return p;
 }
-function parseDid(resp, did){
+function parseDid(resp, did, rxA){
+  // Çok çerçeveli cevap (örn. fren diski FEE7: 8 bayt, EE83: 40 bayt): çerçeveleri birleştir; yoksa ilk çerçeveyle yetin
+  if (rxA && typeof isoPayload==="function"){ const p=isoPayload(resp, rxA);
+    if (p && p.slice(0,6)==="62"+did){ const b=[]; for (let k=6;k+1<p.length;k+=2) b.push(parseInt(p.slice(k,k+2),16)); if (b.length) return b; } }
   for (const raw of resp.toUpperCase().split(/[\r\n]+/)){
     const ln = raw.replace(/[^0-9A-F]/g,""), key="62"+did, i=ln.indexOf(key); if (i<0) continue;
     let hex = ln.slice(i+key.length);
@@ -3677,7 +3680,7 @@ async function readEcu(txA, rxA, dids){   // → {did: bayt dizisi | null}
       if (++st.fails>=2) nextMode(st.ok ? "kararsız" : "desteklenmiyor");
       todo.unshift(...pack.slice(1));
     }
-    const b = parseDid(await readDid(d1), d1);
+    const b = parseDid(await readDid(d1), d1, rxA);
     out[d1] = b; if (b && b.length<=4) didLen[ek+d1] = b.length;
     if (!b) misses.push(d1); else if (missMap[ek+d1]) missMap[ek+d1].n=0;
   }
