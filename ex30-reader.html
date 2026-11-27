@@ -421,7 +421,7 @@
   <section id="tab-alper">
     <div class="card" style="margin-top:0">
       <h2>Aracın kendi verileri</h2>
-      <p class="note" style="margin-top:0" id="alInfo">Orta ekranın aracın kendisinden okuduğu tüm değerler (OBD gerekmez). Telefonda, orta ekrana Bluetooth ile bağlıyken görünür.</p>
+      <p class="note" style="margin-top:0" id="alInfo">Orta ekranın aracın kendisinden okuduğu tüm değerler (OBD gerekmez).</p>
       <div class="al-grid" id="alGrid"></div>
     </div>
   </section>
@@ -1898,17 +1898,32 @@ const AL = {
   HVAC_TEMPERATURE_CURRENT:["Kabin sıcaklığı","°C",v=>v,1], HVAC_TEMPERATURE_SET:["Kabin ayarı","°C",v=>v,1], ENGINE_RPM:["Devir","dev/dk",v=>v,0], INSTANTANEOUS_EV_EFFICIENCY:["Anlık verim (ham)","",v=>v,2],
   NIGHT_MODE:["Gece modu","",v=>v?1:0,0], FUEL_LEVEL:["Yakıt/enerji seviyesi","",v=>v,0], INFO_MODEL_YEAR:["Model yılı","",v=>v,0]};
 const GEAR_TR = {1:"N",2:"R",4:"P",8:"D"}, ONOFF = ["kapalı","açık"];
+// Son görülen araç değerleri telefonda saklanır; orta ekran bağlı değilken de ızgara görünür
+let alSaveT=0;
+const alAgo = ms => ms<90e3 ? Math.round(ms/1000)+" sn" : ms<5400e3 ? Math.round(ms/60e3)+" dk" : ms<172800e3 ? Math.round(ms/3600e3)+" saat" : Math.round(ms/86400e3)+" gün";
+function alLoad(){ try{ return JSON.parse(localStorage.getItem("ex30.alperLast")||"null"); }catch{ return null; } }
 function renderAlper(){
   if (tab!=="alper") return;
   let cv=null; try{ cv = panelWin && panelWin.ex30Car ? panelWin.ex30Car() : null; }catch{}
-  const el=$("alGrid");
-  if (!cv || !Object.keys(cv.v).length){ el.innerHTML=`<div class="al-c"><div class="l">Henüz araç verisi yok. Bu sekme orta ekranda ya da telefon orta ekrana bağlıyken dolar.</div></div>`; return; }
-  const now=Date.now(), keys=Object.keys(cv.v).filter(k=>typeof cv.v[k]==="number"||typeof cv.v[k]==="boolean").sort((a,b)=>(AL[a.split("@")[0]]?0:1)-(AL[b.split("@")[0]]?0:1) || a.localeCompare(b));
-  el.innerHTML = keys.map(k=>{ const raw=cv.v[k], base=k.split("@")[0], area=k.includes("@")?k.split("@")[1]:"", d=AL[base], age=now-(cv.t[k]||0);
-    let val = d ? d[2](typeof raw==="boolean"?(raw?1:0):raw) : (typeof raw==="boolean"?(raw?1:0):raw);
-    let txt = (base==="GEAR_SELECTION"||base==="CURRENT_GEAR") ? (GEAR_TR[val]||val) : (d && ["Şarj kablosu","Şarj kapağı","El freni","Gece modu"].includes(d[0])) ? ONOFF[val?1:0] : (typeof val==="number" ? f1(val, d?d[3]:(Math.abs(val)<100?2:0)) : String(val));
-    return `<div class="al-c ${age>30000?"old":""}"><div class="v">${txt}${d&&d[1]?`<small>${d[1]}</small>`:""}</div><div><div class="l">${d?d[0]:base.toLowerCase().replace(/_/g," ")}${area?` · bölge ${area}`:""}</div><div class="k">${base}</div></div></div>`; }).join("");
-  $("alInfo").textContent = `Aracın kendisinden okunan ${keys.length} değer (OBD gerekmez). Soluk kutular 30 sn'dir güncellenmedi.`;
+  const el=$("alGrid"), now=Date.now();
+  const num = v => typeof v==="number"||typeof v==="boolean";
+  let live = !!(cv && Object.keys(cv.v).some(k=>num(cv.v[k]) && now-(cv.t[k]||0)<30000));
+  if (live && now-alSaveT>15000){ alSaveT=now; try{ const v={}, t={}; for (const k in cv.v) if (num(cv.v[k])){ v[k]=cv.v[k]; t[k]=cv.t[k]||now; } localStorage.setItem("ex30.alperLast", JSON.stringify({v,t})); }catch{} }
+  let src = cv && Object.keys(cv.v).some(k=>num(cv.v[k])) ? cv : null, saved=false;
+  if (!live){ const L=alLoad(); if (L && L.v && (!src || Math.max(...Object.values(L.t))>Math.max(0,...Object.values(src.t)))){ src=L; saved=true; } }
+  // Kayıtlı değer yoksa bile bilinen özellikler boş kutu olarak görünsün
+  const v = Object.assign({}, src?src.v:{}), t = Object.assign({}, src?src.t:{});
+  for (const b in AL) if (!Object.keys(v).some(k=>k.split("@")[0]===b)) v[b]=null;
+  const keys=Object.keys(v).filter(k=>v[k]===null||num(v[k])).sort((a,b)=>(v[a]==null)-(v[b]==null) || (AL[a.split("@")[0]]?0:1)-(AL[b.split("@")[0]]?0:1) || a.localeCompare(b));
+  el.innerHTML = keys.map(k=>{ const raw=v[k], base=k.split("@")[0], area=k.includes("@")?k.split("@")[1]:"", d=AL[base], age=now-(t[k]||0);
+    let txt="—";
+    if (raw!=null){ const val = d ? d[2](typeof raw==="boolean"?(raw?1:0):raw) : (typeof raw==="boolean"?(raw?1:0):raw);
+      txt = (base==="GEAR_SELECTION"||base==="CURRENT_GEAR") ? (GEAR_TR[val]||val) : (d && ["Şarj kablosu","Şarj kapağı","El freni","Gece modu"].includes(d[0])) ? ONOFF[val?1:0] : (typeof val==="number" ? f1(val, d?d[3]:(Math.abs(val)<100?2:0)) : String(val)); }
+    return `<div class="al-c ${raw==null||age>30000?"old":""}"><div class="v">${txt}${raw!=null&&d&&d[1]?`<small>${d[1]}</small>`:""}</div><div><div class="l">${d?d[0]:base.toLowerCase().replace(/_/g," ")}${area?` · bölge ${area}`:""}</div><div class="k">${base}</div></div></div>`; }).join("");
+  const n = keys.filter(k=>v[k]!=null).length;
+  $("alInfo").textContent = live ? `Aracın kendisinden okunan ${n} değer (OBD gerekmez). Soluk kutular 30 sn'dir güncellenmedi.`
+    : n ? `Orta ekran bağlı değil: ${saved?"telefonda saklanan ":""}son görülen ${n} değer gösteriliyor (${alAgo(now-Math.max(...Object.values(t).filter(Boolean)))} önce). Orta ekrana Bluetooth ile bağlanınca canlı güncellenir.`
+    : "Henüz araç verisi gelmedi. Kutular orta ekranda ya da telefon orta ekrana Bluetooth ile bağlıyken dolar; sonra son değerler burada saklanır.";
 }
 setInterval(renderAlper, 1000);
 // Durum ışıkları
