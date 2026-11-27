@@ -538,7 +538,15 @@ const aaos = k => { const v = carv[k]; return typeof v === "number" && isFinite(
 const WHEEL_AREA = {fl:1, fr:2, rl:4, rr:8};
 let lastCarT=0;
 const carT = {};
-window.__car = o => { lastCarT=Date.now(); const ck=o.area ? o.name+"@"+o.area : o.name; carv[ck] = o.value; carT[ck]=lastCarT; if (!running) render(); };
+const spdRing = [], carRate = {};   // aracın hızı (ölçüm anıyla) ve özellik başına gelen değer sayısı
+const carIn = o => { const now=Date.now(); lastCarT=now; const ck=o.area ? o.name+"@"+o.area : o.name; carv[ck] = o.value; carT[ck]=now;
+  const r = carRate[ck] || (carRate[ck]={n:0, t0:now, hz:null}); r.n++; if (now-r.t0>=3000){ r.hz=r.n*1000/(now-r.t0); r.n=0; r.t0=now; }
+  if (o.name==="PERF_VEHICLE_SPEED" && typeof o.value==="number"){ const t=o.ts||now;
+    if (!spdRing.length || t>spdRing.at(-1).t){ spdRing.push({t, v:Math.abs(o.value)*3.6}); while (spdRing.length && t-spdRing[0].t>3000) spdRing.shift(); } } };
+window.__car = o => { carIn(o); if (!running) render(); };
+window.__carB = a => { for (const o of a) carIn(o); if (!running) render(); };
+window.ex30SpdRing = () => spdRing;
+window.ex30CarRate = () => carRate;
 window.__carStatus = t => { const el=document.getElementById("aaosStatus"); if (el) el.textContent = t; };
 // Volvo EX30: EV_BATTERY_INSTANTANEOUS_CHARGE_RATE park halinde (şarj kablosu yokken) +201000 mW → deşarjı artı veriyor (Android tanımının tersi)
 function aaosPower(){ const v=aaos("EV_BATTERY_INSTANTANEOUS_CHARGE_RATE"); return v==null ? null : v/1e6; }

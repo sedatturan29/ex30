@@ -8,6 +8,7 @@ import android.car.hardware.property.CarPropertyManager;
 import android.content.pm.PackageManager;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 
@@ -83,6 +84,16 @@ public class CarBridge {
         NAMES.put(0x15600503, "HVAC_TEMPERATURE_SET");
     }
 
+    // Hızlı değişen sinyaller: aracın izin verdiği en yüksek hızda (en çok 50/sn) okunur
+    private static final java.util.Set<String> FAST = new java.util.HashSet<>(java.util.Arrays.asList(
+        "PERF_VEHICLE_SPEED", "PERF_VEHICLE_SPEED_DISPLAY", "EV_BATTERY_INSTANTANEOUS_CHARGE_RATE", "ENGINE_RPM", "WHEEL_TICK", "INSTANTANEOUS_EV_EFFICIENCY"));
+    private final java.util.Set<Integer> continuous = new java.util.HashSet<>();
+    private final java.util.Map<String, Long> linkSent = new java.util.HashMap<>();
+    private final java.util.Map<String, String> linkPend = new java.util.LinkedHashMap<>();
+    private final StringBuilder batch = new StringBuilder();
+    private boolean flushQueued;
+    private long lastFlush;
+
     private final android.content.Context ctx;   // uygulama bağlamı: ekran açık olmasa da (sürüş ekranı/arka plan) çalışır
     private volatile Activity act;               // izin istemek için; yoksa sadece verilmiş izinlerle okunur
     private final WebView web;
@@ -146,7 +157,9 @@ public class CarBridge {
                 int id = cfg.getPropertyId();
                 float rate = 0f;
                 if (cfg.getChangeMode() == CarPropertyConfig.VEHICLE_PROPERTY_CHANGE_MODE_CONTINUOUS) {
-                    rate = Math.max(cfg.getMinSampleRate(), Math.min(cfg.getMaxSampleRate(), 5f));
+                    continuous.add(id);
+                    float want = FAST.contains(NAMES.get(id)) ? 50f : 5f;
+                    rate = Math.max(cfg.getMinSampleRate(), Math.min(cfg.getMaxSampleRate(), want));
                 }
                 try { cpm.registerCallback(callback, id, rate); n++; } catch (Throwable ignored) { }
                 try {
@@ -187,11 +200,53 @@ public class CarBridge {
             else if (x instanceof Object[]) { JSONArray a = new JSONArray(); for (Object e : (Object[]) x) a.put(e); o.put("value", a); }
             else if (x instanceof byte[]) { StringBuilder sb = new StringBuilder(); for (byte b : (byte[]) x) sb.append(String.format("%02X", b)); o.put("value", sb.toString()); }
             else o.put("value", String.valueOf(x));
+            // Ölçüm anı (aracın zaman damgası → duvar saati): ivme/0–100 hesabı için varış anından daha doğru
+            long ts = v.getTimestamp();
+            if (ts > 0) {
+                long ms = System.currentTimeMillis() - (SystemClock.elapsedRealtimeNanos() - ts) / 1000000L;
+                if (Math.abs(ms - System.currentTimeMillis()) < 10000) o.put("ts", ms);
+            }
             String j = o.toString();
-            js("window.__car&&__car(" + j + ")");
-            PhoneLink l = PhoneLink.peek();
-            if (l != null) l.car(j);
+            String key = o.getString("name") + "@" + v.getAreaId();
+            boolean cont = continuous.contains(id);
+            synchronized (batch) {
+                if (batch.length() > 0) batch.append(',');
+                batch.append(j);
+                // Telefona: sürekli değişenler en çok 5/sn, durum değişiklikleri hemen
+                if (cont) linkPend.put(key, j); else { linkPend.remove(key); sendLink(j, key); }
+            }
+            scheduleFlush();
         } catch (Throwable ignored) { }
+    }
+
+    private void sendLink(String j, String key) {
+        PhoneLink l = PhoneLink.peek();
+        if (l != null) { l.car(j); linkSent.put(key, SystemClock.elapsedRealtime()); }
+    }
+
+    // Değerler 40 ms'de bir tek seferde sayfaya verilir (her değer için ayrı JavaScript çağrısı yerine)
+    private void scheduleFlush() {
+        synchronized (batch) { if (flushQueued) return; flushQueued = true; }
+        long wait = Math.max(0, 40 - (SystemClock.elapsedRealtime() - lastFlush));
+        main.postDelayed(this::flush, wait);
+    }
+
+    private void flush() {
+        String arr;
+        synchronized (batch) {
+            flushQueued = false; lastFlush = SystemClock.elapsedRealtime();
+            if (batch.length() == 0) return;
+            arr = "[" + batch + "]"; batch.setLength(0);
+            long now = SystemClock.elapsedRealtime();
+            java.util.Iterator<java.util.Map.Entry<String, String>> it = linkPend.entrySet().iterator();
+            while (it.hasNext()) {
+                java.util.Map.Entry<String, String> e = it.next();
+                Long t = linkSent.get(e.getKey());
+                if (t == null || now - t >= 200) { sendLink(e.getValue(), e.getKey()); it.remove(); }
+            }
+            if (!linkPend.isEmpty()) main.postDelayed(this::scheduleFlush, 200);
+        }
+        web.evaluateJavascript("(function(a){if(window.__carB)__carB(a);else if(window.__car)a.forEach(function(o){__car(o)});})(" + arr + ")", null);
     }
 
     private void disconnect() {

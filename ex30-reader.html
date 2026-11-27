@@ -1066,6 +1066,7 @@ window.EX30_HOST = {
 };
 window.__ex30geo = o => { try{ panelWin && panelWin.__ex30geo && panelWin.__ex30geo(o); }catch{} };
 window.__car = o => { try{ panelWin && panelWin.__car && panelWin.__car(o); }catch{} };
+window.__carB = a => { try{ if (panelWin && panelWin.__carB) panelWin.__carB(a); else for (const o of a) window.__car(o); }catch{} };
 window.__tgDone = (id, ok, body) => { try{ panelWin && panelWin.__tgDone && panelWin.__tgDone(id, ok, body); }catch{} };
 window.__carStatus = t => { try{ panelWin && panelWin.__carStatus && panelWin.__carStatus(t); }catch{} };
 
@@ -1931,12 +1932,13 @@ function renderAlper(){
     if (base==="GEAR_SELECTION"||base==="CURRENT_GEAR") return GEAR_TR[val]||val;
     if (d && AL_ONOFF.includes(d[0])) return ONOFF[val?1:0];
     return typeof val==="number" ? f1(val, d?d[3]:(Math.abs(val)<100?2:0)) : String(val); };
+  let rate={}; try{ if (live && panelWin.ex30CarRate) rate = panelWin.ex30CarRate(); }catch{}
   el.innerHTML = keys.map(k=>{ const raw=v[k], base=k.split("@")[0], area=k.includes("@")?k.split("@")[1]:"", d=AL[base], age=now-(t[k]||0);
-    const txt=fmt(raw, base, d), small=String(txt).length>9;
+    const txt=fmt(raw, base, d), small=String(txt).length>9, hz = rate[k] && rate[k].hz!=null && now-rate[k].t0<6000 && rate[k].hz>=0.5 ? ` · ${f1(rate[k].hz, rate[k].hz<10?1:0)}/sn` : "";
     const where = area ? (base==="TIRE_PRESSURE" && AL_WHEEL[area] ? " · "+AL_WHEEL[area] : ` · bölge ${area}`) : "";
-    return `<div class="al-c ${raw==null||age>30000?"old":""}"><div class="v${small?" s":""}" title="${String(txt).replace(/"/g,"&quot;")}">${txt}${raw!=null&&typeof raw==="number"&&d&&d[1]?`<small>${d[1]}</small>`:""}</div><div><div class="l">${d?d[0]:base.toLowerCase().replace(/_/g," ")}${where}</div><div class="k">${base}</div></div></div>`; }).join("");
+    return `<div class="al-c ${raw==null||age>30000?"old":""}"><div class="v${small?" s":""}" title="${String(txt).replace(/"/g,"&quot;")}">${txt}${raw!=null&&typeof raw==="number"&&d&&d[1]?`<small>${d[1]}</small>`:""}</div><div><div class="l">${d?d[0]:base.toLowerCase().replace(/_/g," ")}${where}${hz}</div><div class="k">${base}</div></div></div>`; }).join("");
   const n = keys.filter(k=>v[k]!=null).length, tot = keys.length;
-  $("alInfo").textContent = live ? `Aracın kendisinden okunan ${n} değer (OBD gerekmez). Soluk kutular 30 sn'dir güncellenmedi ya da araç bu değeri vermiyor.`
+  $("alInfo").textContent = live ? `Aracın kendisinden okunan ${n} değer (OBD gerekmez; kodun yanındaki sayı saniyede kaç güncelleme geldiği). Soluk kutular 30 sn'dir güncellenmedi ya da araç bu değeri vermiyor.`
     : n ? `Orta ekran bağlı değil: ${saved?"telefonda saklanan ":""}son görülen ${n} değer gösteriliyor (${alAgo(now-Math.max(...Object.values(t).filter(Boolean)))} önce). Orta ekrana Bluetooth ile bağlanınca canlı güncellenir.`
     : `Henüz araç verisi gelmedi (${tot} parametre). Kutular orta ekranda ya da telefon orta ekrana Bluetooth ile bağlıyken dolar; sonra son değerler burada saklanır.`;
 }
@@ -2118,8 +2120,14 @@ const pfHist=[]; let pfAx=null, pfLat=null, pfTrail=[];
 function pfAccel(s){
   if (s.spd==null || !s.t) return;
   // Orta ekranda aracın kendi hızı OBD'den çok daha sık güncellenir: zamanı onun güncellenme anı
-  const st = s.spdT && Date.now()-s.spdT < 2000 ? s.spdT : s.t;
-  if (!pfHist.length || pfHist.at(-1).t!==st){ pfHist.push({t:st, v:s.spd/3.6}); while (pfHist.length && st-pfHist[0].t>1600) pfHist.shift(); }
+  let ring=null; try{ ring = panelWin && panelWin.ex30SpdRing ? panelWin.ex30SpdRing() : null; }catch{}
+  if (ring && ring.length>=3 && Date.now()-ring.at(-1).t < 1500){
+    // Aracın kendi hızı, ölçüm zaman damgalarıyla (saniyede onlarca nokta): son 0,8 sn'ye doğru
+    const end=ring.at(-1).t; pfHist.length=0; for (const p of ring) if (end-p.t<=800) pfHist.push({t:p.t, v:p.v/3.6});
+  } else {
+    const st = s.spdT && Date.now()-s.spdT < 2000 ? s.spdT : s.t;
+    if (!pfHist.length || pfHist.at(-1).t!==st){ pfHist.push({t:st, v:s.spd/3.6}); while (pfHist.length && st-pfHist[0].t>1600) pfHist.shift(); }
+  }
   if (pfHist.length>=3){ const n=pfHist.length, mt=pfHist.reduce((q,p)=>q+p.t,0)/n, mv=pfHist.reduce((q,p)=>q+p.v,0)/n;
     let num=0, den=0; for (const p of pfHist){ num+=(p.t-mt)*(p.v-mv); den+=(p.t-mt)**2; }
     const ax = den>0 ? num/den*1000/9.81 : null; if (ax!=null && Math.abs(ax)<1.5) pfAx = pfAx==null ? ax : pfAx*0.65+ax*0.35; }
@@ -2199,7 +2207,8 @@ function pfCar(s){
 const GV = {tx:0, ty:0, x:0, y:0, on:false};
 function pfGCircle(s, live){
   const G = live ? pfGs(s) : {lon:null, lat:null}, S=100;
-  GV.on = G.lon!=null; if (GV.on){ GV.tx=(G.lat??0)*S; GV.ty=-G.lon*S; }
+  // Hissedilen kuvvet yönünde: hızlanınca nokta aşağı (sürücü geriye itilir), frende yukarı, sağa dönüşte sola
+  GV.on = G.lon!=null; if (GV.on){ GV.tx=-(G.lat??0)*S; GV.ty=G.lon*S; }
   if (GV.on && Date.now()-(pfGCircle.lt||0)>200){ pfGCircle.lt=Date.now(); pfTrail.push([GV.x, GV.y]); if (pfTrail.length>40) pfTrail.shift(); }
   if (!$("pfG").firstChild){
     let g="";
@@ -2213,7 +2222,7 @@ function pfGCircle(s, live){
     $("pfG").innerHTML=g;
   }
   const mx=(v)=>v!=null?f1(v,2):"–";
-  $("gUp").textContent=`hızlanma maks ${mx(pf.gacc)}`; $("gDn").textContent=`fren maks ${mx(pf.gbrk)}`;
+  $("gUp").textContent=`fren maks ${mx(pf.gbrk)}`; $("gDn").textContent=`hızlanma maks ${mx(pf.gacc)}`;
   $("gLt").textContent=`yanal ${mx(pf.glat)}`; $("gRt").textContent=`yanal ${mx(pf.glat)}`;
   $("gTrail").innerHTML = pfTrail.length>1 ? pfTrail.map((p,i)=>`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="${2+i/14}" fill="#ECEFEC" fill-opacity="${(i/pfTrail.length*0.3).toFixed(2)}"/>`).join("") : "";
 }
@@ -2221,7 +2230,7 @@ function pfGCircle(s, live){
 (function gAnim(){ const d=$("gDot");
   if (d){ GV.x += (GV.tx-GV.x)*0.18; GV.y += (GV.ty-GV.y)*0.18; if (!GV.on){ GV.tx=0; GV.ty=0; }
     d.setAttribute("cx", GV.x.toFixed(1)); d.setAttribute("cy", GV.y.toFixed(1));
-    const lon=-GV.y/100; d.setAttribute("fill", lon>0.05?"#D6C45C":lon<-0.05?"#8DB5D6":"#ECEFEC");
+    const lon=GV.y/100; d.setAttribute("fill", lon>0.05?"#D6C45C":lon<-0.05?"#8DB5D6":"#ECEFEC");
     const t=$("gTot"); if (t) t.innerHTML = GV.on ? `${f1(Math.hypot(GV.x,GV.y)/100,2)}<tspan fill="#8E999F" font-size="12" font-weight="500"> g</tspan>` : ""; }
   requestAnimationFrame(gAnim); })();
 function pf100(s, live){
@@ -3162,7 +3171,15 @@ const aaos = k => { const v = carv[k]; return typeof v === "number" && isFinite(
 const WHEEL_AREA = {fl:1, fr:2, rl:4, rr:8};
 let lastCarT=0;
 const carT = {};
-window.__car = o => { lastCarT=Date.now(); const ck=o.area ? o.name+"@"+o.area : o.name; carv[ck] = o.value; carT[ck]=lastCarT; if (!running) render(); };
+const spdRing = [], carRate = {};   // aracın hızı (ölçüm anıyla) ve özellik başına gelen değer sayısı
+const carIn = o => { const now=Date.now(); lastCarT=now; const ck=o.area ? o.name+"@"+o.area : o.name; carv[ck] = o.value; carT[ck]=now;
+  const r = carRate[ck] || (carRate[ck]={n:0, t0:now, hz:null}); r.n++; if (now-r.t0>=3000){ r.hz=r.n*1000/(now-r.t0); r.n=0; r.t0=now; }
+  if (o.name==="PERF_VEHICLE_SPEED" && typeof o.value==="number"){ const t=o.ts||now;
+    if (!spdRing.length || t>spdRing.at(-1).t){ spdRing.push({t, v:Math.abs(o.value)*3.6}); while (spdRing.length && t-spdRing[0].t>3000) spdRing.shift(); } } };
+window.__car = o => { carIn(o); if (!running) render(); };
+window.__carB = a => { for (const o of a) carIn(o); if (!running) render(); };
+window.ex30SpdRing = () => spdRing;
+window.ex30CarRate = () => carRate;
 window.__carStatus = t => { const el=document.getElementById("aaosStatus"); if (el) el.textContent = t; };
 // Volvo EX30: EV_BATTERY_INSTANTANEOUS_CHARGE_RATE park halinde (şarj kablosu yokken) +201000 mW → deşarjı artı veriyor (Android tanımının tersi)
 function aaosPower(){ const v=aaos("EV_BATTERY_INSTANTANEOUS_CHARGE_RATE"); return v==null ? null : v/1e6; }
