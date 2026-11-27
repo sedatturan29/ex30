@@ -140,11 +140,12 @@
   body.aaos #tabs button.act{background:#1B2227}
   body.aaos main{padding-top:64px}
   #btnMenu{display:none}
-  .al-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden}
-  .al-c{background:var(--card);padding:14px 16px;min-height:92px;display:flex;flex-direction:column;justify-content:space-between;gap:6px}
-  .al-c .v{font-size:32px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .al-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .al-c{background:var(--card);padding:10px 12px;min-height:74px;display:flex;flex-direction:column;justify-content:space-between;gap:6px}
+  .al-c .v.s{font-size:17px;white-space:normal;line-height:1.15;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .al-c .v{font-size:26px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .al-c .v small{font-size:.45em;color:var(--mut);font-weight:500;margin-left:.2em}
-  .al-c .l{font-size:14px;color:var(--mut);font-weight:500;line-height:1.25}
+  .al-c .l{font-size:13px;color:var(--mut);font-weight:500;line-height:1.25}
   .al-c .k{font-size:11px;color:#4A555D;font-family:ui-monospace,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .al-c.old{opacity:.45}
   .pill.lk{background:#1E2A24;color:#8FD3A8;border-color:#2F4A3A}
@@ -1895,7 +1896,12 @@ const AL = {
   EV_CHARGE_PORT_OPEN:["Şarj kapağı","",v=>v?1:0,0], EV_CHARGE_TIME_REMAINING:["Şarj kalan süre","dk",v=>v/60,0], EV_CHARGE_PERCENT_LIMIT:["Şarj hedefi","%",v=>v,0], EV_CHARGE_CURRENT_DRAW_LIMIT:["Şarj akım sınırı","A",v=>v,0],
   GEAR_SELECTION:["Vites","",v=>v,0], CURRENT_GEAR:["Mevcut vites","",v=>v,0], PARKING_BRAKE_ON:["El freni","",v=>v?1:0,0], IGNITION_STATE:["Kontak","",v=>v,0],
   HVAC_TEMPERATURE_CURRENT:["Kabin sıcaklığı","°C",v=>v,1], HVAC_TEMPERATURE_SET:["Kabin ayarı","°C",v=>v,1], ENGINE_RPM:["Devir","dev/dk",v=>v,0], INSTANTANEOUS_EV_EFFICIENCY:["Anlık verim (ham)","",v=>v,2],
-  NIGHT_MODE:["Gece modu","",v=>v?1:0,0], FUEL_LEVEL:["Yakıt/enerji seviyesi","",v=>v,0], INFO_MODEL_YEAR:["Model yılı","",v=>v,0]};
+  NIGHT_MODE:["Gece modu","",v=>v?1:0,0], INFO_MODEL_YEAR:["Model yılı","",v=>v,0],
+  PERF_ODOMETER:["Kilometre sayacı","km",v=>v,0], TIRE_PRESSURE:["Lastik basıncı","psi",v=>v*0.1450377,1], INFO_MAKE:["Marka","",v=>v,0], INFO_MODEL:["Model","",v=>v,0],
+  PARKING_BRAKE_AUTO_APPLY:["Otomatik el freni","",v=>v?1:0,0], INFO_EV_PORT_LOCATION:["Şarj soketi konumu","",v=>v,0], INFO_FUEL_TYPE:["Enerji türü","",v=>v,0],
+  INFO_EV_CONNECTOR_TYPE:["Soket tipi","",v=>v,0], INFO_EXTERIOR_DIMENSIONS:["Dış ölçüler","mm",v=>v,0], INFO_MULTI_EV_PORT_LOCATIONS:["Şarj soketleri","",v=>v,0],
+  INFO_DRIVER_SEAT:["Sürücü koltuğu (bölge)","",v=>v,0], WHEEL_TICK:["Teker sayacı","",v=>v,0], FUEL_LEVEL_LOW:["Düşük enerji uyarısı","",v=>v?1:0,0]};
+const AL_WHEEL = {1:"ön sol",2:"ön sağ",4:"arka sol",8:"arka sağ"}, AL_ONOFF = ["Şarj kablosu","Şarj kapağı","El freni","Gece modu","Otomatik el freni","Düşük enerji uyarısı"];
 const GEAR_TR = {1:"N",2:"R",4:"P",8:"D"}, ONOFF = ["kapalı","açık"];
 // Son görülen araç değerleri telefonda saklanır; orta ekran bağlı değilken de ızgara görünür
 let alSaveT=0;
@@ -1905,24 +1911,31 @@ function renderAlper(){
   if (tab!=="alper") return;
   let cv=null; try{ cv = panelWin && panelWin.ex30Car ? panelWin.ex30Car() : null; }catch{}
   const el=$("alGrid"), now=Date.now();
-  const num = v => typeof v==="number"||typeof v==="boolean";
-  let live = !!(cv && Object.keys(cv.v).some(k=>num(cv.v[k]) && now-(cv.t[k]||0)<30000));
-  if (live && now-alSaveT>15000){ alSaveT=now; try{ const v={}, t={}; for (const k in cv.v) if (num(cv.v[k])){ v[k]=cv.v[k]; t[k]=cv.t[k]||now; } localStorage.setItem("ex30.alperLast", JSON.stringify({v,t})); }catch{} }
-  let src = cv && Object.keys(cv.v).some(k=>num(cv.v[k])) ? cv : null, saved=false;
+  const has = x => x!=null && x!=="";
+  let live = !!(cv && Object.keys(cv.v).some(k=>has(cv.v[k]) && now-(cv.t[k]||0)<30000));
+  if (live && now-alSaveT>15000){ alSaveT=now; try{ const v={}, t={}; for (const k in cv.v) if (has(cv.v[k])){ v[k]=cv.v[k]; t[k]=cv.t[k]||now; } localStorage.setItem("ex30.alperLast", JSON.stringify({v,t})); }catch{} }
+  let src = cv && Object.keys(cv.v).some(k=>has(cv.v[k])) ? cv : null, saved=false;
   if (!live){ const L=alLoad(); if (L && L.v && (!src || Math.max(...Object.values(L.t))>Math.max(0,...Object.values(src.t)))){ src=L; saved=true; } }
-  // Kayıtlı değer yoksa bile bilinen özellikler boş kutu olarak görünsün
+  // Okuduğumuz tüm parametreler tek ekranda: gelmeyenler boş kutu
   const v = Object.assign({}, src?src.v:{}), t = Object.assign({}, src?src.t:{});
   for (const b in AL) if (!Object.keys(v).some(k=>k.split("@")[0]===b)) v[b]=null;
-  const keys=Object.keys(v).filter(k=>v[k]===null||num(v[k])).sort((a,b)=>(v[a]==null)-(v[b]==null) || (AL[a.split("@")[0]]?0:1)-(AL[b.split("@")[0]]?0:1) || a.localeCompare(b));
+  const keys=Object.keys(v).filter(k=>v[k]===null||has(v[k])).sort((a,b)=>(v[a]==null)-(v[b]==null) || (AL[a.split("@")[0]]?0:1)-(AL[b.split("@")[0]]?0:1) || a.localeCompare(b));
+  const fmt = (raw, base, d) => {
+    if (raw==null) return "—";
+    if (Array.isArray(raw)) return raw.length ? raw.map(x=>typeof x==="number"?f1(x, Math.abs(x)<100&&x%1?1:0):String(x)).join(" · ") : "boş";
+    if (typeof raw==="string") return raw;
+    const val = d ? d[2](typeof raw==="boolean"?(raw?1:0):raw) : (typeof raw==="boolean"?(raw?1:0):raw);
+    if (base==="GEAR_SELECTION"||base==="CURRENT_GEAR") return GEAR_TR[val]||val;
+    if (d && AL_ONOFF.includes(d[0])) return ONOFF[val?1:0];
+    return typeof val==="number" ? f1(val, d?d[3]:(Math.abs(val)<100?2:0)) : String(val); };
   el.innerHTML = keys.map(k=>{ const raw=v[k], base=k.split("@")[0], area=k.includes("@")?k.split("@")[1]:"", d=AL[base], age=now-(t[k]||0);
-    let txt="—";
-    if (raw!=null){ const val = d ? d[2](typeof raw==="boolean"?(raw?1:0):raw) : (typeof raw==="boolean"?(raw?1:0):raw);
-      txt = (base==="GEAR_SELECTION"||base==="CURRENT_GEAR") ? (GEAR_TR[val]||val) : (d && ["Şarj kablosu","Şarj kapağı","El freni","Gece modu"].includes(d[0])) ? ONOFF[val?1:0] : (typeof val==="number" ? f1(val, d?d[3]:(Math.abs(val)<100?2:0)) : String(val)); }
-    return `<div class="al-c ${raw==null||age>30000?"old":""}"><div class="v">${txt}${raw!=null&&d&&d[1]?`<small>${d[1]}</small>`:""}</div><div><div class="l">${d?d[0]:base.toLowerCase().replace(/_/g," ")}${area?` · bölge ${area}`:""}</div><div class="k">${base}</div></div></div>`; }).join("");
-  const n = keys.filter(k=>v[k]!=null).length;
-  $("alInfo").textContent = live ? `Aracın kendisinden okunan ${n} değer (OBD gerekmez). Soluk kutular 30 sn'dir güncellenmedi.`
+    const txt=fmt(raw, base, d), small=String(txt).length>9;
+    const where = area ? (base==="TIRE_PRESSURE" && AL_WHEEL[area] ? " · "+AL_WHEEL[area] : ` · bölge ${area}`) : "";
+    return `<div class="al-c ${raw==null||age>30000?"old":""}"><div class="v${small?" s":""}" title="${String(txt).replace(/"/g,"&quot;")}">${txt}${raw!=null&&typeof raw==="number"&&d&&d[1]?`<small>${d[1]}</small>`:""}</div><div><div class="l">${d?d[0]:base.toLowerCase().replace(/_/g," ")}${where}</div><div class="k">${base}</div></div></div>`; }).join("");
+  const n = keys.filter(k=>v[k]!=null).length, tot = keys.length;
+  $("alInfo").textContent = live ? `Aracın kendisinden okunan ${n} değer (OBD gerekmez). Soluk kutular 30 sn'dir güncellenmedi ya da araç bu değeri vermiyor.`
     : n ? `Orta ekran bağlı değil: ${saved?"telefonda saklanan ":""}son görülen ${n} değer gösteriliyor (${alAgo(now-Math.max(...Object.values(t).filter(Boolean)))} önce). Orta ekrana Bluetooth ile bağlanınca canlı güncellenir.`
-    : "Henüz araç verisi gelmedi. Kutular orta ekranda ya da telefon orta ekrana Bluetooth ile bağlıyken dolar; sonra son değerler burada saklanır.";
+    : `Henüz araç verisi gelmedi (${tot} parametre). Kutular orta ekranda ya da telefon orta ekrana Bluetooth ile bağlıyken dolar; sonra son değerler burada saklanır.`;
 }
 setInterval(renderAlper, 1000);
 // Durum ışıkları
