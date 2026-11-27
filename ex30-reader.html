@@ -1498,7 +1498,8 @@ const TESTS = [
   {id:"hiz", t:"Okuma hızı", why:"Son güncellemelerin okuma hızına etkisini görmek.", how:["Sürüşte Performans sekmesinin sağ üstündeki okuma/sn değerini nota yaz."], read:null},
   {id:"baglanti", t:"Orta ekranın adaptöre bağlanması", why:"Adaptör doğrulamanın neden uzun sürdüğünü görmek.",
    how:["Orta ekranda Bağlan'a bas.","Son el sıkışma kaydı aşağıda kendiliğinden görünür; kaç saniye sürdüğünü nota yaz."], read:null, auto:()=>store.get("lastHandshake",null)},
-  {id:"alper", t:"Sürüş menüsünde Alper", why:"Orta ekranın sürüş menüsünde 7. satırın (Alper) görünüp görünmediği.", how:["EX30 Sürüş'te ☰ menüsünü aç; Alper satırı var mı, nota yaz."], read:null},
+  {id:"alper", t:"Sürüş menüsünde Alper", why:"Sürüşte menü en fazla 6 satır alır; Alper'in 3. satırda görünmesi gerekiyor.", how:["Sürüş sırasında ☰ menüyü aç; Alper'i 3. satırda görüyor musun, nota yaz.","Android Auto'da da aynı menüye bak, orada da var mı yaz."], read:null},
+  {id:"bayat", t:"Araç verisi donması", why:"Telefonda araç hızı/gücü donarsa LED sarıya dönmeli ve değerler boş kalmalı.", how:["Orta ekran ve telefon bağlıyken 10 dk sür; Alper'de hız ve güç değişiyor mu bak.","Header'daki Araç LED'i sarıya döndüyse saatini ve ne yaptığını nota yaz."], read:null},
 ];
 const tsAscii = h => h ? h.split(" ").map(x=>parseInt(x,16)).filter(c=>c>=32&&c<127).map(c=>String.fromCharCode(c)).join("").trim() : "";
 let tsData = store.get("tests", {}), tsRun = null;
