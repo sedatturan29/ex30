@@ -357,6 +357,15 @@
   .tbl{overflow-x:auto}
   progress{width:100%;height:8px;accent-color:var(--acc)}
   .empty{color:var(--mut);font-size:13px;padding:6px 0}
+  .cs-bar{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--line);margin-top:8px}
+  .cs-bar i{display:block;height:100%} #csBarHave{background:var(--ok)} #csBarFound{background:var(--acc)} #csBarCand{background:var(--warn)}
+  .cs-st{display:inline-block;padding:2px 7px;border-radius:9px;font-size:11px;font-weight:600;white-space:nowrap}
+  .cs-st.have{background:#123524;color:var(--ok)} .cs-st.found{background:#132a45;color:var(--acc)} .cs-st.cand{background:#3a3117;color:var(--warn)} .cs-st.miss{background:var(--line);color:var(--mut)} .cs-st.unk{background:#2a1f36;color:#c8a8e8}
+  tr.cs-u td{background:#14181d;color:var(--mut);font-weight:600;font-size:12px;padding-top:12px}
+  tr.cs-open td{background:#12161b}
+  .cs-det{padding:4px 2px 10px}
+  .cs-det table{margin-top:6px}
+
   .chk{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line)}
   .chk:last-child{border-bottom:0}
   .chk .ic{width:22px;height:22px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;background:var(--line);color:var(--mut)}
@@ -652,7 +661,24 @@
 
   <!-- ============ TARAYICI ============ -->
   <section id="tab-scan">
-    <div class="card" style="margin-top:0">
+    <div class="card" id="csCard" style="margin-top:0">
+      <h2>Car Scanner kapsamı</h2>
+      <p class="note" style="margin-top:0" id="csSum"></p>
+      <div class="cs-bar"><i id="csBarHave"></i><i id="csBarFound"></i><i id="csBarCand"></i></div>
+      <div class="row" style="margin-top:10px">
+        <button id="csAll" disabled>Bilinen aralıkları tara (5 ünite)</button>
+        <button class="sec" id="csWatch" disabled>Okumaları izle</button>
+        <label>Göster <select id="csFilter"><option value="all">Hepsi</option><option value="miss">Eksikler</option><option value="have">Okuduklarımız</option></select></label>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <label>Tam tarama <select id="csDeepUnit"></select></label>
+        <button class="sec" id="csDeep" disabled>0000–FFFF tara (uzun, kaldığı yerden sürer)</button>
+      </div>
+      <progress id="csProg" value="0" max="1" style="margin-top:10px"></progress>
+      <p class="note" id="csInfo">Car Scanner'ın EX30 profilindeki sensörler. Her ünitede cevap veren kodlar bulunur, sonra değerler bizim bildiğimiz değerlerle ya da Car Scanner'da gördüğün değerle karşılaştırılır. Sadece okuma yapar.</p>
+      <div class="tbl" id="csList"></div>
+    </div>
+    <div class="card">
       <h2>1. Ünite bulucu (sadece okuma)</h2>
       <div class="row">
         <label>Adres <input id="ufFrom" value="1600" style="width:70px"></label>
@@ -766,7 +792,8 @@ const store = {
 };
 // Eşitlenen ayarlar değişince zaman damgası (telefon ↔ orta ekran: yeni olan kazanır)
 const SYNC_KEYS = ["cfg","panel","tg","panelExtras","units"];
-function syncBump(k, v){ if (!SYNC_KEYS.includes(k)) return; if (window.__cfgApplied) throw 0;   // alınan ayarlar yenilemeden önce eskisiyle ezilmesin const nm=x=>{ try{ const o=JSON.parse(JSON.stringify(x)); if (o && typeof o==="object") delete o.last; return JSON.stringify(o); }catch{ return ""; } };
+function syncBump(k, v){ if (!SYNC_KEYS.includes(k)) return; if (window.__cfgApplied) throw 0;   // alınan ayarlar yenilemeden önce eskisiyle ezilmesin
+  const nm=x=>{ try{ const o=JSON.parse(JSON.stringify(x)); if (o && typeof o==="object") delete o.last; return JSON.stringify(o); }catch{ return ""; } };
   let ov=null; try{ ov=JSON.parse(localStorage.getItem("ex30."+k)); }catch{} if (nm(ov)!==nm(v)) localStorage.setItem("ex30.syncT", String(Date.now())); }
 const cfg = Object.assign({sign:1, signKnown:false, capModel:"64", capNew:64, chgAuto:true, interval:5000}, store.get("cfg",{}));
 let sessions = store.get("sessions", []);           // tamamlanan kayıtlar
@@ -1171,20 +1198,22 @@ const unhex = h => h ? h.trim().split(/\s+/).map(x=>parseInt(x,16)) : null;
 function saveScans(){
   while (true){
     try{ localStorage.setItem("ex30.scans", JSON.stringify(scans)); return; }
-    catch{ if (scans.length>1) scans.shift(); else if (curScan && curScan.snaps.length>2){ curScan.snaps.splice(1,1); for (const r of curScan.rows) r.v.splice(1,1); } else return; }
+    catch{ const i=scans.findIndex(x=>!x.cs); if (i>=0 && scans.length>1) scans.splice(i,1); else if (curScan && curScan.snaps.length>2){ curScan.snaps.splice(1,1); for (const r of curScan.rows) r.v.splice(1,1); } else return; }
   }
 }
 function scanFromRes(found, u, range){
   const s={id:String(Date.now()), t:Date.now(), unit:u.name||u.tx.slice(4), tx:u.tx, rx:u.rx, range, snaps:[{t:Date.now()}], rows:found.map(x=>({did:x.did, v:[hexb(x.bytes)]}))};
-  scans.push(s); while (scans.length>MAX_SCANS) scans.shift(); curScan=s; saveScans(); fillScanHist(); return s;
+  scans.push(s); while (scans.filter(x=>!x.cs).length>MAX_SCANS) scans.splice(scans.findIndex(x=>!x.cs),1); curScan=s; saveScans(); fillScanHist(); return s;
 }
 // Eşleştirme için o anki bilinen değerler (panelden)
 const MT_SIG = {pedal:["Gaz pedalı (test)","%"], spd:["Hız","km/s"], kw:["Güç","kW"], cur:["Batarya akımı","A"], volt:["Batarya voltajı","V"], soc:["Şarj","%"], avg:["Batarya ort.","°C"], max:["Batarya maks.","°C"], tmin:["Batarya min.","°C"],
-  cin:["Batarya soğutma girişi","°C"], cout:["Güç aktarma soğutma","°C"], motor:["Motor","°C"], rpm:["Motor devri","dev/dk"], tq:["Motor torku","Nm"], brake:["Fren basıncı","bar"], v12:["12 V akü","V"], out:["Dış sıcaklık","°C"]};
+  cin:["Batarya soğutma girişi","°C"], cout:["Güç aktarma soğutma","°C"], motor:["Motor","°C"], rpm:["Motor devri","dev/dk"], tq:["Motor torku","Nm"], brake:["Fren basıncı","bar"], v12:["12 V akü","V"], out:["Dış sıcaklık","°C"],
+  cmax:["En yüksek hücre","V"], cmin:["En düşük hücre","V"], acc:["İvme (hızdan)","g"]};
 let pedalPhase = null;   // pedal testi sırasında istenen pedal konumu (0/50/100)
 function scanRef(){ const o={}; if (pedalPhase!=null) o.pedal=pedalPhase;
   try{ ensurePanel(); const sn = panelWin && panelWin.ex30Snap ? panelWin.ex30Snap() : null;
-    if (sn) for (const k in MT_SIG) if (k!=="pedal" && sn[k]!=null && isFinite(sn[k])) o[k]=+sn[k]; }catch{}
+    if (sn) for (const k in MT_SIG) if (k!=="pedal" && sn[k]!=null && isFinite(sn[k])) o[k]=+sn[k];
+    if (typeof pfAx!=="undefined" && pfAx!=null && sn && sn.spd!=null && sn.spd>3) o.acc=+pfAx.toFixed(3); }catch{}
   return Object.keys(o).length ? o : null; }
 // Yönlendirmeli pedal testi: araç P'de, sırayla bırak / yarı / tam; her adımda cevap veren kodlar yeniden okunur
 let pedalRun=false;
@@ -1399,6 +1428,277 @@ function openMatch(x){
   $("addStart").value=String(x.st); $("addLen").value=String(x.len); $("addSigned").checked=x.sg;
   $("addScale").value = String(+x.a.toPrecision(4)).replace(".",","); $("addOffset").value = String(+x.b.toPrecision(4)).replace(".",",");
   addPreview();
+}
+
+// =====================================================================
+//  Car Scanner kapsamı: EX30 profilindeki tüm sensörler, kodlarının bulunması ve eşleştirilmesi
+// =====================================================================
+// Ünite eşleşmesi: Car Scanner adı → bizim adres
+const CS_UNIT = {ABS:"1DD01701", BECM:"1DD01635", CDD:"1DD01650", IEM:"1DD01637", VCU:"1DD01601"};
+const CS_UNAME = {ABS:"ABS / şasi", BECM:"Batarya (BECM)", CDD:"Şarj cihazı ve DC/DC (CDD)", IEM:"Motor (IEM)", VCU:"VCU (ısı yönetimi, pedal)"};
+// [Car Scanner no (14880000+), ünite, Car Scanner adı, Türkçe, birim, Car Scanner'da görülen örnek, ne zaman ölçülür, bizim referans değer, bizde okunan değer]
+// ne zaman: s=sürüş, a=AC şarj, d=DC şarj, h=her zaman
+const CS_RAW = [
+ [0,"BECM","HV Battery SoC","Batarya şarjı","%",84.9,"h","soc","soc"],
+ [1,"BECM","HV battery: average temperature","Batarya ortalama sıcaklık","°C",24.4,"h","avg","avg"],
+ [2,"BECM","HV battery: current","Batarya akımı","A",-43.1,"h","cur","cur"],
+ [3,"BECM","HV battery: IGM fuse voltage","Batarya sigorta (IGM) gerilimi","V",445.8,"h","volt",null],
+ [4,"BECM","HV battery: inlet coolant temperature","Batarya soğutma girişi","°C",21,"h","cin","cin"],
+ [5,"BECM","HV battery: voltage [Pure Electric/BEV]","Batarya gerilimi","V",445.5,"h","volt","volt"],
+ [6,"BECM","HV battery: max temperature","Batarya en yüksek sıcaklık","°C",25.2,"h","max","max"],
+ [7,"BECM","12V Battery voltage","12 V akü (BECM)","V",14,"h","v12",null],
+ [8,"BECM","SOC Percent Battery 1","Şarj (batarya 1)","%",85.4,"h","soc",null],
+ [9,"BECM","HV Battery Cell voltage sum","Hücre gerilimleri toplamı","V",445.8,"h","volt",null],
+ [10,"BECM","SOC Display","Göstergedeki şarj","%",87.1,"h","soc",null],
+ [11,"BECM","ECU Power supply voltage","BECM besleme gerilimi","V",35.7,"h",null,null],
+ [12,"BECM","? Total odometer","Kilometre sayacı","km",17844,"h",null,"odo"],
+ [13,"BECM","HV Battery SoH","Batarya sağlığı (SoH)","%",100,"h",null,"soh2"],
+ [14,"BECM","Cell Min State Of Charge","En düşük hücre şarjı","%",85.3,"h","soc",null],
+ [15,"BECM","Charging power limit","Şarj güç sınırı","W",19100,"h",null,null],
+ [16,"BECM","Discharging power limit","Deşarj güç sınırı","W",0,"s",null,null],
+ [17,"ABS","Brake disc temperature: front left","Fren diski sıcaklığı sol ön","°C",16.4,"h",null,null],
+ [18,"BECM","HV Battery Max Cell Voltage","En yüksek hücre gerilimi","V",4.171,"h","cmax","cmax"],
+ [19,"BECM","Cell voltage delta","Hücre gerilim farkı","mV",9,"h",null,"cdelta"],
+ [20,"BECM","HV Battery Min Cell Voltage","En düşük hücre gerilimi","V",4.16,"h","cmin","cmin"],
+ [21,"?","(adı görülmedi)","Profilde var, kayıtlarda yok","",null,"h",null,null],
+ [22,"BECM","Positive connector temperature. DC Charging","DC soket + sıcaklığı","°C",15.9,"d",null,null],
+ [23,"BECM","Negative connector temperature. DC Charging","DC soket − sıcaklığı","°C",15.9,"d",null,null],
+ [24,"?","(adı görülmedi)","Profilde var, kayıtlarda yok","",null,"h",null,null],
+ [25,"ABS","Brake disc temperature: front right","Fren diski sıcaklığı sağ ön","°C",16.4,"h",null,null],
+ [26,"ABS","Brake disc temperature: rear left","Fren diski sıcaklığı sol arka","°C",18.5,"h",null,null],
+ [27,"ABS","Brake disc temperature: rear right","Fren diski sıcaklığı sağ arka","°C",18.5,"h",null,null],
+ [28,"ABS","Brake pressure: rear left","Fren basıncı sol arka","bar",0,"s","brake","brake"],
+ [29,"ABS","Brake pressure: front right","Fren basıncı sağ ön","bar",0,"s","brake","brake"],
+ [30,"ABS","Brake pressure: rear right","Fren basıncı sağ arka","bar",0,"s","brake","brake"],
+ [31,"ABS","Brake pressure: front left","Fren basıncı sol ön","bar",0,"s","brake","brake"],
+ [32,"ABS","Front left wheel speed","Teker hızı sol ön","km/h",0,"s","spd","w_fl"],
+ [33,"ABS","Rear left wheel speed","Teker hızı sol arka","km/h",0,"s","spd","w_rl"],
+ [34,"ABS","Front right wheel speed","Teker hızı sağ ön","km/h",0,"s","spd","w_fr"],
+ [35,"ABS","Rear right wheel speed","Teker hızı sağ arka","km/h",0,"s","spd","w_rr"],
+ [36,"ABS","Vehicle speed","Araç hızı","km/h",0,"s","spd","vspd"],
+ [37,"ABS","Longtitudinal acceleration","Boylamsal ivme","g",-0.005,"s","acc",null],
+ [38,"CDD","AC Plug Temperature 1","AC soket sıcaklığı 1","°C",38,"a",null,null],
+ [39,"CDD","AC Plug Temperature 2","AC soket sıcaklığı 2","°C",30,"a",null,null],
+ [40,"CDD","Control Pilot Duty Cycle","Şarj pilot sinyali (izin verilen akım)","%",52,"a",null,null],
+ [41,"CDD","Charging: DC Voltage","Şarj DC gerilimi","V",460.4,"a","volt",null],
+ [42,"CDD","Charging: Direct Current","Şarj DC akımı","A",51.9,"a","chgA",null],
+ [43,"CDD","Charging: Grid Current","Şebeke akımı","A",31.7,"a",null,null],
+ [44,"CDD","Charging: Grid Voltage","Şebeke gerilimi","V",237.1,"a",null,null],
+ [45,"CDD","DC/DC Actual Input Power","DC/DC giriş gücü","W",313,"h",null,null],
+ [46,"CDD","DC/DC Converter Power Request","DC/DC güç isteği","W",20460,"h",null,null],
+ [47,"CDD","DC/DC Converter Circuit Board Temperature","DC/DC kart sıcaklığı","°C",53,"h",null,null],
+ [48,"CDD","DC/DC Output Voltage Settings","DC/DC çıkış ayarı","V",14.2,"h",null,null],
+ [49,"CDD","Low voltage side, voltage","12 V tarafı gerilim","V",14.4,"h","v12",null],
+ [50,"CDD","Low voltage side, current","12 V tarafı akım","A",19,"h",null,null],
+ [51,"CDD","OBC Module A Output DC Voltage","Şarj cihazı A çıkış gerilimi","V",447,"a","volt",null],
+ [52,"CDD","OBC Module A Temperature","Şarj cihazı A sıcaklığı","°C",66,"a",null,null],
+ [53,"CDD","OBC Available Power","Şarj cihazı kullanılabilir güç","W",19700,"a",null,null],
+ [54,"CDD","OBC Module A PFC Voltage","Şarj cihazı A PFC gerilimi","V",813,"a",null,null],
+ [55,"CDD","OBC Module A Output DC Current","Şarj cihazı A çıkış akımı","A",44,"a","chgA",null],
+ [56,"CDD","OBC Module B Output DC Voltage","Şarj cihazı B çıkış gerilimi","V",0,"a",null,null],
+ [57,"CDD","OBC Module B Temperature","Şarj cihazı B sıcaklığı","°C",0,"a",null,null],
+ [58,"CDD","OBC Module B PFC Voltage","Şarj cihazı B PFC gerilimi","V",0,"a",null,null],
+ [59,"CDD","OBC Module B Output DC Current","Şarj cihazı B çıkış akımı","A",0,"a",null,null],
+ [60,"CDD","OBC Module C PFC Voltage","Şarj cihazı C PFC gerilimi","V",0,"a",null,null],
+ [61,"CDD","OBC Module C Output DC Current","Şarj cihazı C çıkış akımı","A",0,"a",null,null],
+ [62,"CDD","OBC Module C Temperature","Şarj cihazı C sıcaklığı","°C",0,"a",null,null],
+ [63,"CDD","OBC Module C Output DC Voltage","Şarj cihazı C çıkış gerilimi","V",0,"a",null,null],
+ [64,"IEM","ERAD Actual Torque","Motor torku","Nm",0,"s","tq","torque"],
+ [65,"IEM","ERAD Motor Speed","Motor devri","rpm",0,"s","rpm","rpm"],
+ [66,"IEM","ERAD Motor Temperature","Motor sıcaklığı","°C",42,"h","motor","motor"],
+ [67,"IEM","ERAD Wheel Speed","Teker devri (motor tarafı)","rpm",0,"s","rpm",null],
+ [68,"IEM","Electronic powertrain coolant temperature","Güç aktarma soğutma sıvısı (IEM)","°C",44,"h","cout",null],
+ [69,"IEM","HV System Current","Motor HV akımı","A",0.8,"h","cur",null],
+ [70,"IEM","HV System Voltage","Motor HV gerilimi","V",441.4,"h","volt","mdcv"],
+ ...Array.from({length:10},(_,i)=>[71+i,"?","(adı görülmedi)","Profilde var, kayıtlarda yok","",null,"h",null,null]),
+ [81,"VCU","Accelerator pedal PWM signal","Gaz pedalı","%",7,"s","pedal",null],
+ [82,"VCU","A/C Pressure","Klima basıncı","kPa",498,"h",null,null],
+ [83,"VCU","A/C Temperature","Klima sıcaklığı","°C",17.8,"h",null,null],
+ [84,"VCU","A/C Temperature after compressor","Kompresör çıkışı","°C",19,"h",null,null],
+ [85,"VCU","A/C Temperature after evaporator","Evaporatör çıkışı","°C",18.2,"h",null,null],
+ [86,"VCU","A/C Temperature after inner condenser","İç kondenser çıkışı","°C",18.3,"h",null,null],
+ [87,"VCU","A/C Temperature behind chiller","Chiller çıkışı","°C",16.3,"h",null,null],
+ [88,"VCU","Coolant pump chamber requested speed","Soğutma pompası istenen hız","%",10,"h",null,null],
+ [89,"VCU","Electronic Powertrain Coolant pump: Coolant temperature","Güç aktarma soğutma sıvısı (VCU)","°C",44,"h","cout","cout"],
+ [90,"VCU","Electronic Powertrain Coolant pump: Requested RPM","Güç aktarma pompası istenen hız","%",40,"h",null,null],
+ [91,"VCU","Radiator cooling fan","Radyatör fanı","%",40,"h",null,null],
+ [92,"VCU","HV Battery Cooling Valve: Actual position","Batarya soğutma valfi (gerçek)","%",0,"h",null,null],
+ [93,"VCU","HV Battery Cooling Valve: Required position","Batarya soğutma valfi (istenen)","%",0,"h",null,null],
+];
+const CS = CS_RAW.map(([n,u,cs,tr,unit,ex,when,ref,have])=>({id:14880000+n, n, u, tx:CS_UNIT[u]||null, cs, tr, unit, ex, when, ref, have}));
+const CS_WHEN = {s:"sürüşte", a:"AC şarjda", d:"DC şarjda", h:"her zaman"};
+// Bilinen (ve Geely SEA'da sık kullanılan) aralıklar; "Tam tarama" bütün alanı tarar
+const CS_PLAN = {"1DD01635":["4800-49FF","4A00-4BFF","DD00-DDFF","EE00-EEFF"], "1DD01637":["E300-E3FF","E000-E2FF","E400-E4FF","EE00-EEFF"],
+  "1DD01601":["4A00-4AFF","4000-49FF","4B00-4FFF","D900-D9FF","E300-E3FF"], "1DD01650":["EE00-EEFF","E000-EDFF","EF00-EFFF","4000-4FFF","D900-D9FF"],
+  "1DD01701":["2B00-2BFF","FD00-FEFF","F400-F4FF","2000-2AFF","2C00-2FFF"]};
+// Birime göre eşleşme toleransı (en az)
+const CS_TOL = {"°C":1.0, "V":0.6, "A":1.5, "%":1.0, "W":150, "kPa":6, "bar":0.5, "km/h":1.5, "rpm":30, "Nm":3, "g":0.03, "mV":3, "km":2};
+let csMap = store.get("csMap", {});        // {id: {tx,rx,did,st,len,sg,a,b}} onaylanan eşleşmeler
+let csEntries = store.get("csEntries", {}); // {id: [{t,v}]} Car Scanner'da görülen değerler
+let csOpen = null, csCands = {}, csJob = null;
+const csFmt = v => v==null||!isFinite(v) ? "–" : (Math.abs(v)>=1000 ? Math.round(v).toString() : Math.abs(v)>=100 ? v.toFixed(1) : (+v.toFixed(3)).toString()).replace(".",",");
+function csRefVal(ref, snapRef){
+  if (!ref || !snapRef) return null;
+  if (ref==="chgA") return snapRef.cur!=null ? -snapRef.cur : null;
+  const v = snapRef[ref]; return v==null || !isFinite(v) ? null : +v;
+}
+// Bizde okunan değerin şu anki hali
+function csHaveVal(it){
+  try{ const sn = panelWin && panelWin.ex30Snap ? panelWin.ex30Snap() : null; if (!sn || !it.have) return null;
+    if (it.have==="cdelta") return sn.cmax!=null && sn.cmin!=null ? (sn.cmax-sn.cmin)*1000 : null;
+    if (it.have.startsWith("w_")) return sn.ws ? sn.ws[it.have.slice(2)] : null;
+    if (it.have==="torque") return sn.tq; if (it.have==="vspd") return sn.spd;
+    return sn[it.have] ?? null; }catch{ return null; }
+}
+// Ünitenin tüm taramalarından (bilinen aralıklar, tam tarama, elle taramalar) kod → okumalar
+function csRows(tx){
+  const out=[];
+  for (const s of scans) if (s.tx===tx) for (const r of s.rows) out.push({s, r});
+  return out;
+}
+// Aday formüller: baytlar × çarpan + ekleme
+const CS_SCALES = [1,0.1,0.01,0.001,0.5,0.25,0.2,0.125,0.05,0.02,0.0625,0.03125,2,4,10,1/1024];
+function csFormulas(len){
+  const half=2**(8*len-1), q=2**(8*len-2), o=[];
+  for (const s of CS_SCALES){ for (const b of [0,-40,-50,-100,-273.15]) o.push([s,b]); o.push([s,-half*s],[s,-q*s]); }
+  return o;
+}
+function csPoints(it){
+  // Her kod için (bayt dizisi, referans değer) çiftleri: bizim bilinen değerden ya da elle girilen Car Scanner değerinden
+  const ent = csEntries[it.id] || [], pts = new Map();
+  for (const {s, r} of csRows(it.tx)){
+    s.snaps.forEach((sn,i)=>{ const hx=r.v[i]; if (!hx) return;
+      let y = csRefVal(it.ref, sn.ref);
+      if (y==null && ent.length){ let best=null; for (const e of ent){ const d=Math.abs(e.t-sn.t); if (d<=300000 && (!best || d<best.d)) best={d, v:e.v}; } if (best) y=best.v; }
+      if (y==null) return;
+      const k=r.did; if (!pts.has(k)) pts.set(k, {did:r.did, tx:s.tx, rx:s.rx, xs:[], ys:[]});
+      const p=pts.get(k); p.xs.push(unhex(hx)); p.ys.push(y); });
+  }
+  return [...pts.values()];
+}
+function csMatch(it){
+  const res=[], tolU = CS_TOL[it.unit] ?? 1;
+  for (const p of csPoints(it)){
+    const n=p.ys.length, L=Math.min(...p.xs.map(x=>x.length)); if (!n || !L) continue;
+    const yDistinct = new Set(p.ys.map(y=>Math.round(y/tolU))).size;
+    for (let st=0; st<Math.min(L,12); st++) for (const len of [1,2,3,4]) { if (st+len>L) continue; for (const sg of [false,true]){
+      const xs = p.xs.map(b=>readBytesVal(b, st, len, sg));
+      if (yDistinct>=3 && new Set(xs).size>=3){
+        const f=mtPear(xs, p.ys); if (!f || Math.abs(f.r)<0.92) continue;
+        res.push({did:p.did, tx:p.tx, rx:p.rx, st, len, sg, a:f.a, b:f.b, n, ok:n, fit:"eğri", score:2+Math.abs(f.r), last:p.xs[n-1], x:xs[n-1]});
+      } else {
+        // az farklı değer: hazır formüllerle tam eşleşme ara
+        if (p.ys.every(y=>Math.abs(y)<tolU) && xs.every(x=>x===0)) continue;   // hep sıfır: bilgi yok
+        for (const [a,b] of csFormulas(len)){
+          let ok=0; for (let i=0;i<n;i++){ const tol=Math.max(tolU, Math.abs(p.ys[i])*0.015); if (Math.abs(xs[i]*a+b-p.ys[i])<=tol) ok++; }
+          if (ok===n){ const simp = CS_SCALES.indexOf(a)*0.01 + (b===0?0:0.02) + (sg?0.01:0) + (len>2?0.02:0);
+            res.push({did:p.did, tx:p.tx, rx:p.rx, st, len, sg, a, b, n, ok, fit:"formül", score:Math.min(1.5, 0.4+0.25*yDistinct+0.05*n)-simp, last:p.xs[n-1], x:xs[n-1]}); break; }
+        }
+      }
+    } }
+  }
+  // aynı kod için en iyisi kalsın
+  const by={}; for (const c of res){ const k=c.did; if (!by[k] || c.score>by[k].score) by[k]=c; }
+  return Object.values(by).sort((a,b)=>b.score-a.score).slice(0,8);
+}
+function csStatus(it){
+  if (it.u==="?") return "unk";
+  if (it.have) return "have";
+  if (csMap[it.id]) return "found";
+  if ((csCands[it.id]||[]).length) return "cand";
+  return "miss";
+}
+const CS_STL = {have:"okunuyor", found:"bulundu", cand:"aday var", miss:"aranıyor", unk:"adı bilinmiyor"};
+function csRecalc(ids){ for (const it of CS) if ((!ids || ids.includes(it.id)) && it.tx && !it.have && !csMap[it.id]) { try{ csCands[it.id]=csMatch(it); }catch{ csCands[it.id]=[]; } } }
+function renderCs(){
+  const cnt={have:0,found:0,cand:0,miss:0,unk:0}; for (const it of CS) cnt[csStatus(it)]++;
+  const tot=CS.length, known=tot-cnt.unk;
+  $("csSum").innerHTML = `Car Scanner EX30 profilinde <b>${tot}</b> sensör var (${cnt.unk} tanesinin adı kayıtlarda geçmedi). Bizde okunan <b>${cnt.have}</b>, bu sayfada bulunan <b>${cnt.found}</b>, adayı çıkan <b>${cnt.cand}</b>, henüz bulunamayan <b>${cnt.miss}</b>.`;
+  $("csBarHave").style.width=(cnt.have/tot*100)+"%"; $("csBarFound").style.width=(cnt.found/tot*100)+"%"; $("csBarCand").style.width=(cnt.cand/tot*100)+"%";
+  const f=$("csFilter").value; let html=`<table><tr><th>Sensör</th><th>Durum</th><th>Car Scanner'da</th><th>Bizde</th><th></th></tr>`, lastU="";
+  for (const it of CS){ const st=csStatus(it);
+    if (f==="miss" && (st==="have"||st==="found")) continue; if (f==="have" && !(st==="have"||st==="found")) continue;
+    if (it.u!==lastU){ lastU=it.u; html+=`<tr class="cs-u"><td colspan="5">${it.u==="?" ? "Adı bilinmeyenler" : CS_UNAME[it.u]+" · "+it.tx}</td></tr>`; }
+    let ours="";
+    if (st==="have"){ const v=csHaveVal(it); ours = v==null ? "okunuyor" : csFmt(v)+" "+it.unit; }
+    else if (st==="found"){ const m=csMap[it.id]; ours=`<span class="mono">${m.did}</span>`; }
+    else if (st==="cand"){ const c=csCands[it.id][0]; ours=`<span class="mono">${c.did}</span> → ${csFmt(c.x*c.a+c.b)} ${it.unit}`; }
+    const open = csOpen===it.id;
+    html+=`<tr class="${open?"cs-open":""}"><td>${it.tr}<br><small style="color:var(--mut)">${it.cs} · ${CS_WHEN[it.when]}</small></td><td><span class="cs-st ${st}">${CS_STL[st]}</span></td><td>${it.ex==null?"–":csFmt(it.ex)+" "+it.unit}</td><td>${ours}</td><td>${it.tx?`<button class="sec mini" data-cs="${it.id}">${open?"Kapat":"Ayrıntı"}</button>`:""}</td></tr>`;
+    if (open) html+=`<tr class="cs-open"><td colspan="5">${csDetail(it)}</td></tr>`;
+  }
+  $("csList").innerHTML = html+`</table>`;
+}
+function csDetail(it){
+  const ent=csEntries[it.id]||[], c=csCands[it.id]||[], m=csMap[it.id];
+  const rows = csRows(it.tx), nCodes=new Set(rows.map(x=>x.r.did)).size;
+  let h=`<div class="cs-det">`;
+  h+=`<p class="note" style="margin-top:0">${it.tx}: taramalarda cevap veren <b>${nCodes}</b> kod var. ${it.ref?`Eşleştirmede bizim okuduğumuz <b>${MT_SIG[it.ref]?.[0]||"değer"}</b> kullanılıyor; ayrıca Car Scanner değeri de girebilirsin.`:`Bizde karşılaştıracak değer yok: Car Scanner'da gördüğün değeri gir, sonra burada "Tekrar oku" ya da "Okumaları izle".`} Ölçüm zamanı: ${CS_WHEN[it.when]}.</p>`;
+  h+=`<div class="row" style="margin-top:6px"><label>Car Scanner'da şu an <input id="csVal" inputmode="decimal" style="width:90px" placeholder="${it.ex??""}"> ${it.unit}</label><button class="sec mini" data-csadd="${it.id}">Değeri kaydet</button>
+    <button class="sec mini" data-csscan="${it.id}">Bu üniteyi tara</button><button class="sec mini" data-csre="${it.id}">Tekrar oku</button></div>`;
+  if (ent.length) h+=`<p class="note">Girilen değerler: ${ent.slice(-6).map((e,i)=>`${csFmt(e.v)} (${localTime(e.t)})`).join(", ")} <button class="sec mini" data-csclr="${it.id}">Temizle</button></p>`;
+  if (m) h+=`<p class="note">Onaylandı: <span class="mono">22${m.did}</span>, bayt ${m.st}${m.len>1?"–"+(m.st+m.len-1):""}${m.sg?" işaretli":""}, ham × ${mtNum(m.a)} ${m.b<0?"−":"+"} ${mtNum(Math.abs(m.b))}. Panelde ve kayıtlarda. <button class="sec mini" data-csun="${it.id}">Onayı kaldır</button></p>`;
+  if (c.length) h+=`<table><tr><th>Kod</th><th>Baytlar</th><th>Formül</th><th>Şu an</th><th>Kanıt</th><th></th></tr>`+c.map((x,i)=>`<tr><td class="mono">${x.did}</td><td class="mono">${x.st}${x.len>1?"–"+(x.st+x.len-1):""}${x.sg?" işaretli":""}</td><td class="mono">× ${mtNum(x.a)} ${x.b<0?"−":"+"} ${mtNum(Math.abs(x.b))}</td><td>${csFmt(x.x*x.a+x.b)} ${it.unit}</td><td>${x.n} okuma, ${x.fit==="eğri"?"birlikte değişiyor":"değer tutuyor"}</td><td><button class="sec mini" data-csok="${it.id}:${i}">Onayla</button></td></tr>`).join("")+`</table><p class="note">Tek okumada tutan aday şans eseri olabilir. En sağlamı: değer değiştiğinde (ör. şarj başında ve sonunda, klima açık/kapalı) tekrar değer girip okumak.</p>`;
+  else if (!m) h+=`<p class="note">${nCodes ? "Henüz eşleşen kod yok." : "Bu ünite henüz taranmadı."}</p>`;
+  return h+`</div>`;
+}
+// Ünite kodlarını bul (bilinen aralıklar ya da 0000–FFFF); sonuçlar tek "katalog" taramasında toplanır, kaldığı yerden sürer
+function csScanFor(tx){ let s=scans.find(x=>x.tx===tx && x.cs); if (!s){ s={id:"cs"+tx, t:Date.now(), unit:KNOWN_UNITS[tx]||tx.slice(4), tx, rx:rxFor(tx), range:"katalog", cs:true, snaps:[{t:Date.now(), ref:scanRef()}], rows:[]}; scans.push(s); } return s; }
+async function csRun(plan, label){
+  if (csJob){ csJob.stop=true; return; }
+  if (!chW){ $("csInfo").textContent="OBD bağlı değil."; return; }
+  const prog=store.get("csProg", {});   // {tx: ["4800-49FF", ...]} bitmiş bloklar
+  const blocks=[]; for (const [tx, ranges] of plan) for (const r of ranges){ const [a,b]=r.split("-").map(x=>parseInt(x,16)); for (let s=a; s<=b; s+=256){ const k=s.toString(16).toUpperCase().padStart(4,"0"); if (!(prog[tx]||[]).includes(k)) blocks.push([tx, s, Math.min(b, s+255)]); } }
+  if (!blocks.length){ $("csInfo").textContent=`${label}: hepsi daha önce tarandı. Değerleri güncellemek için "Okumaları izle".`; return; }
+  csJob={stop:false}; $("csAll").textContent=$("csDeep").textContent="Durdur"; 
+  await pausePolling(); await send("ATST32");
+  const P=$("csProg"); P.max=blocks.reduce((q,b)=>q+b[2]-b[1]+1,0); P.value=0; let done=0, found=0, cur="";
+  try{
+    for (const [tx, a, b] of blocks){ if (csJob.stop || !chW) break;
+      const u=unitList().find(x=>x.tx===tx) || {tx, rx:rxFor(tx)}; if (cur!==tx){ await setUnit(u.tx, u.rx); cur=tx; }
+      const s=csScanFor(tx);
+      if (!csJob.snapped) csJob.snapped={};
+      if (!csJob.snapped[tx]){ csJob.snapped[tx]=1; if (s.rows.length){ s.snaps.push({t:Date.now(), ref:scanRef()}); for (const r of s.rows) r.v.push(""); } else s.snaps[s.snaps.length-1]={t:Date.now(), ref:scanRef()}; }
+      const nSn=s.snaps.length;
+      for (let d=a; d<=b && !csJob.stop && chW; d++){
+        const did=d.toString(16).toUpperCase().padStart(4,"0");
+        const r=parseUds(await send("22"+did, 500), did);
+        if (r && r.ok && r.data.length && !s.rows.some(x=>x.did===did)){ const v=Array(nSn).fill(""); v[nSn-1]=hexb(r.data); s.rows.push({did, v}); found++; }
+        done++; P.value=done; if (done%8===0) $("csInfo").textContent=`${label}: ${KNOWN_UNITS[tx]||tx} ${did} · ${found} yeni kod`;
+      }
+      if (!csJob.stop){ (prog[tx]=prog[tx]||[]).push(a.toString(16).toUpperCase().padStart(4,"0")); store.set("csProg", prog); }
+      s.rows.sort((x,y)=>x.did.localeCompare(y.did)); saveScans();
+    }
+  } finally {
+    await send("ATST64"); await restoreBms();
+    const stopped=csJob.stop; csJob=null; $("csAll").textContent="Bilinen aralıkları tara (5 ünite)"; $("csDeep").textContent="0000–FFFF tara (uzun, kaldığı yerden sürer)";
+    $("csInfo").textContent = `${label} ${stopped?"durduruldu (kaldığı yerden sürer)":"bitti"}: ${found} yeni kod. Şimdi "Okumaları izle"yi açıp değerlerin değiştiği durumları (sürüş, şarj, klima) yaşatın.`;
+    fillScanHist(); csRecalc(); renderCs(); if (chW) startPolling();
+  }
+}
+// Bulunan tüm kodları (5 ünite) tekrar oku: her okuma o anki bilinen değerlerle birlikte saklanır
+let csReading=false;
+async function csReadAll(only){
+  if (csReading || !chW || csJob || scanning) return; csReading=true;
+  try{ const ref=scanRef(); await pausePolling();
+    for (const s of scans.filter(x=>x.cs && x.rows.length && (!only || x.tx===only))){
+      const u=unitList().find(x=>x.tx===s.tx) || {tx:s.tx, rx:s.rx}; await setUnit(u.tx, u.rx);
+      s.snaps.push({t:Date.now(), ref}); for (const r of s.rows){ const p=parseUds(await send("22"+r.did, 500), r.did); r.v.push(p && p.ok ? hexb(p.data) : ""); }
+      // en fazla 60 okuma saklanır (ilk okuma kalır)
+      while (s.snaps.length>60){ s.snaps.splice(1,1); for (const r of s.rows) r.v.splice(1,1); }
+    }
+    await restoreBms(); saveScans();
+  } finally { csReading=false; if (chW) startPolling(); }
+  csRecalc(); renderCs();
+}
+let csWatchT=null;
+function csWatch(on){ clearInterval(csWatchT); csWatchT=null; if (on){ csReadAll(); csWatchT=setInterval(()=>{ if (tab==="scan") csReadAll(); }, 8000); } $("csWatch").textContent = on ? "İzlemeyi durdur" : "Okumaları izle"; }
+function csConfirm(it, c){
+  csMap[it.id]={tx:c.tx, rx:c.rx, did:c.did, st:c.st, len:c.len, sg:c.sg, a:c.a, b:c.b}; store.set("csMap", csMap);
+  const ex=store.get("panelExtras",[]).filter(e=>e.cs!==it.id);
+  ex.push({id:"cs"+it.n, cs:it.id, name:it.tr, unit:it.unit, tx:c.tx, rx:c.rx, did:c.did, start:c.st, len:c.len, signed:c.sg, scale:+c.a.toPrecision(6), offset:+c.b.toPrecision(6), every:5});
+  store.set("panelExtras", ex); renderExtras(); try{ panelWin && panelWin.ex30ReloadExtras && panelWin.ex30ReloadExtras(); }catch{}
+  log(`Car Scanner "${it.cs}" → ${c.tx.slice(4)}:${c.did} onaylandı, Panel'e eklendi`);
 }
 
 // ---- Panele ek değer ekleme (panel.html "extras") ----
@@ -2611,6 +2911,25 @@ try{ if (autoMode()) setTimeout(()=>ex30AutoConnect(), 500); }catch{}
 // Orta ekranda (Android Automotive) panel her zaman yüklü: OBD bağlı olmasa da aracın kendi verileriyle yolculuk ve kayıt tutulur
 if (window.AndroidCar && !/mirror/.test(location.hash)){ const ep=()=>{ try{ ensurePanel(); }catch{} }; if (document.readyState==="complete") ep(); else window.addEventListener("load", ep); }
 $("scRe").onclick = rescan;
+// Car Scanner kapsamı
+$("csFilter").onchange = renderCs;
+$("csAll").onclick = () => csRun(Object.entries(CS_PLAN), "Bilinen aralıklar");
+$("csDeep").onclick = () => { const tx=$("csDeepUnit").value; csRun([[tx, ["0000-FFFF"]]], `${KNOWN_UNITS[tx]||tx} tam tarama`); };
+$("csWatch").onclick = () => csWatch(!csWatchT);
+$("csDeepUnit").innerHTML = Object.entries(CS_UNIT).map(([k,tx])=>`<option value="${tx}">${CS_UNAME[k]}</option>`).join("");
+$("csList").onclick = e => { const b=e.target.closest("button"); if (!b) return; const d=b.dataset;
+  const it = id => CS.find(x=>x.id===+id);
+  if (d.cs){ csOpen = csOpen===+d.cs ? null : +d.cs; if (csOpen){ csRecalc([csOpen]); } renderCs(); return; }
+  if (d.csadd){ const v=parseFloat(($("csVal").value||"").replace(",",".")); if (!isFinite(v)) return; (csEntries[d.csadd]=csEntries[d.csadd]||[]).push({t:Date.now(), v}); while (csEntries[d.csadd].length>30) csEntries[d.csadd].shift(); store.set("csEntries", csEntries);
+    const x=it(d.csadd); if (chW && x) { csReadAll(x.tx); } else { csRecalc([+d.csadd]); renderCs(); } return; }
+  if (d.csclr){ delete csEntries[d.csclr]; store.set("csEntries", csEntries); csRecalc([+d.csclr]); renderCs(); return; }
+  if (d.csscan){ const x=it(d.csscan); csRun([[x.tx, CS_PLAN[x.tx]]], `${CS_UNAME[x.u]} bilinen aralıklar`); return; }
+  if (d.csre){ const x=it(d.csre); csReadAll(x.tx); return; }
+  if (d.csok){ const [id,i]=d.csok.split(":"); const x=it(id), c=(csCands[id]||[])[+i]; if (x && c){ csConfirm(x, c); renderCs(); } return; }
+  if (d.csun){ delete csMap[d.csun]; store.set("csMap", csMap); const ex=store.get("panelExtras",[]).filter(e=>e.cs!==+d.csun); store.set("panelExtras", ex); renderExtras(); try{ panelWin && panelWin.ex30ReloadExtras && panelWin.ex30ReloadExtras(); }catch{} csRecalc([+d.csun]); renderCs(); }
+};
+setInterval(()=>{ if (tab==="scan" && !csJob){ const on=!!chW; $("csAll").disabled=$("csDeep").disabled=$("csWatch").disabled=!on && !csWatchT; if (!document.activeElement || document.activeElement.id!=="csVal") renderCs(); } }, 3000);
+setTimeout(()=>{ csRecalc(); renderCs(); }, 0);
 $("ptBtn").onclick = pedalTest;
 $("scCopy").onclick = () => copyText(curScan ? scanCsv(curScan) : "unite,istek,cevap,kod,ham,onceki\n"+scanRes.map(x=>`${x.unit},${x.tx},${x.rx},${x.did},${hexb(x.bytes)},${x.prev?hexb(x.prev):""}`).join("\n"), "Tarama sonucu");
 document.addEventListener("click", e => {
