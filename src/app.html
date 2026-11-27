@@ -140,6 +140,13 @@
   body.aaos #tabs button.act{background:#1B2227}
   body.aaos main{padding-top:64px}
   #btnMenu{display:none}
+  .al-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .al-c{background:var(--card);padding:14px 16px;min-height:92px;display:flex;flex-direction:column;justify-content:space-between;gap:6px}
+  .al-c .v{font-size:32px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .al-c .v small{font-size:.45em;color:var(--mut);font-weight:500;margin-left:.2em}
+  .al-c .l{font-size:14px;color:var(--mut);font-weight:500;line-height:1.25}
+  .al-c .k{font-size:11px;color:#4A555D;font-family:ui-monospace,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .al-c.old{opacity:.45}
   .pill.lk{background:#1E2A24;color:#8FD3A8;border-color:#2F4A3A}
   /* Başlıktaki durum ışıkları: yeşil açık, sarı bekliyor, gri kapalı; kayıtta kırmızı yanıp söner */
   .leds{display:inline-flex;gap:10px;align-items:center;margin:0 4px}
@@ -385,6 +392,7 @@
     <button data-tab="conn" class="act">Bağlantı</button>
     <button data-tab="panel">Panel</button>
     <button data-tab="drive">Sürüş</button>
+    <button data-tab="alper">Alper</button>
     <button data-tab="perf">Performans</button>
     <button data-tab="charge">Şarj<span class="rec"></span></button>
     <button data-tab="cap">Kapasite</button>
@@ -407,6 +415,13 @@
   <div id="banner" class="banner"></div>
 
   <!-- ============ CANLI ============ -->
+  <section id="tab-alper">
+    <div class="card" style="margin-top:0">
+      <h2>Aracın kendi verileri</h2>
+      <p class="note" style="margin-top:0" id="alInfo">Orta ekranın aracın kendisinden okuduğu tüm değerler (OBD gerekmez). Telefonda, orta ekrana Bluetooth ile bağlıyken görünür.</p>
+      <div class="al-grid" id="alGrid"></div>
+    </div>
+  </section>
   <section id="tab-conn" class="act">
     <div class="card" id="acCard" style="margin-top:0;display:none">
       <h2>Otomatik bağlanma</h2>
@@ -668,6 +683,12 @@
       </div>
       <div class="tbl" id="scList"><div class="empty">Henüz tarama yapılmadı</div></div>
       <p class="note">Park halindeyken okuyun, sonra sürüşte, şarjda ya da ısıtma çalışırken tekrar okuyun: değişen kodlar sarı görünür. "1 bayt −50" ve "2 bayt /100 −50" sütunları sıcaklık olabilecek değerleri gösterir. Bir değerin anlamını bulduğunuzda <b>Panele ekle</b> ile Panel'de kutu olarak izleyebilirsiniz.</p>
+    </div>
+    <div class="card" id="ptCard">
+      <h2>Pedal testi</h2>
+      <p class="note" style="margin-top:0">Gaz pedalının kodunu bulmak için: araç <b>P</b>'deyken VCU'da geniş bir aralık tarayın (ör. 4000–4FFF, birkaç dakika sürer), sonra testi başlatın. Ekran sırayla pedalı bırakmanızı, yarıya ve sonuna kadar basmanızı söyler; her adımda kodlar yeniden okunur ve pedalla birlikte değişen bayt aşağıda çıkar. P'de araç gaza basınca hareket etmez, yalnızca okuma yapılır.</p>
+      <div class="row"><button id="ptBtn" class="sec">Pedal testini başlat</button></div>
+      <p class="note" id="ptMsg"></p>
     </div>
     <div class="card" id="mtCard">
       <h2>4. Olası anlamlar</h2>
@@ -1137,10 +1158,30 @@ function scanFromRes(found, u, range){
   scans.push(s); while (scans.length>MAX_SCANS) scans.shift(); curScan=s; saveScans(); fillScanHist(); return s;
 }
 // Eşleştirme için o anki bilinen değerler (panelden)
-const MT_SIG = {spd:["Hız","km/s"], kw:["Güç","kW"], cur:["Batarya akımı","A"], volt:["Batarya voltajı","V"], soc:["Şarj","%"], avg:["Batarya ort.","°C"], max:["Batarya maks.","°C"], tmin:["Batarya min.","°C"],
+const MT_SIG = {pedal:["Gaz pedalı (test)","%"], spd:["Hız","km/s"], kw:["Güç","kW"], cur:["Batarya akımı","A"], volt:["Batarya voltajı","V"], soc:["Şarj","%"], avg:["Batarya ort.","°C"], max:["Batarya maks.","°C"], tmin:["Batarya min.","°C"],
   cin:["Batarya soğutma girişi","°C"], cout:["Güç aktarma soğutma","°C"], motor:["Motor","°C"], rpm:["Motor devri","dev/dk"], tq:["Motor torku","Nm"], brake:["Fren basıncı","bar"], v12:["12 V akü","V"], out:["Dış sıcaklık","°C"]};
-function scanRef(){ try{ ensurePanel(); const sn = panelWin && panelWin.ex30Snap ? panelWin.ex30Snap() : null; if (!sn) return null;
-  const o={}; for (const k in MT_SIG) if (sn[k]!=null && isFinite(sn[k])) o[k]=+sn[k]; return Object.keys(o).length ? o : null; }catch{ return null; } }
+let pedalPhase = null;   // pedal testi sırasında istenen pedal konumu (0/50/100)
+function scanRef(){ const o={}; if (pedalPhase!=null) o.pedal=pedalPhase;
+  try{ ensurePanel(); const sn = panelWin && panelWin.ex30Snap ? panelWin.ex30Snap() : null;
+    if (sn) for (const k in MT_SIG) if (k!=="pedal" && sn[k]!=null && isFinite(sn[k])) o[k]=+sn[k]; }catch{}
+  return Object.keys(o).length ? o : null; }
+// Yönlendirmeli pedal testi: araç P'de, sırayla bırak / yarı / tam; her adımda cevap veren kodlar yeniden okunur
+let pedalRun=false;
+async function pedalTest(){
+  if (pedalRun) { pedalRun=false; return; }
+  if (!curScan || !curScan.rows.length){ $("ptMsg").textContent="Önce VCU'da bir aralık tarayın (ör. 4000–4FFF), sonra testi başlatın."; return; }
+  if (!chW){ $("ptMsg").textContent="OBD bağlı değil."; return; }
+  pedalRun=true; $("ptBtn").textContent="Testi durdur";
+  const steps=[[0,"Pedalı tamamen bırakın"],[50,"Gaz pedalına yarıya kadar basın, tutun"],[100,"Sonuna kadar basın, tutun"],[50,"Yarıya bırakın, tutun"],[0,"Tamamen bırakın"],[100,"Yine sonuna kadar basın, tutun"],[0,"Bırakın"],[50,"Yarıya basın, tutun"]];
+  try{
+    for (let i=0;i<steps.length && pedalRun;i++){ const [ph,txt]=steps[i];
+      for (let c=4;c>0 && pedalRun;c--){ $("ptMsg").innerHTML=`<b style="font-size:22px">${txt}</b><br>${c} sn sonra okunacak · adım ${i+1}/${steps.length}`; await sleep(1000); }
+      if (!pedalRun) break;
+      $("ptMsg").innerHTML=`<b style="font-size:22px">${txt}</b><br>okunuyor, pedalı oynatmayın…`;
+      pedalPhase=ph; await rescan(); pedalPhase=null; }
+    $("ptMsg").innerHTML = pedalRun ? "Test bitti. \"Olası anlamlar\" listesinde <b>Gaz pedalı (test)</b> satırına bakın; Panele ekle ile kaydedebilirsiniz." : "Test durduruldu.";
+  } finally { pedalRun=false; pedalPhase=null; $("ptBtn").textContent="Pedal testini başlat"; renderScan(); }
+}
 function addSnap(ref){
   if (!curScan) return; const now=Date.now(); curScan.snaps.push(ref ? {t:now, ref} : {t:now});
   const m={}; for (const x of scanRes) m[x.did]=hexb(x.bytes);
@@ -1194,7 +1235,7 @@ function parseUds(resp, did){
   return null;
 }
 const KNOWN_UNITS = {"1DD01601":"VCU","1DD01631":"Ön motor","1DD01635":"Batarya (BMS)","1DD01637":"Arka motor","1DD01650":"Şarj cihazı","1DD01701":"Şasi"};
-const UNIT_PRESETS = {"1DD01635":["4800-49FF","DD00-DDFF","EE00-EEFF"],"1DD01637":["E300-E3FF","EE00-EEFF"],"1DD01601":["4A00-4AFF","D900-D9FF","E300-E3FF"],"1DD01650":["EE00-EEFF"],"1DD01701":["2B00-2BFF","F400-F4FF","FD00-FEFF"]};
+const UNIT_PRESETS = {"1DD01635":["4800-49FF","DD00-DDFF","EE00-EEFF"],"1DD01637":["E300-E3FF","EE00-EEFF"],"1DD01601":["4000-4FFF","4A00-4AFF","D900-D9FF","E300-E3FF"],"1DD01650":["EE00-EEFF"],"1DD01701":["2B00-2BFF","F400-F4FF","FD00-FEFF"]};
 const rxFor = tx => (0x1EC00E80 + ((parseInt(tx.slice(4),16) - 0x1600) << 13)).toString(16).toUpperCase();
 let units = store.get("units", []);   // [{tx, rx, name, part}]
 function unitList(){ const m={}; for (const tx in KNOWN_UNITS) m[tx]={tx, rx:rxFor(tx), name:KNOWN_UNITS[tx]}; for (const u of units) m[u.tx]=Object.assign(m[u.tx]||{}, u); return Object.values(m).sort((a,b)=>a.tx.localeCompare(b.tx)); }
@@ -1829,6 +1870,30 @@ function showBanner(t){ const b=$("banner"); b.textContent=t; b.style.display="b
 const autoWaiting = () => { try{ return !chW && autoMode() && !obdHold() && !!navigator.bluetooth?.lastDevice?.(); }catch{ return false; } };
 function connLabel(){ const t = chW ? "Kes" : autoWaiting() ? "Durdur" : "Bağlan"; if (btnConn.textContent!==t && !(btnConn.textContent==="Kes" && !chW && autoBusy)) btnConn.textContent=t; }
 setInterval(connLabel, 1000);
+// ---- Alper: aracın kendi (AAOS) verileri, ızgara ----
+const AL = {
+  EV_BATTERY_INSTANTANEOUS_CHARGE_RATE:["Batarya gücü","kW",v=>v/1e6,1], EV_BATTERY_LEVEL:["Kalan enerji","kWh",v=>v/1000,2], EV_CURRENT_BATTERY_CAPACITY:["Kullanılabilir kapasite","kWh",v=>v/1000,2],
+  INFO_EV_BATTERY_CAPACITY:["Batarya kapasitesi (etiket)","kWh",v=>v/1000,1], RANGE_REMAINING:["Menzil","km",v=>v/1000,0], PERF_VEHICLE_SPEED:["Hız","km/s",v=>v*3.6,1],
+  PERF_VEHICLE_SPEED_DISPLAY:["Gösterge hızı","km/s",v=>v*3.6,0], ENV_OUTSIDE_TEMPERATURE:["Dış sıcaklık","°C",v=>v,1], EV_BATTERY_AVERAGE_TEMPERATURE:["Batarya sıcaklığı","°C",v=>v,1],
+  EV_REGENERATIVE_BRAKING_STATE:["Rejen durumu","",v=>v,0], EV_STOPPING_MODE:["Durma modu","",v=>v,0], EV_CHARGE_STATE:["Şarj durumu","",v=>v,0], EV_CHARGE_PORT_CONNECTED:["Şarj kablosu","",v=>v?1:0,0],
+  EV_CHARGE_PORT_OPEN:["Şarj kapağı","",v=>v?1:0,0], EV_CHARGE_TIME_REMAINING:["Şarj kalan süre","dk",v=>v/60,0], EV_CHARGE_PERCENT_LIMIT:["Şarj hedefi","%",v=>v,0], EV_CHARGE_CURRENT_DRAW_LIMIT:["Şarj akım sınırı","A",v=>v,0],
+  GEAR_SELECTION:["Vites","",v=>v,0], CURRENT_GEAR:["Mevcut vites","",v=>v,0], PARKING_BRAKE_ON:["El freni","",v=>v?1:0,0], IGNITION_STATE:["Kontak","",v=>v,0],
+  HVAC_TEMPERATURE_CURRENT:["Kabin sıcaklığı","°C",v=>v,1], HVAC_TEMPERATURE_SET:["Kabin ayarı","°C",v=>v,1], ENGINE_RPM:["Devir","dev/dk",v=>v,0], INSTANTANEOUS_EV_EFFICIENCY:["Anlık verim (ham)","",v=>v,2],
+  NIGHT_MODE:["Gece modu","",v=>v?1:0,0], FUEL_LEVEL:["Yakıt/enerji seviyesi","",v=>v,0], INFO_MODEL_YEAR:["Model yılı","",v=>v,0]};
+const GEAR_TR = {1:"N",2:"R",4:"P",8:"D"}, ONOFF = ["kapalı","açık"];
+function renderAlper(){
+  if (tab!=="alper") return;
+  let cv=null; try{ cv = panelWin && panelWin.ex30Car ? panelWin.ex30Car() : null; }catch{}
+  const el=$("alGrid");
+  if (!cv || !Object.keys(cv.v).length){ el.innerHTML=`<div class="al-c"><div class="l">Henüz araç verisi yok. Bu sekme orta ekranda ya da telefon orta ekrana bağlıyken dolar.</div></div>`; return; }
+  const now=Date.now(), keys=Object.keys(cv.v).filter(k=>typeof cv.v[k]==="number"||typeof cv.v[k]==="boolean").sort((a,b)=>(AL[a.split("@")[0]]?0:1)-(AL[b.split("@")[0]]?0:1) || a.localeCompare(b));
+  el.innerHTML = keys.map(k=>{ const raw=cv.v[k], base=k.split("@")[0], area=k.includes("@")?k.split("@")[1]:"", d=AL[base], age=now-(cv.t[k]||0);
+    let val = d ? d[2](typeof raw==="boolean"?(raw?1:0):raw) : (typeof raw==="boolean"?(raw?1:0):raw);
+    let txt = (base==="GEAR_SELECTION"||base==="CURRENT_GEAR") ? (GEAR_TR[val]||val) : (d && ["Şarj kablosu","Şarj kapağı","El freni","Gece modu"].includes(d[0])) ? ONOFF[val?1:0] : (typeof val==="number" ? f1(val, d?d[3]:(Math.abs(val)<100?2:0)) : String(val));
+    return `<div class="al-c ${age>30000?"old":""}"><div class="v">${txt}${d&&d[1]?`<small>${d[1]}</small>`:""}</div><div><div class="l">${d?d[0]:base.toLowerCase().replace(/_/g," ")}${area?` · bölge ${area}`:""}</div><div class="k">${base}</div></div></div>`; }).join("");
+  $("alInfo").textContent = `Aracın kendisinden okunan ${keys.length} değer (OBD gerekmez). Soluk kutular 30 sn'dir güncellenmedi.`;
+}
+setInterval(renderAlper, 1000);
 // Durum ışıkları
 function renderLeds(){
   const set=(id,st,title)=>{ const el=$(id); el.classList.toggle("on", st==="on"); el.classList.toggle("wait", st==="wait"); if (title) el.title=title; };
@@ -2480,6 +2545,7 @@ try{ if (autoMode()) setTimeout(()=>ex30AutoConnect(), 500); }catch{}
 // Orta ekranda (Android Automotive) panel her zaman yüklü: OBD bağlı olmasa da aracın kendi verileriyle yolculuk ve kayıt tutulur
 if (window.AndroidCar && !/mirror/.test(location.hash)){ const ep=()=>{ try{ ensurePanel(); }catch{} }; if (document.readyState==="complete") ep(); else window.addEventListener("load", ep); }
 $("scRe").onclick = rescan;
+$("ptBtn").onclick = pedalTest;
 $("scCopy").onclick = () => copyText(curScan ? scanCsv(curScan) : "unite,istek,cevap,kod,ham,onceki\n"+scanRes.map(x=>`${x.unit},${x.tx},${x.rx},${x.did},${hexb(x.bytes)},${x.prev?hexb(x.prev):""}`).join("\n"), "Tarama sonucu");
 document.addEventListener("click", e => {
   const d=e.target.closest("[data-del]"), c=e.target.closest("[data-csv]");

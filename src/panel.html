@@ -532,7 +532,8 @@ const carv = {};   // "AD" ya da "AD@alan" → değer
 const aaos = k => { const v = carv[k]; return typeof v === "number" && isFinite(v) ? v : null; };
 const WHEEL_AREA = {fl:1, fr:2, rl:4, rr:8};
 let lastCarT=0;
-window.__car = o => { lastCarT=Date.now(); carv[o.area ? o.name+"@"+o.area : o.name] = o.value; if (!running) render(); };
+const carT = {};
+window.__car = o => { lastCarT=Date.now(); const ck=o.area ? o.name+"@"+o.area : o.name; carv[ck] = o.value; carT[ck]=lastCarT; if (!running) render(); };
 window.__carStatus = t => { const el=document.getElementById("aaosStatus"); if (el) el.textContent = t; };
 // Volvo EX30: EV_BATTERY_INSTANTANEOUS_CHARGE_RATE park halinde (şarj kablosu yokken) +201000 mW → deşarjı artı veriyor (Android tanımının tersi)
 function aaosPower(){ const v=aaos("EV_BATTERY_INSTANTANEOUS_CHARGE_RATE"); return v==null ? null : v/1e6; }
@@ -1345,10 +1346,12 @@ window.ex30RemoteApply = st => { try{ if (typeof st==="string") st=JSON.parse(st
   REMOTE.t=Date.now(); const now=REMOTE.t;
   for (const k in vals) delete vals[k]; Object.assign(vals, st.vals||{});
   trips = st.trips || trips; tripView = tripView || st.tripView;
-  for (const k in carv) delete carv[k]; Object.assign(carv, st.carv||{}); Object.assign(geo, st.geo||{});
+  for (const k in carv) delete carv[k]; Object.assign(carv, st.carv||{}); Object.assign(geo, st.geo||{}); for (const k in carv) carT[k]=now-(st.cT||0);
   for (const k in st.age||{}) valT[k]=now-st.age[k]; lastSampleT=now-(st.sT||0); lastCarT=now-(st.cT??1e9); render(); }catch(e){} };
 window.ex30RemoteEnd = () => { if (!REMOTE.on) return; REMOTE.on=false; trips=REMOTE.saved||trips; REMOTE.saved=null; for (const k in vals) delete vals[k]; log("Orta ekran canlı verisi bitti"); render(); };
 window.ex30RemoteOn = () => REMOTE.on;
+// Alper sekmesi: aracın kendi değerleri ve son güncelleme zamanları
+window.ex30Car = () => ({v: carv, t: carT});
 setInterval(()=>{ if (REMOTE.on && Date.now()-REMOTE.t>6000) window.ex30RemoteEnd(); }, 2000);
 loadExtras();
 window.addEventListener("storage", e=>{ if (e.key==="ex30.panelExtras") window.ex30ReloadExtras(); });
