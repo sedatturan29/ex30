@@ -276,7 +276,7 @@
   .jr-empty{padding:28px 0;color:var(--dv-mut);font-size:15px;line-height:1.5}
   @media (max-width:420px){ .jr-sum{grid-template-columns:repeat(2,minmax(0,1fr))} .jr-sum div:nth-child(3){padding-left:0;border-left:0} .jr-sum div:nth-child(n+3){border-top:1px solid var(--dv-line)} }
   /* ======== Performans (pist modu): Sürüş ekranıyla aynı renk ve yazı dili ======== */
-  #tab-drive, #tab-perf, #tab-trip, #tab-live{--dv-bg:#12171B;--dv-line:#232B32;--dv-fg:#ECEFEC;--dv-mut:#8E999F;--dv-draw:#D6C45C;--dv-regen:#8DB5D6;--dv-warn:#EFA43A;--dv-hot:#EC5A4F;--dv-ok:#6F9484;
+  #tab-drive, #tab-perf, #tab-trip, #tab-live, #tab-charge{--dv-bg:#12171B;--dv-line:#232B32;--dv-fg:#ECEFEC;--dv-mut:#8E999F;--dv-draw:#D6C45C;--dv-regen:#8DB5D6;--dv-warn:#EFA43A;--dv-hot:#EC5A4F;--dv-ok:#6F9484;
     font-family:'EX30 Gauge',system-ui,sans-serif;font-variant-numeric:tabular-nums lining-nums;color:var(--dv-fg)}
   /* Performans: üstte hız + anlık kW ve güç çubuğu, sonra 4 gösterge, pedallar, altta büyük araç şeması ve G-metre */
   .pv{display:flex;flex-direction:column;gap:1px;background:var(--dv-line);height:calc(100vh - var(--dv-top,150px));min-height:560px;border-radius:14px;overflow:hidden;outline:1px solid var(--dv-line)}
@@ -357,6 +357,9 @@
   .tbl{overflow-x:auto}
   progress{width:100%;height:8px;accent-color:var(--acc)}
   .empty{color:var(--mut);font-size:13px;padding:6px 0}
+  .mod-map{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;margin-top:6px}
+  .mod-map div{border-radius:6px;padding:8px 0;text-align:center;font-weight:700;font-size:15px;color:#0d1114}
+  .mod-map div.lo{outline:2px solid #6CB4FF} .mod-map div.hi{outline:2px solid #FF7A5C}
   .cs-bar{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--line);margin-top:8px}
   .cs-bar i{display:block;height:100%} #csBarHave{background:var(--ok)} #csBarFound{background:var(--acc)} #csBarCand{background:var(--warn)}
   .cs-st{display:inline-block;padding:2px 7px;border-radius:9px;font-size:11px;font-weight:600;white-space:nowrap}
@@ -513,6 +516,13 @@
       <div class="tile"><div class="k">En yüksek güç</div><div class="v" id="c_peak">–<small>kW</small></div></div>
       <div class="tile"><div class="k">Ortalama batarya sıcaklığı</div><div class="v" id="c_temp">–<small>°C</small></div></div>
       <div class="tile"><div class="k">Süre</div><div class="v" id="c_dur">–</div></div>
+      <div class="tile"><div class="k">Doluya kalan (BMS)</div><div class="v" id="c_full">–<small>kWh</small></div></div>
+      <div class="tile"><div class="k">Doluya kalan süre</div><div class="v" id="c_fullT">–</div></div>
+    </div>
+    <div class="card" id="modCard">
+      <h2>Modül sıcaklıkları</h2>
+      <div class="mod-map" id="modMap"></div>
+      <p class="note" id="modNote">Bataryadaki 20 sıcaklık sensörü (BMS EE83). En soğuk modül şarj hızını belirler.</p>
     </div>
     <div class="card" id="nomCard">
       <h2 id="nomTitle">Nominale göre</h2>
@@ -1913,6 +1923,18 @@ function renderCharge(){
   $("chgFirst").style.display = cfg.signKnown ? "none" : "";
   const ss=active.charge, last=hist[hist.length-1]||{};
   setV("c_kw", last.P==null?null:-last.P, "kW"); setV("c_soc", last.soc, "%"); setV("c_temp", last.avg, "°C");
+  // BMS'in kendi hesabı: doluya kalan enerji ve mevcut güçle kalan süre; modül sıcaklık haritası
+  let sn=null; try{ sn = panelWin && panelWin.ex30Snap ? panelWin.ex30Snap() : null; }catch{}
+  setV("c_full", sn?.efull, "kWh", 1);
+  { const pin = last.P!=null ? -last.P : null, lim = cfg.chgLimit || 100, soc = sn?.soc ?? last.soc;
+    let kwh = sn?.efull; if (kwh!=null && soc!=null && lim<100 && soc<lim) kwh = kwh * (lim-soc)/(100-soc);
+    $("c_fullT").textContent = kwh!=null && pin>1 ? dur(kwh/pin*3600e3) + (lim<100?` (%${lim})`:"") : "–"; }
+  { const m=sn?.mods, el=$("modMap");
+    if (m && m.length){ const lo=Math.min(...m), hi=Math.max(...m);
+      el.innerHTML = m.map(v=>`<div class="${v===lo?"lo":v===hi?"hi":""}" style="background:${heat(v,15,35,45)}">${f1(v,0)}°</div>`).join("");
+      $("modNote").textContent = `${m.length} sensör · en soğuk ${f1(lo,1)} °C, en sıcak ${f1(hi,1)} °C, fark ${f1(hi-lo,1)} °C. Nominal şarj hızı için en soğuk modül önemlidir.`;
+      $("modCard").style.display=""; }
+    else $("modCard").style.display = "none"; }
   if (ss){ const s=summarize(ss); setV("c_kwh", ss.eIn, "kWh", 2); setV("c_peak", s.peakIn, "kW"); $("c_dur").textContent=dur(s.dur); }
   else { setV("c_kwh", null, "kWh"); setV("c_peak", null, "kW"); $("c_dur").textContent="–"; }
   // seçim listesi
@@ -2514,7 +2536,8 @@ const EX30_TOP = "data:image/webp;base64,UklGRnpbAABXRUJQVlA4WAoAAAAQAAAAkQEARwM
 // Basınç: 36–42 psi yeşil, dışı turuncu, 25 psi altı (patlak/hızlı kayıp) kırmızı
 const psiCol = p => p==null ? "#3A444C" : p<25 ? "var(--dv-hot)" : (p<36||p>42) ? "var(--dv-warn)" : "#59D68A";
 function pfCar(s){
-  const tp=s?.tp||{}, ws=s?.ws||{}, tt=s?.tt||{};
+  const tp=s?.tp||{}, ws=s?.ws||{}, tt=s?.tt||{}, X=s?.x||{};
+  const dk={fl:X.d_fl, fr:X.d_fr, rl:X.d_rl, rr:X.d_rr};   // fren diski sıcaklıkları (şasi FEE7)
   // görsel 402×840 → 210,6×440; x 104,7…315,3, y 20…460; ön aks ≈104, arka aks ≈379
   const FA=104, RA=379, C=210;
   const wheel=(w,x,ay,lx,anc)=>{ const p=tp[w], c=psiCol(p);
@@ -2522,7 +2545,8 @@ function pfCar(s){
       <text x="${lx}" y="${ay-6}" fill="${p==null?"#5D6870":c}" font-size="36" font-weight="700" text-anchor="${anc}">${p==null?"–":f1(p,1)}</text>
       <text x="${lx}" y="${ay+14}" fill="#8E999F" font-size="14" font-weight="500" text-anchor="${anc}">psi</text>
       <text x="${lx}" y="${ay+44}" fill="#ECEFEC" font-size="26" font-weight="700" text-anchor="${anc}">${ws[w]!=null?f1(ws[w],0):"–"}<tspan fill="#8E999F" font-size="14" font-weight="500" dx="3">km/s</tspan></text>
-      ${tt[w]!=null?`<text x="${lx}" y="${ay+64}" fill="#8E999F" font-size="15" font-weight="500" text-anchor="${anc}">${f1(tt[w])}°</text>`:""}`; };
+      ${tt[w]!=null?`<text x="${lx}" y="${ay+64}" fill="#8E999F" font-size="15" font-weight="500" text-anchor="${anc}">${f1(tt[w])}°</text>`:""}
+      ${dk[w]!=null?`<text x="${lx}" y="${ay+(tt[w]!=null?86:68)}" fill="${heat(dk[w],0,150,350)}" font-size="20" font-weight="700" text-anchor="${anc}">${f1(dk[w],0)}°<tspan fill="#8E999F" font-size="13" font-weight="500" dx="3">disk</tspan></text>`:""}`; };
   const bt=s?.avg ?? s?.batT, mt=s?.motor, bc=heat(bt,10,35,45), mc=heat(mt,-50,80,100), slip=s?.slip;
   const cin=s?.cin, cout=s?.cout, lc=heat(cin ?? cout,-10,35,55);
   let g=`<image href="${EX30_TOP}" x="104.7" y="20" width="210.6" height="440" opacity=".72" preserveAspectRatio="none"/>`;
@@ -2623,7 +2647,12 @@ const DV_CELLS = [
   ["volt", "Batarya voltajı",     s=>[f1(s.volt,0), "V", ""]],
   ["dcell","Hücre gerilim farkı", s=>[s.cmax!=null&&s.cmin!=null?f1((s.cmax-s.cmin)*1000,0):"–", "mV", s.cmax!=null&&s.cmin!=null&&(s.cmax-s.cmin)>0.05?"warn":""]],
   ["brk",  "Fren",                s=>[f1(s.brake,0), "bar", ""]],
-  ["v12",  "12 V akü",            s=>[f1(s.v12,1), "V", s.v12!=null&&s.v12<12.2?"warn":""]],
+  ["v12",  "12 V",                s=>{ const v=s.v12b ?? s.v12, a=s.x?.lvA, w=s.x?.dcW;
+    return [f1(v,1), "V", v!=null&&v<12.2?"warn":"", `12 V · ${a!=null?"DC/DC "+f1(a,0)+" A":"akü"}${w!=null?" · "+f1(w,0)+" W":""}`]; }],
+  ["therm","Batarya ısı yönetimi", s=>{ const X=s.x||{}, valve=X.vlvA, pump=X.pump, r=rateOf("avg");
+    const cool = valve!=null && valve>0, heat_ = !cool && r!=null && r>0.15 && Math.abs(s.kw??0)<15;
+    const txt = cool ? "Soğutma" : heat_ ? "Isıtma" : (valve!=null||r!=null) ? "Boşta" : "–";
+    return [txt, "", cool?"cold":heat_?"warn":"", `Batarya · ${cool?"soğutma valfi %"+f1(valve,0):heat_?"+"+f1(r,1)+" °C/dk":"valf kapalı"}${pump!=null?" · pompa %"+f1(pump,0):""}`]; }],
   ["grade","Eğim",                s=>[s.grade==null?"–":(Math.abs(s.grade)<0.8?"":s.grade>0?"↗ ":"↘ ")+"%"+f1(Math.abs(s.grade),1), "", s.grade==null?"":s.grade>=3?"warn":s.grade<=-3?"cold":"",
     s.grade==null?"Eğim · hareket edince":Math.abs(s.grade)<0.8?"Eğim · düz yol":s.grade>0?"Eğim · yokuş yukarı":"Eğim · yokuş aşağı"]],
   ["slip", "Patinaj (arka − ön)", s=>[s.slip==null?"–":(s.slip>0?"+":"")+f1(s.slip,1), "km/s", s.slip!=null&&Math.abs(s.slip)>=3?"warn":""]],
@@ -3220,6 +3249,7 @@ const CLIP = () => (HOST ? window.parent.navigator.clipboard : navigator.clipboa
 // ============ Bilinen BMS kodları (EX30 / Geely SEA) ============
 const BMS = {tx:"1DD01635", rx:"1EC6AE80"};
 const u16 = d => d.length>=2 ? d[d.length-2]*256 + d[d.length-1] : NaN;
+let modT = [];   // EE83 modül sıcaklıkları
 const beN = d => { let v=0; for (const x of d) v=v*256+x; return v; };
 // Performans ekranı açıkken: sadece güç/tork/devir/hız her turda, gerisi seyrek → ~3 kat hızlı okuma
 let perfMode=false; const PERF_FAST = new Set(["cur","volt","rpm","torque","vspd","brk0","brk1","w_fl","w_fr","w_rl","w_rr","ped","lacc"]);
@@ -3248,7 +3278,11 @@ const BMS_PIDS = [
   {id:"soh",  did:"496D", every:60, slow:true, f:d => u16(d)/100},
   // Aday: kalan enerji (49F7) ve harcanan (49F6); toplamları sabit (~3300) → 0,02 kWh/birim varsayımı
   {id:"erem", did:"49F7", every:20, f:d => u16(d)*0.02},
-  {id:"eused", did:"49F6", every:20, f:d => u16(d)*0.02},
+  // 27.11 tarama: 49F6 = doluya kalan enerji (49F6 + 49F7 ≈ 66 kWh)
+  {id:"eused", did:"49F6", every:10, f:d => u16(d)*0.02},
+  // EE83: 20 sıcaklık sensörü (modül başına), u16 ÷100 −50
+  {id:"modAvg", did:"EE83", every:10, slow:true, f:d => { const a=[]; for (let i=0;i+1<d.length;i+=2){ const v=d[i]*256+d[i+1]; if (v) a.push(+(v/100-50).toFixed(1)); } modT=a; return a.length ? a.reduce((x,y)=>x+y,0)/a.length : NaN; }},
+  {id:"v12b", did:"4947", every:20, slow:true, f:d => u16(d)/1000},
   // Aday: kilometre sayacı (3 bayt, km); her modda seyrek okunur
   {id:"odo",  did:"DD01", every:30, slow:true, f:d => d.length>=3 ? d[d.length-3]*65536 + d[d.length-2]*256 + d[d.length-1] : NaN},
 ];
@@ -3810,6 +3844,7 @@ window.ex30Snap = () => { const n=v=>(v==null||!isFinite(v))?null:+v;
     slip: (()=>{ const k=["w_fl","w_fr","w_rl","w_rr"]; if (!k.every(x=>vals[x]!=null && valT[x] && Date.now()-valT[x]<2500)) return null; return (vals.w_rl+vals.w_rr-vals.w_fl-vals.w_fr)/2; })(),
     inst: n(vals.inst), grade: n(gradeNow()), jt: journalNow(), batT: n(batTemp()), socAny: n(vals.soc ?? aaosSoc()), cab: n(aaos("HVAC_TEMPERATURE_CURRENT")), cabSet: n(aaos("HVAC_TEMPERATURE_SET")),
     yaw: geo.yaw!=null && Date.now()-geo.yawT<2500 ? geo.yaw : null,
+    efull: n(vals.eused), mods: modT.length ? modT.slice() : null, v12b: n(vals.v12b),
     x: (()=>{ const o={}; for (const k of ["ped","lacc","d_fl","d_fr","d_rl","d_rr","acp","pump","vlvA","vlvR","mcool","lvV","lvA","dcW","dcSet","acT1","acT2","igm","csum","pdis","pchg","odo","soh","soh2"]) if (vals[k]!=null && isFinite(vals[k])) o[k]=+vals[k]; return o; })(),
     ped: n(vals.ped), lacc: n(vals.lacc),
     dsp: aaos("PERF_VEHICLE_SPEED_DISPLAY")!=null ? n(aaos("PERF_VEHICLE_SPEED_DISPLAY")*3.6) : null};
@@ -4031,7 +4066,7 @@ const LOG_COLS = [["avg","bat_ort_C"],["cin","sogutma_giris_C"],["cout","guc_akt
   ["ped","gaz_pedali_pwm"],["lacc","boylamsal_ivme_g_aday"],["d_fl","fren_diski_sol_on_C"],["d_fr","fren_diski_sag_on_C"],["d_rl","fren_diski_sol_arka_C"],["d_rr","fren_diski_sag_arka_C"],
   ["acp","klima_basinc_kPa_aday"],["pump","sogutma_pompasi_yuzde"],["vlvA","bat_valf_yuzde"],["vlvR","bat_valf_istenen_yuzde"],["mcool","motor_sogutma_EE9A_C"],
   ["lvV","dcdc_12V_V"],["lvA","dcdc_12V_A"],["dcW","dcdc_giris_W"],["dcSet","dcdc_ayar_V"],["acT1","ac_soket1_C"],["acT2","ac_soket2_C"],["igm","bat_igm_sigorta_V"],["csum","hucre_toplam_V"],
-  ["h28","vcu_4A28_C"],["h29","vcu_4A29_C"],["h30","vcu_4A30_C"],["h31","vcu_4A31_C"],["h32","vcu_4A32_C"],["h33","vcu_4A33_C"],["eused","harcanan_enerji_kWh_aday"],["pdis","bms_desarj_sinir_kW"],["pchg","bms_sarj_sinir_kW"],
+  ["h28","vcu_4A28_C"],["h29","vcu_4A29_C"],["h30","vcu_4A30_C"],["h31","vcu_4A31_C"],["h32","vcu_4A32_C"],["h33","vcu_4A33_C"],["eused","doluya_kalan_kWh"],["modAvg","modul_ort_C"],["v12b","aku_12V_bms_V"],["pdis","bms_desarj_sinir_kW"],["pchg","bms_sarj_sinir_kW"],
   ["a_soc","aaos_sarj_yuzde"],["a_batT","aaos_bat_C"],["a_gear","aaos_vites"],["a_port","aaos_kablo_takili"],["a_tRem","aaos_sarj_kalan_dk"],["a_lim","aaos_sarj_hedef_yuzde"],["a_stop","aaos_durma_modu"],["a_pb","aaos_el_freni"],["a_ign","aaos_kontak"],["a_eff","aaos_anlik_verim_ham"],["grade","egim_yuzde_tahmini"],["acc_g","ivme_g"],["brk_kw","mekanik_fren_kW_tahmini"]];
 const p2=n=>String(n).padStart(2,"0");
 const localStamp = t => { const d=new Date(t); return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3,"0")}`; };

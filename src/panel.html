@@ -228,6 +228,7 @@ const CLIP = () => (HOST ? window.parent.navigator.clipboard : navigator.clipboa
 // ============ Bilinen BMS kodları (EX30 / Geely SEA) ============
 const BMS = {tx:"1DD01635", rx:"1EC6AE80"};
 const u16 = d => d.length>=2 ? d[d.length-2]*256 + d[d.length-1] : NaN;
+let modT = [];   // EE83 modül sıcaklıkları
 const beN = d => { let v=0; for (const x of d) v=v*256+x; return v; };
 // Performans ekranı açıkken: sadece güç/tork/devir/hız her turda, gerisi seyrek → ~3 kat hızlı okuma
 let perfMode=false; const PERF_FAST = new Set(["cur","volt","rpm","torque","vspd","brk0","brk1","w_fl","w_fr","w_rl","w_rr","ped","lacc"]);
@@ -256,7 +257,11 @@ const BMS_PIDS = [
   {id:"soh",  did:"496D", every:60, slow:true, f:d => u16(d)/100},
   // Aday: kalan enerji (49F7) ve harcanan (49F6); toplamları sabit (~3300) → 0,02 kWh/birim varsayımı
   {id:"erem", did:"49F7", every:20, f:d => u16(d)*0.02},
-  {id:"eused", did:"49F6", every:20, f:d => u16(d)*0.02},
+  // 27.11 tarama: 49F6 = doluya kalan enerji (49F6 + 49F7 ≈ 66 kWh)
+  {id:"eused", did:"49F6", every:10, f:d => u16(d)*0.02},
+  // EE83: 20 sıcaklık sensörü (modül başına), u16 ÷100 −50
+  {id:"modAvg", did:"EE83", every:10, slow:true, f:d => { const a=[]; for (let i=0;i+1<d.length;i+=2){ const v=d[i]*256+d[i+1]; if (v) a.push(+(v/100-50).toFixed(1)); } modT=a; return a.length ? a.reduce((x,y)=>x+y,0)/a.length : NaN; }},
+  {id:"v12b", did:"4947", every:20, slow:true, f:d => u16(d)/1000},
   // Aday: kilometre sayacı (3 bayt, km); her modda seyrek okunur
   {id:"odo",  did:"DD01", every:30, slow:true, f:d => d.length>=3 ? d[d.length-3]*65536 + d[d.length-2]*256 + d[d.length-1] : NaN},
 ];
@@ -818,6 +823,7 @@ window.ex30Snap = () => { const n=v=>(v==null||!isFinite(v))?null:+v;
     slip: (()=>{ const k=["w_fl","w_fr","w_rl","w_rr"]; if (!k.every(x=>vals[x]!=null && valT[x] && Date.now()-valT[x]<2500)) return null; return (vals.w_rl+vals.w_rr-vals.w_fl-vals.w_fr)/2; })(),
     inst: n(vals.inst), grade: n(gradeNow()), jt: journalNow(), batT: n(batTemp()), socAny: n(vals.soc ?? aaosSoc()), cab: n(aaos("HVAC_TEMPERATURE_CURRENT")), cabSet: n(aaos("HVAC_TEMPERATURE_SET")),
     yaw: geo.yaw!=null && Date.now()-geo.yawT<2500 ? geo.yaw : null,
+    efull: n(vals.eused), mods: modT.length ? modT.slice() : null, v12b: n(vals.v12b),
     x: (()=>{ const o={}; for (const k of ["ped","lacc","d_fl","d_fr","d_rl","d_rr","acp","pump","vlvA","vlvR","mcool","lvV","lvA","dcW","dcSet","acT1","acT2","igm","csum","pdis","pchg","odo","soh","soh2"]) if (vals[k]!=null && isFinite(vals[k])) o[k]=+vals[k]; return o; })(),
     ped: n(vals.ped), lacc: n(vals.lacc),
     dsp: aaos("PERF_VEHICLE_SPEED_DISPLAY")!=null ? n(aaos("PERF_VEHICLE_SPEED_DISPLAY")*3.6) : null};
@@ -1039,7 +1045,7 @@ const LOG_COLS = [["avg","bat_ort_C"],["cin","sogutma_giris_C"],["cout","guc_akt
   ["ped","gaz_pedali_pwm"],["lacc","boylamsal_ivme_g_aday"],["d_fl","fren_diski_sol_on_C"],["d_fr","fren_diski_sag_on_C"],["d_rl","fren_diski_sol_arka_C"],["d_rr","fren_diski_sag_arka_C"],
   ["acp","klima_basinc_kPa_aday"],["pump","sogutma_pompasi_yuzde"],["vlvA","bat_valf_yuzde"],["vlvR","bat_valf_istenen_yuzde"],["mcool","motor_sogutma_EE9A_C"],
   ["lvV","dcdc_12V_V"],["lvA","dcdc_12V_A"],["dcW","dcdc_giris_W"],["dcSet","dcdc_ayar_V"],["acT1","ac_soket1_C"],["acT2","ac_soket2_C"],["igm","bat_igm_sigorta_V"],["csum","hucre_toplam_V"],
-  ["h28","vcu_4A28_C"],["h29","vcu_4A29_C"],["h30","vcu_4A30_C"],["h31","vcu_4A31_C"],["h32","vcu_4A32_C"],["h33","vcu_4A33_C"],["eused","harcanan_enerji_kWh_aday"],["pdis","bms_desarj_sinir_kW"],["pchg","bms_sarj_sinir_kW"],
+  ["h28","vcu_4A28_C"],["h29","vcu_4A29_C"],["h30","vcu_4A30_C"],["h31","vcu_4A31_C"],["h32","vcu_4A32_C"],["h33","vcu_4A33_C"],["eused","doluya_kalan_kWh"],["modAvg","modul_ort_C"],["v12b","aku_12V_bms_V"],["pdis","bms_desarj_sinir_kW"],["pchg","bms_sarj_sinir_kW"],
   ["a_soc","aaos_sarj_yuzde"],["a_batT","aaos_bat_C"],["a_gear","aaos_vites"],["a_port","aaos_kablo_takili"],["a_tRem","aaos_sarj_kalan_dk"],["a_lim","aaos_sarj_hedef_yuzde"],["a_stop","aaos_durma_modu"],["a_pb","aaos_el_freni"],["a_ign","aaos_kontak"],["a_eff","aaos_anlik_verim_ham"],["grade","egim_yuzde_tahmini"],["acc_g","ivme_g"],["brk_kw","mekanik_fren_kW_tahmini"]];
 const p2=n=>String(n).padStart(2,"0");
 const localStamp = t => { const d=new Date(t); return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3,"0")}`; };
