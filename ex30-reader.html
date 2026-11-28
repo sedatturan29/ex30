@@ -168,7 +168,7 @@
   body.mirror{padding:var(--aa-t,0px) var(--aa-r,0px) var(--aa-b,0px) var(--aa-l,0px);box-sizing:border-box}
   body.mirror .dv, body.mirror .pv{height:calc(100vh - var(--aa-t,0px) - var(--aa-b,0px)) !important}
   /* Android Auto Şarj: denetimler yok, değerler büyük, eğri ekranın kalanını kaplar */
-  body.mirror #tab-charge > .row, body.mirror #chgFirst, body.mirror #cjCard, body.mirror #tab-charge .legend + .row{display:none !important}
+  body.mirror #tab-charge > .row, body.mirror #chgFirst, body.mirror #cjCard, body.mirror #acChgCard, body.mirror #tab-charge .legend + .row{display:none !important}
   body.mirror #tab-charge{display:none}
   body.mirror #tab-charge.act{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:0;height:calc(100vh - var(--aa-t,0px) - var(--aa-b,0px));background:var(--line)}
   body.mirror #tab-charge .grid{margin:0 !important;gap:1px;grid-template-columns:1fr 1fr;align-content:stretch}
@@ -533,11 +533,18 @@
       <div class="tile"><div class="k">Süre</div><div class="v" id="c_dur">–</div></div>
       <div class="tile"><div class="k">Doluya kalan (BMS)</div><div class="v" id="c_full">–<small>kWh</small></div></div>
       <div class="tile"><div class="k">Doluya kalan süre</div><div class="v" id="c_fullT">–</div></div>
+      <div class="tile"><div class="k">BMS şarj sınırı</div><div class="v" id="c_pchg">–<small>kW</small></div><div class="r" id="c_pchgR"></div></div>
+      <div class="tile"><div class="k">BMS deşarj sınırı</div><div class="v" id="c_pdis">–<small>kW</small></div></div>
     </div>
     <div class="card" id="modCard">
       <h2>Modül sıcaklıkları</h2>
       <div class="mod-map" id="modMap"></div>
       <p class="note" id="modNote">Bataryadaki 20 sıcaklık sensörü (BMS EE83). En soğuk modül şarj hızını belirler.</p>
+    </div>
+    <div class="card" id="acChgCard" style="display:none">
+      <h2>AC şarj ve OBC</h2>
+      <div class="grid" id="acChgGrid"></div>
+      <p class="note" id="acChgNote"></p>
     </div>
     <div class="card" id="nomCard">
       <h2 id="nomTitle">Nominale göre</h2>
@@ -577,7 +584,12 @@
     <div class="card">
       <h2>Şarj kayıtlarından tahmin</h2>
       <div class="tbl" id="capList"></div>
-      <p class="note">Hesap: bataryaya giren enerji (voltaj × akım, zamana göre toplanır) ÷ şarj yüzdesindeki artış. En az %20'lik şarjlar kullanılır; %40'ın üzeri daha güvenilirdir. Şarj cihazı kayıpları dahil değildir. Bu dolaylı bir tahmindir, araç SOH değerini vermiyor.</p>
+      <p class="note">Hesap: bataryaya giren enerji (voltaj × akım, zamana göre toplanır) ÷ şarj yüzdesindeki artış. En az %20'lik şarjlar kullanılır; %40'ın üzeri daha güvenilirdir. Şarj cihazı kayıpları dahil değildir.</p>
+    </div>
+    <div class="card" id="lifeCard">
+      <h2>Ömür boyu sayaçlar (Tarihçe)</h2>
+      <div class="grid" id="lifeGrid"></div>
+      <p class="note" id="lifeNote">BMS ömür boyu deşarj/şarj sayaçları (EE13/EE14), AC şarj toplamı (EE71) ve BMS SoH (496D/489A). Son okunan değerler cihazda saklanır.</p>
     </div>
   </section>
 
@@ -679,7 +691,7 @@
       </div>
     </div>
     <div class="pv-foot">
-      <p class="note">Bu sekme açıkken okuma güç, tork, devir ve hıza odaklanır. Gaz, motor torkunun en yüksek torka (343 Nm) oranından; fren, fren basıncından gösterilir. İleri/geri ivme hızdan, yanal ivme GPS yönünden hesaplanır.</p>
+      <p class="note">Bu sekme açıkken okuma güç, tork, devir, hız ve ABS ivmesine odaklanır. Gaz, VCU E301 pedalından (yoksa torktan); fren, şasi fren basıncından; ileri/geri ivme ABS 2B11 sensöründen (yoksa hızdan), yanal ivme GPS yönünden gösterilir.</p>
       <button class="sec mini" id="pfReset">Rekorları sıfırla</button>
     </div>
   </section>
@@ -2022,6 +2034,9 @@ function renderNom(ss){
     const kw = last.P!=null ? -last.P : null, nk = nomKw(last.soc ?? soc);
     if (kw!=null && nk){ const d=nk-kw, f=kw/nk;
       R("Şu an", `<span class="big ${f<0.95?"short":"good"}">${d>2 ? "−"+fmt(d,0)+" kW" : "nominalde"}</span><i>${fmt(kw,0)} / ${fmt(nk,0)} kW, %${fmt(f*100,0)}</i>`); }
+    try{ const sn=panelWin && panelWin.ex30Snap ? panelWin.ex30Snap() : null, pchg=sn?.x?.pchg;
+      if (pchg!=null && pchg>1 && kw!=null && kw>1){ const batLim = kw >= pchg*0.92;
+        R("BMS sınırı", `${fmt(pchg,0)} kW<i>${batLim ? "batarya gücü sınırlıyor" : pchg-kw>3 ? "istasyon sınırlıyor" : "sınıra yakın"}</i>`, batLim?"short":"good"); } }catch{}
     const lost = chargeLoss(ss); if (lost!=null) R("Kaybedilen süre", `${fmtMin(lost)}<i>bu şarjda, nominal eğriye göre</i>`);
     try{ const cc = panelWin && panelWin.ex30CarCharge ? panelWin.ex30CarCharge() : null;
       if (cc && (cc.tRem!=null || cc.lim!=null)) R("Aracın tahmini", `${cc.tRem!=null ? fmtMin(cc.tRem)+" kaldı" : "–"}<i>${cc.lim!=null ? "hedef %"+fmt(cc.lim,0) : ""}</i>`); }catch{}
@@ -2044,18 +2059,61 @@ function renderCharge(){
   $("chgFirst").style.display = cfg.signKnown ? "none" : "";
   const ss=active.charge, last=hist[hist.length-1]||{};
   setV("c_kw", last.P==null?null:-last.P, "kW"); setV("c_soc", last.soc, "%"); setV("c_temp", last.avg, "°C");
-  // BMS'in kendi hesabı: doluya kalan enerji ve mevcut güçle kalan süre; modül sıcaklık haritası
+  // BMS'in kendi hesabı: doluya kalan enerji ve mevcut güçle kalan süre; güç sınırları; modül sıcaklık haritası; AC/OBC
   let sn=null; try{ sn = panelWin && panelWin.ex30Snap ? panelWin.ex30Snap() : null; }catch{}
+  const X = sn?.x || {};
+  const pin = last.P!=null ? -last.P : null;
   setV("c_full", sn?.efull, "kWh", 1);
-  { const pin = last.P!=null ? -last.P : null, lim = cfg.chgLimit || 100, soc = sn?.soc ?? last.soc;
+  { const lim = cfg.chgLimit || 100, soc = sn?.soc ?? last.soc;
     let kwh = sn?.efull; if (kwh!=null && soc!=null && lim<100 && soc<lim) kwh = kwh * (lim-soc)/(100-soc);
     $("c_fullT").textContent = kwh!=null && pin>1 ? dur(kwh/pin*3600e3) + (lim<100?` (%${lim})`:"") : "–"; }
+  setV("c_pchg", X.pchg, "kW", 1);
+  setV("c_pdis", X.pdis, "kW", 1);
+  { const r=$("c_pchgR");
+    if (r){ if (X.pchg!=null && X.pchg>1 && pin!=null && pin>1){
+      if (pin >= X.pchg*0.92){ r.textContent="Batarya sınırlıyor"; r.style.color="var(--warn)"; }
+      else if (X.pchg-pin > 3){ r.textContent="İstasyon sınırlıyor"; r.style.color="var(--ok)"; }
+      else { r.textContent=""; r.style.color=""; }
+    } else { r.textContent=""; r.style.color=""; } } }
   { const m=sn?.mods, el=$("modMap");
     if (m && m.length){ const lo=Math.min(...m), hi=Math.max(...m);
       el.innerHTML = m.map(v=>`<div class="${v===lo?"lo":v===hi?"hi":""}" style="background:${heat(v,15,35,45)}">${f1(v,0)}°</div>`).join("");
       $("modNote").textContent = `${m.length} sensör · en soğuk ${f1(lo,1)} °C, en sıcak ${f1(hi,1)} °C, fark ${f1(hi-lo,1)} °C. Nominal şarj hızı için en soğuk modül önemlidir.`;
       $("modCard").style.display=""; }
     else $("modCard").style.display = "none"; }
+  { const gv = X.gridV!=null && X.gridV>50 ? X.gridV : (X.acV!=null && X.acV>50 ? X.acV : null);
+    const gvSrc = X.gridV!=null && X.gridV>50 ? "EE12" : (X.acV!=null && X.acV>50 ? "EE66 aday" : "");
+    const ga = X.acA!=null && X.acA>=0 ? X.acA : null;
+    const obcs = [["A",X.obcT],["B",X.obcTb],["C",X.obcTc]].filter(([,v])=>v!=null && v>-39);
+    const sks = [X.acT1, X.acT2].filter(v=>v!=null && v>-39);
+    const anyAc = gv!=null || ga!=null || obcs.length || sks.length || X.lastChWh!=null || X.lastChW!=null;
+    const card=$("acChgCard");
+    if (card){
+      card.style.display = anyAc ? "" : "none";
+      if (anyAc){
+        const items = [];
+        if (gv!=null || ga!=null){
+          const acKw = gv!=null && ga!=null && ga>0.5 ? gv*ga/1000 : null;
+          const eff = acKw && pin!=null && pin>0.5 && pin<25 ? pin/acKw*100 : null;
+          items.push(`<div class="tile"><div class="k">Şebeke (${gvSrc||"OBC"})</div><div class="v">${gv!=null?f1(gv,0)+"<small>V</small>":"–"}${ga!=null?` <small>${f1(ga,1)} A</small>`:""}</div><div class="r">${acKw?`AC ~${f1(acKw,1)} kW`+(eff&&eff<=105?` · verim %${f1(eff,0)}`:""):""}</div></div>`);
+        }
+        if (sks.length){
+          const skMax = Math.max(...sks), warn = skMax>=75 ? "Yüksek sıcaklık! Bağlantıyı kontrol edin" : skMax>=60 ? "Soket ısınıyor" : "Normal";
+          const col = skMax>=75 ? "var(--bad)" : skMax>=60 ? "var(--warn)" : "";
+          items.push(`<div class="tile"><div class="k">AC soket sıcaklığı (EE22)</div><div class="v" style="${col?"color:"+col:""}">${sks.map(v=>f1(v,0)).join(" / ")}<small>°C</small></div><div class="r" style="${col?"color:"+col:""}">${warn}</div></div>`);
+        }
+        if (obcs.length){
+          const obMax = Math.max(...obcs.map(([,v])=>v));
+          const col = obMax>=85 ? "var(--bad)" : obMax>=70 ? "var(--warn)" : "";
+          items.push(`<div class="tile"><div class="k">OBC modülleri (EE1F)</div><div class="v" style="${col?"color:"+col:""}">${obcs.map(([k,v])=>f1(v,0)).join(" / ")}<small>°C</small></div><div class="r">${obcs.map(([k,v])=>k+" "+f1(v,0)+"°").join(" · ")}</div></div>`);
+        }
+        if (X.lastChWh!=null || X.lastChW!=null){
+          items.push(`<div class="tile"><div class="k">Son şarj (OBC)</div><div class="v">${X.lastChWh!=null?f1(X.lastChWh/1000,1)+"<small>kWh</small>":"–"}</div><div class="r">${X.lastChW!=null?"ort. "+f1(X.lastChW/1000,1)+" kW (EE72/EE74)":""}</div></div>`);
+        }
+        $("acChgGrid").innerHTML = items.join("");
+        $("acChgNote").textContent = sks.length && Math.max(...sks)>=60 ? "AC soket sıcaklığı 60 °C üzerinde: priz veya kablo temasını kontrol edin." : "Şarj cihazı (1DD01650): şebeke gerilimi/akımı, OBC modül sıcaklıkları ve AC soket güvenliği.";
+      }
+    } }
   if (ss){ const s=summarize(ss); setV("c_kwh", ss.eIn, "kWh", 2); setV("c_peak", s.peakIn, "kW"); $("c_dur").textContent=dur(s.dur); }
   else { setV("c_kwh", null, "kWh"); setV("c_peak", null, "kW"); $("c_dur").textContent="–"; }
   // seçim listesi
@@ -2165,6 +2223,7 @@ function cjSave(id){
 
 function renderCap(){
   $("capModel").value = cfg.capModel; $("capNew").value = cfg.capNew;
+  renderLife();
   const rows = sessions.filter(s=>s.type==="charge").map(s=>({s, m:summarize(s)})).filter(x=>x.m.dSoc!=null && x.m.dSoc>=20 && x.s.eIn>1).reverse();
   if (!rows.length){ setState("capState","","Henüz uygun şarj kaydı yok (en az %20'lik bir şarj kaydedin)"); $("capList").innerHTML='<div class="empty">Uygun kayıt yok</div>'; return; }
   let wsum=0, esum=0;
@@ -2173,6 +2232,40 @@ function renderCap(){
   const avg = esum/wsum, soh = cfg.capNew ? avg/cfg.capNew*100 : null;
   setState("capState","good", `Tahmini kullanılabilir kapasite: ${fmt(avg,1)} kWh`+(soh?` · yeniye göre yaklaşık %${fmt(soh,0)}`:"")+` (${rows.length} şarj)`);
   $("capList").innerHTML = `<table><tr><th>Tarih</th><th>Şarj %</th><th>Giren</th><th>Tahmin</th><th>Yeniye göre</th></tr>${html}</table>`;
+}
+// Tarihçe: ömür boyu BMS şarj/deşarj sayaçları (EE13/EE14), AC toplam (EE71), BMS SoH ve kilometre
+let lifeCache = store.get("lifeSnap", {});
+function lifePoll(){
+  let sn=null; try{ sn = panelWin && panelWin.ex30Snap ? panelWin.ex30Snap() : null; }catch{}
+  if (!sn) return;
+  const X = sn.x || {};
+  let ch = false;
+  for (const k of ["lifeDis","lifeChg","acLife","soh","soh2","odo"]){
+    const v = X[k] ?? sn[k];
+    if (v!=null && isFinite(v) && v!==lifeCache[k]){ lifeCache[k]=v; ch=true; }
+  }
+  if (ch){ lifeCache.t = Date.now(); store.set("lifeSnap", lifeCache); }
+}
+setInterval(lifePoll, 15000);
+function renderLife(){
+  lifePoll();
+  const L = lifeCache;
+  const hasAny = ["lifeDis","lifeChg","acLife","soh","soh2","odo"].some(k=>L[k]!=null);
+  const g = $("lifeGrid"); if (!g) return;
+  if (!hasAny){
+    g.innerHTML = `<div class="empty">OBD bağlandığında BMS ömür boyu deşarj/şarj (EE13/EE14), AC enerji (EE71) ve BMS SoH değerleri burada birikir.</div>`;
+    return;
+  }
+  const tile = (k, v, u, r="") => `<div class="tile"><div class="k">${k}</div><div class="v">${v}${u?`<small>${u}</small>`:""}</div>${r?`<div class="r">${r}</div>`:""}</div>`;
+  const bigNum = v => v==null ? "–" : v>=10000 ? Math.round(v).toLocaleString("tr-TR") : f1(v,1);
+  const items = [];
+  if (L.lifeDis!=null) items.push(tile("Ömür boyu deşarj (EE13)", bigNum(L.lifeDis), "Ah", "rejen hariç · ham ÷1000"));
+  if (L.lifeChg!=null) items.push(tile("Ömür boyu şarj (EE14)", bigNum(L.lifeChg), "sayaç", "BMS EE14 · ham ÷1000"));
+  if (L.acLife!=null) items.push(tile("Ömür boyu AC şarj (EE71)", bigNum(L.acLife), "kWh", "OBC toplamı"));
+  if (L.soh!=null || L.soh2!=null) items.push(tile("BMS SoH", L.soh!=null?"%"+f1(L.soh,2):"%"+f1(L.soh2,1), "", L.soh!=null && L.soh2!=null ? `496D · ikinci (489A): %${f1(L.soh2,1)}` : (L.soh!=null?"496D (ABRP)":"489A")));
+  if (L.odo!=null) items.push(tile("Kilometre (DD01)", Math.round(L.odo).toLocaleString("tr-TR"), "km", ""));
+  g.innerHTML = items.join("");
+  if (L.t) $("lifeNote").textContent = `Son güncelleme: ${dt(L.t)}. BMS EE13/EE14 sayaç birimleri toplulukla doğrulanmaya devam ediyor; OBD bağlı değilken son görülen değerler gösterilir.`;
 }
 
 // =====================================================================
@@ -2232,6 +2325,7 @@ function jrDetails(h){
     d("Dış hava", h.dis_sicaklik_ort_C!=null?f1(h.dis_sicaklik_ort_C)+" °C":null),
     d("Tırmanış / iniş", h.tirmanis_m!=null?`${f1(h.tirmanis_m)} / ${f1(h.inis_m)} m`:null),
     d("Sert fren", h.maks_yavaslama_g!=null?`${h.sert_fren_sayisi||0} kez, en sert ${f1(h.maks_yavaslama_g,2)} g`:null),
+    d("Fren rejen / sürtünme", h.fren_rejen_orani_yuzde!=null?`%${f1(h.fren_rejen_orani_yuzde,0)} rejen · %${f1(100-h.fren_rejen_orani_yuzde,0)} sürtünme`+(h.fren_rejen_kWh!=null&&h.mekanik_fren_kWh_tahmini!=null?` (${f1(h.fren_rejen_kWh,2)} / ${f1(h.mekanik_fren_kWh_tahmini,2)} kWh)`:""):null),
     d("Mekanik fren (tahmini)", h.mekanik_fren_kWh_tahmini!=null?f1(h.mekanik_fren_kWh_tahmini,2)+" kWh":null),
     d("Kaynak", h.kaynak), d("Kayıt türü", h._legacy?"Eski kayıt":jrIsAuto(h)?"Otomatik":h.tur),
   ].join("")}</dl>`;
@@ -2605,10 +2699,17 @@ function pfUpdatePeaks(s){
   }
   store.set("perfPeaks", pf);
 }
-// ---- ivme: ileri/geri hız türevinden, yanal = hız × sapma hızı (GPS yönü)
-const pfHist=[]; let pfAx=null, pfLat=null, pfTrail=[];
+// ---- ivme: ileri/geri ABS 2B11 sensöründen (yoksa hız türevinden), yanal = hız × sapma hızı (GPS yönü)
+const pfHist=[]; let pfAx=null, pfAxSrc="", pfLat=null, pfTrail=[];
 function pfAccel(s){
-  if (s.spd==null || !s.t) return;
+  if (!s.t) return;
+  if (s.lacc!=null && s.laccT && Date.now()-s.laccT < 2500 && Math.abs(s.lacc) < 1.8){
+    pfAxSrc = "ABS";
+    pfAx = pfAx==null ? s.lacc : pfAx*0.55 + s.lacc*0.45;
+    return;
+  }
+  if (s.spd==null) return;
+  pfAxSrc = "hız";
   // Orta ekranda aracın kendi hızı OBD'den çok daha sık güncellenir: zamanı onun güncellenme anı
   let ring=null; try{ ring = panelWin && panelWin.ex30SpdRing ? panelWin.ex30SpdRing() : null; }catch{}
   if (ring && ring.length>=3 && Date.now()-ring.at(-1).t < 1500){
@@ -2660,12 +2761,14 @@ function pvPedals(s){
 }
 function pfMeters(s){
   const m=(lab,v,u,frac,peakFrac,sub,cls="")=>`<div class="pm"><div class="v ${cls}">${v}<small>${u}</small></div><div class="pmb"><i style="width:${frac==null?0:Math.max(0,Math.min(100,frac*100))}%"></i>${peakFrac!=null?`<b style="left:${Math.max(0,Math.min(99.5,peakFrac*100))}%"></b>`:""}</div><div class="l"><span>${lab}</span><span>${sub||""}</span></div></div>`;
-  const bt=s?.avg ?? s?.batT, mt=s?.motor;
+  const bt=s?.avg ?? s?.batT, mt=s?.motor, X=s?.x||{};
+  const mi=[X.mt1,X.mt2,X.mt3].filter(x=>x!=null && isFinite(x));
+  const mHot=Math.max(mt??-99, ...mi), mSub=mi.length ? "iç "+mi.map(x=>f1(x,0)).join("/")+"°" : (s?.cout!=null?"devre "+f1(s.cout,0)+"°":"");
   $("pfMeters").innerHTML =
     m("Devir", s?.rpm==null?"–":Math.round(s.rpm).toLocaleString("tr-TR"), "", s?.rpm!=null?Math.abs(s.rpm)/16000:null, pf.rpm!=null?pf.rpm/16000:null, "maks "+(pf.rpm!=null?Math.round(pf.rpm).toLocaleString("tr-TR"):"–"))+
     m("Tork", f1(s?.tq,0), "Nm", s?.tq!=null?Math.abs(s.tq)/343:null, pf.tq!=null?pf.tq/343:null, s?.tqRaw===0&&s?.tq<0?"rejen":"maks "+f1(pf.tq,0))+
     m("Batarya", bt==null?"–":f1(bt,1), "°C", bt!=null?(bt+10)/60:null, null, s?.tmin!=null&&s?.max!=null?f1(s.tmin,0)+"–"+f1(s.max,0)+"°":"", bt==null?"":bt<10?"cold":bt>45?"hot":bt>38?"warn":"")+
-    m("Motor", mt==null?"–":f1(mt,0), "°C", mt!=null?mt/120:null, null, s?.cout!=null?"devre "+f1(s.cout,0)+"°":"", mt==null?"":mt>110?"hot":mt>90?"warn":"");
+    m("Motor", mt==null?"–":f1(mt,0), "°C", mt!=null?mt/120:null, null, mSub, mt==null&&!mi.length?"":mHot>110?"hot":mHot>90?"warn":"");
 }
 // EX30 kuş bakışı (ön yukarıda, soldan direksiyonlu); koyu arayüz için gri ve koyulaştırılmış
 const EX30_TOP = "data:image/webp;base64,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";
@@ -2700,6 +2803,9 @@ function pfCar(s){
     <rect x="${C-52}" y="354" width="104" height="58" rx="10" fill="${mc}" fill-opacity=".16"/>
     <text x="${C}" y="373" fill="#8E999F" font-size="14" font-weight="500" text-anchor="middle">motor</text>
     <text x="${C}" y="403" fill="#ECEFEC" font-size="30" font-weight="700" text-anchor="middle">${f1(mt,0)}°</text>`;
+  { const mi=[X.mt1,X.mt2,X.mt3].filter(x=>x!=null && isFinite(x));
+    if (mi.length){ const hi=Math.max(...mi);
+      g+=`<text x="${C}" y="432" fill="${heat(hi,-20,75,100)}" font-size="15" font-weight="600" text-anchor="middle">iç ${mi.map(x=>f1(x,0)).join(" · ")}°</text>`; } }
   if (slip!=null) g+=`<text x="${C}" y="488" fill="${Math.abs(slip)>=3?"var(--dv-warn)":"#8E999F"}" font-size="18" font-weight="${Math.abs(slip)>=3?700:500}" text-anchor="middle">patinaj ${slip>0?"+":""}${f1(slip)} km/s</text>`;
   if (s?.out!=null) g+=`<text x="${C}" y="${slip!=null?510:488}" fill="#5D6870" font-size="16" font-weight="500" text-anchor="middle">dış hava ${f1(s.out)}°</text>`;
   $("pfCar").innerHTML=g;
@@ -2763,7 +2869,7 @@ function pfTick(){
     if (G.lat!=null && (pf.glat==null||Math.abs(G.lat)>pf.glat)){ pf.glat=Math.abs(G.lat); ch=true; }
     if (ch) store.set("perfPeaks", pf); }
   if (tab!=="perf") return;
-  $("pfStat").textContent = live ? [s.hz!=null?f1(s.hz,1)+" okuma/sn":"", s.spd>5 && s.yaw==null ? "yanal ivme için GPS yönü bekleniyor":""].filter(Boolean).join(" · ") : (typeof chW!=="undefined" && chW) ? "Veri bekleniyor" : document.body.classList.contains("mirror") ? "Veri bekleniyor" : "Bağlı değil";
+  $("pfStat").textContent = live ? [s.hz!=null?f1(s.hz,1)+" okuma/sn":"", pfAxSrc?"ivme "+pfAxSrc:"", s.spd>5 && s.yaw==null ? "yanal ivme için GPS yönü bekleniyor":""].filter(Boolean).join(" · ") : (typeof chW!=="undefined" && chW) ? "Veri bekleniyor" : document.body.classList.contains("mirror") ? "Veri bekleniyor" : "Bağlı değil";
   pvHero(live?s:null); pfMeters(live?s:null); pvPedals(live?s:null); pfCar(live?s:null); pfGCircle(s, live);
 }
 setInterval(pfTick, 250);
@@ -2783,12 +2889,17 @@ const DV_CELLS = [
   ["volt", "Batarya voltajı",     s=>[f1(s.volt,0), "V", ""]],
   ["dcell","Hücre gerilim farkı", s=>[s.cmax!=null&&s.cmin!=null?f1((s.cmax-s.cmin)*1000,0):"–", "mV", s.cmax!=null&&s.cmin!=null&&(s.cmax-s.cmin)>0.05?"warn":""]],
   ["brk",  "Fren",                s=>[f1(s.brake,0), "bar", ""]],
-  ["v12",  "12 V",                s=>{ const v=s.v12b ?? s.v12, a=s.x?.lvA, w=s.x?.dcW;
-    return [f1(v,1), "V", v!=null&&v<12.2?"warn":"", `12 V · ${a!=null?"DC/DC "+f1(a,0)+" A":"akü"}${w!=null?" · "+f1(w,0)+" W":""}`]; }],
-  ["therm","Batarya ısı yönetimi", s=>{ const X=s.x||{}, valve=X.vlvA, pump=X.pump, r=rateOf("avg");
-    const cool = valve!=null && valve>0, heat_ = !cool && r!=null && r>0.15 && Math.abs(s.kw??0)<15;
-    const txt = cool ? "Soğutma" : heat_ ? "Isıtma" : (valve!=null||r!=null) ? "Boşta" : "–";
-    return [txt, "", cool?"cold":heat_?"warn":"", `Batarya · ${cool?"soğutma valfi %"+f1(valve,0):heat_?"+"+f1(r,1)+" °C/dk":"valf kapalı"}${pump!=null?" · pompa %"+f1(pump,0):""}`]; }],
+  ["v12",  "12 V",                s=>{ const X=s.x||{}, v=s.v12b ?? X.lvV ?? s.v12, lvV=X.lvV, a=X.lvA, w=X.dcW;
+    const sub=[lvV!=null?"DC/DC "+f1(lvV,1)+" V":null, a!=null?f1(a,0)+" A":null, lvV==null&&w!=null?f1(w,0)+" W":null].filter(Boolean);
+    return [f1(v,1), "V", v!=null?(v<11.8?"hot":v<12.2?"warn":""):"", sub.length ? "12 V · "+sub.join(" · ") : "12 V akü"]; }],
+  ["therm","Batarya ısı yönetimi", s=>{ const X=s.x||{}, valve=X.vlvA, pump=X.pump2 ?? X.pump, fan=X.fan, r=rateOf("avg");
+    const cool = (valve!=null && valve>0) || (s.cin!=null && s.avg!=null && s.cin-s.avg<=-3);
+    const heat_ = !cool && ((s.cin!=null && s.avg!=null && s.cin-s.avg>=3) || (r!=null && r>0.15 && Math.abs(s.kw??0)<15));
+    const hasTh = valve!=null || pump!=null || fan!=null || r!=null;
+    const txt = cool ? "Soğutma" : heat_ ? "Isıtma" : hasTh ? "Boşta" : "–";
+    const sub = [cool && valve!=null ? "valf %"+f1(valve,0) : heat_ && r!=null ? "+"+f1(r,1)+" °C/dk" : valve!=null ? "valf %"+f1(valve,0) : null,
+      pump!=null ? "pompa %"+f1(pump,0) : null, fan!=null ? "fan %"+f1(fan,0) : null].filter(Boolean).join(" · ");
+    return [txt, "", cool?"cold":heat_?"warn":"", sub ? "Isı · "+sub : "Batarya ısı yönetimi"]; }],
   ["grade","Eğim",                s=>[s.grade==null?"–":(Math.abs(s.grade)<0.8?"":s.grade>0?"↗ ":"↘ ")+"%"+f1(Math.abs(s.grade),1), "", s.grade==null?"":s.grade>=3?"warn":s.grade<=-3?"cold":"",
     s.grade==null?"Eğim · hareket edince":Math.abs(s.grade)<0.8?"Eğim · düz yol":s.grade>0?"Eğim · yokuş yukarı":"Eğim · yokuş aşağı"]],
   ["slip", "Patinaj (arka − ön)", s=>[s.slip==null?"–":(s.slip>0?"+":"")+f1(s.slip,1), "km/s", s.slip!=null&&Math.abs(s.slip)>=3?"warn":""]],
@@ -3320,6 +3431,11 @@ renderAll();
   <div class="t" id="t-cout"><div class="k">Güç aktarma soğutma sıvısı <span class="src">tanımsız</span></div><div class="v">–<small>°C</small></div><div class="s"></div></div>
   <div class="t" id="t-rpm"><div class="k">Motor devri <span class="src">tanımsız</span></div><div class="v">–<small>d/dk</small></div><div class="s"></div></div>
   <div class="t" id="t-torque"><div class="k">Motor torku <span class="src">tanımsız</span></div><div class="v">–<small>Nm</small></div><div class="s"></div></div>
+  <div class="sec-h">İklimlendirme ve ısı yönetimi</div>
+  <div class="t" id="t-acp"><div class="k">Klima basıncı <span class="src">VCU</span></div><div class="v">–<small>kPa</small></div><div class="s"></div></div>
+  <div class="t w2" id="t-hvac"><div class="k">Klima devresi (4A28–4A32) <span class="src">VCU</span></div><div class="v">–<small>°C</small></div><div class="s"></div></div>
+  <div class="t" id="t-h33"><div class="k">Isıtma devresi (4A33) <span class="src">VCU</span></div><div class="v">–<small>°C</small></div><div class="s"></div></div>
+  <div class="t w2" id="t-therm"><div class="k">Isı yönetimi <span class="src">VCU</span></div><div class="v">–<small></small></div><div class="s"></div></div>
   <div class="sec-h">Şasi</div>
   <div class="t" id="t-brake"><div class="k">Fren basıncı <span class="src">Şasi</span></div><div class="v">–<small>bar</small></div><div class="s"></div></div>
   <div class="t" id="t-wheels"><div class="k">Patinaj (teker hızları) <span class="src">Şasi</span></div><div class="v">–<small>km/s</small></div><div class="s"></div></div>
@@ -3478,10 +3594,11 @@ const CUSTOM_KEYS = [
   ["p_fl","Basınç sol ön (psi)"],["p_fr","Basınç sağ ön (psi)"],["p_rl","Basınç sol arka (psi)"],["p_rr","Basınç sağ arka (psi)"],
   ["ped","Gaz pedalı PWM (%)"],["lacc","Boylamsal ivme (g, ölçek aday)"],
   ["d_fl","Fren diski sol ön (°C)"],["d_fr","Fren diski sağ ön (°C)"],["d_rl","Fren diski sol arka (°C)"],["d_rr","Fren diski sağ arka (°C)"],
-  ["acp","Klima basıncı (kPa, aday)"],["pump","Soğutma pompası istenen (%, aday)"],["vlvA","Batarya soğutma valfi (%)"],["vlvR","Batarya soğutma valfi istenen (%)"],
-  ["mcool","Motor soğutma sıvısı EE9A (°C)"],["lvV","DC/DC 12 V gerilim (V)"],["lvA","DC/DC 12 V akım (A)"],["dcW","DC/DC giriş gücü (W)"],["dcSet","DC/DC çıkış ayarı (V)"],
+  ["acp","Klima basıncı (kPa, aday)"],["pump","Soğutma pompası istenen (%, aday)"],["pump2","Pompa hızı istenen D922 (%)"],["fan","Radyatör fanı istenen D923 (%)"],["vlvA","Batarya soğutma valfi (%)"],["vlvR","Batarya soğutma valfi istenen (%)"],
+  ["mcool","Motor soğutma sıvısı EE9A (°C)"],["mt1","Motor iç sıcaklık 1 E348 (°C)"],["mt2","Motor iç sıcaklık 2 E349 (°C)"],["mt3","Motor iç sıcaklık 3 E350 (°C)"],
+  ["lvV","DC/DC 12 V gerilim (V)"],["lvA","DC/DC 12 V akım (A)"],["dcW","DC/DC giriş gücü (W)"],["dcSet","DC/DC çıkış ayarı (V)"],["dcdcT","DC/DC kart sıcaklığı EE07 (°C)"],
   ["acT1","AC soket sıcaklığı 1 (°C, aday)"],["acT2","AC soket sıcaklığı 2 (°C, aday)"],
-  ["obcT","Şarj cihazı A sıcaklığı (°C)"],["acLife","Ömür boyu AC enerji (kWh)"],["lastChW","Son şarj ortalama güç (W)"],["lastChWh","Son şarj enerjisi (Wh)"],["gridV","AC şebeke gerilimi (V)"],
+  ["obcT","Şarj cihazı A sıcaklığı (°C)"],["obcTb","Şarj cihazı B sıcaklığı (°C)"],["obcTc","Şarj cihazı C sıcaklığı (°C)"],["acV","AC şebeke gerilimi EE66 (V, aday)"],["acA","AC şebeke akımı EE67 (A, aday)"],["acLife","Ömür boyu AC enerji (kWh)"],["lastChW","Son şarj ortalama güç (W)"],["lastChWh","Son şarj enerjisi (Wh)"],["gridV","AC şebeke gerilimi (V)"],
   ["t_fl","Lastik sıc. sol ön (°C)"],["t_fr","Lastik sıc. sağ ön (°C)"],["t_rl","Lastik sıc. sol arka (°C)"],["t_rr","Lastik sıc. sağ arka (°C)"],
 ];
 // Car Scanner EX30 profilinin kaydından çıkarılan kaynaklar (kullanıcı değiştirebilir)
@@ -3500,20 +3617,22 @@ for (const [w,d] of [["fl","2B06"],["fr","2B07"],["rl","2B08"],["rr","2B09"]]) D
 // 24.11 kaydı: E308 ×0,1 rejende eksiye inen tork (E304 ile r 0,90); E312/E341/E363 hızla orantılı; E314+E315 ≈ 16384
 // Arka motor taraması (15.11): E300 ≈ DC bara gerilimi ×0,25 (batarya voltajıyla örtüşüyor); diğerleri adaylar, logdan doğrulanacak
 const M=(did,len,scale,offset,every)=>({tx:"1DD01637", rx:"1EC6EE80", did, start:"0", len:String(len), scale:String(scale), offset:String(offset), every:String(every)});
-Object.assign(DEFAULT_SOURCES, {mdcv:M("E300",2,0.25,0,3), minv:M("E305",1,1,-50,6), mtq2:M("E301",2,1,-8192,2), mtq3:M("E308",2,0.1,-819.2,2), mrpm2:M("E312",2,1,-16384,4), mlim:M("E353",2,0.1,0,4), mx363:M("E363",1,1,0,4), mx314:M("E314",2,1,0,6), mx315:M("E315",2,1,0,6), mx341:M("E341",2,1,-13107,6)});
+Object.assign(DEFAULT_SOURCES, {mdcv:M("E300",2,0.25,0,3), minv:M("E305",1,1,-50,6), mtq2:M("E301",2,1,-8192,2), mtq3:M("E308",2,0.1,-819.2,2), mrpm2:M("E312",2,1,-16384,4), mlim:M("E353",2,0.1,0,4), mx363:M("E363",1,1,0,4), mx314:M("E314",2,1,0,6), mx315:M("E315",2,1,0,6), mx341:M("E341",2,1,-13107,6), mt1:M("E348",1,1,-40,10), mt2:M("E349",1,1,-40,10), mt3:M("E350",1,1,-40,10)});
 // VCU ısı yönetimi (15.11 tarama): 4 bayt, son iki bayt ×0,1 − 40 °C; yavaş değişir
 for (const [k,d] of [["h28","4A28"],["h29","4A29"],["h30","4A30"],["h31","4A31"],["h32","4A32"],["h33","4A33"]]) DEFAULT_SOURCES[k] = {tx:"1DD01601", rx:"1EC02E80", did:d, start:"2", len:"2", scale:"0.1", offset:"-40", every:"10"};
 // 27.11: Car Scanner'ın EX30 profilinin araca gönderdiği istekler (kendi günlüğünden) — değerler o günlükle doğrulandı
 { const S=(tx,rx,did,start,len,scale,offset,every,signed)=>({tx,rx,did,start:String(start),len:String(len),scale:String(scale),offset:String(offset),every:String(every),signed:!!signed});
   const V="1DD01601",VR="1EC02E80", A="1DD01701",AR="1EE02E80", C="1DD01650",CR="1ECA0E80", Mo="1DD01637",MoR="1EC6EE80";
   Object.assign(DEFAULT_SOURCES, {
-    ped:S(V,VR,"E301",0,1,1,0,1), acp:S(V,VR,"413A",0,4,1,0,10), pump:S(V,VR,"D901",0,4,0.1,0,10), vlvA:S(V,VR,"E349",0,1,1,0,10), vlvR:S(V,VR,"E34A",0,1,1,0,10),
+    ped:S(V,VR,"E301",0,1,1,0,1), acp:S(V,VR,"413A",0,4,1,0,10), pump:S(V,VR,"D901",0,4,0.1,0,10), pump2:S(V,VR,"D922",0,2,0.1,0,10), fan:S(V,VR,"D923",0,2,0.1,0,10), vlvA:S(V,VR,"E349",0,1,1,0,10), vlvR:S(V,VR,"E34A",0,1,1,0,10),
     lacc:S(A,AR,"2B11",0,2,1/4096,0,1,true),
     d_fl:S(A,AR,"FEE7",0,2,0.1,0,10), d_fr:S(A,AR,"FEE7",2,2,0.1,0,10), d_rl:S(A,AR,"FEE7",4,2,0.1,0,10), d_rr:S(A,AR,"FEE7",6,2,0.1,0,10),
     mcool:S(Mo,MoR,"EE9A",0,1,1,-40,10),
-    lvV:S(C,CR,"EE04",0,1,0.1,0,10), lvA:S(C,CR,"EE06",0,2,0.1,0,10), dcW:S(C,CR,"EE09",0,2,1,0,10), dcSet:S(C,CR,"EE0F",0,1,0.1,0,20),
+    lvV:S(C,CR,"EE04",0,1,0.1,0,10), lvA:S(C,CR,"EE06",0,2,0.1,0,10), dcdcT:S(C,CR,"EE07",0,1,1,-40,20), dcW:S(C,CR,"EE09",0,2,1,0,10), dcSet:S(C,CR,"EE0F",0,1,0.1,0,20),
     acT1:S(C,CR,"EE22",0,1,1,-40,20), acT2:S(C,CR,"EE22",1,1,1,-40,20),
-    obcT:S(C,CR,"EE1F",0,1,1,-40,20), acLife:S(C,CR,"EE71",0,3,1,0,60), lastChW:S(C,CR,"EE72",0,2,1,0,60), lastChWh:S(C,CR,"EE74",0,3,1,0,60), gridV:S(C,CR,"EE12",0,2,1,0,10) }); }
+    obcT:S(C,CR,"EE1F",0,1,1,-40,20), obcTb:S(C,CR,"EE1F",1,1,1,-40,20), obcTc:S(C,CR,"EE1F",2,1,1,-40,20),
+    acV:S(C,CR,"EE66",0,2,0.1,0,20), acA:S(C,CR,"EE67",0,2,0.1,0,20),
+    acLife:S(C,CR,"EE71",0,3,1,0,60), lastChW:S(C,CR,"EE72",0,2,1,0,60), lastChWh:S(C,CR,"EE74",0,3,1,0,60), gridV:S(C,CR,"EE12",0,2,1,0,10) }); }
 // D901 (göstergedeki şarj) bu araçta hep 0 döndü (15.11 log) → kaldırıldı
 const CANDIDATE = new Set([]);   // ekranda "aday" olarak işaretlenir
 const INIT = ["ATZ","ATE0","ATL0","ATS0","ATH1","ATAL","ATST64","ATAT1","ATSP7"];
@@ -3873,30 +3992,41 @@ function summarizeAcc(a, endT){
     guc_akt_sogutma_bas_C:r1(st("cout").f), guc_akt_sogutma_bit_C:r1(st("cout").l), guc_akt_sogutma_maks_C:r1(st("cout").max), motor_maks_C:r0(st("motor").max),
     basinc_ort_sol_on_psi:r1(avg("p_fl")), basinc_ort_sag_on_psi:r1(avg("p_fr")), basinc_ort_sol_arka_psi:r1(avg("p_rl")), basinc_ort_sag_arka_psi:r1(avg("p_rr")),
     dis_sicaklik_ort_C:r1(avg("outT")),
-    sert_fren_sayisi:a.hardBrk||0, maks_yavaslama_g:r2(a.maxDec), mekanik_fren_kWh_tahmini:r2(a.eBrk), kaynak:a.src||null};
+    sert_fren_sayisi:a.hardBrk||0, maks_yavaslama_g:r2(a.maxDec), mekanik_fren_kWh_tahmini:r2(a.eBrk),
+    fren_rejen_kWh:r2(a.eBrkReg), fren_rejen_orani_yuzde:((a.eBrk||0)+(a.eBrkReg||0))>0.01 ? r1((a.eBrkReg||0)/((a.eBrk||0)+(a.eBrkReg||0))*100) : null,
+    kaynak:a.src||null};
 }
-// ---- Yavaşlama ve mekanik fren tahmini (fren basıncı yoksa) ----
-// Gereken yavaşlatma gücü m·a·v; bunun aerodinamik + yuvarlanma direnci ve rejen (batarya gücü / verim) ile
-// açıklanamayan kısmı mekanik frene yazılır. Kaba bir tahmindir; OBD'den fren basıncı geliyorsa o esas alınır.
+// ---- Yavaşlama ve fren rejen / sürtünme oranı (FD00–FD03 fren basıncı + 2B11 ivme sensörü, yoksa hız türevi) ----
+// Gereken yavaşlatma gücü m·a·v; OBD'den fren basıncı (FD00–FD03) geliyorsa hidrolik fren 0 bar iken sürtünme sıfır sayılır.
 const MASS=1960, BRK_G=0.3;
 const accBuf=[];
 function brakeEst(now, vs, P){
   vals.acc_g=null; vals.brk_kw=null;
   if (vs==null) return;
   accBuf.push({t:now, v:vs/3.6}); while (accBuf.length && now-accBuf[0].t>1500) accBuf.shift();
-  if (accBuf.length<2 || now-accBuf[0].t<700) return;
-  const a=(accBuf.at(-1).v-accBuf[0].v)/((accBuf.at(-1).t-accBuf[0].t)/1000), v=vs/3.6;
+  const laccFresh = vals.lacc!=null && valT.lacc && now-valT.lacc<2500 && Math.abs(vals.lacc)<1.8;
+  let a = null;
+  if (laccFresh) a = vals.lacc * 9.81;
+  else if (accBuf.length>=2 && now-accBuf[0].t>=700) a = (accBuf.at(-1).v-accBuf[0].v)/((accBuf.at(-1).t-accBuf[0].t)/1000);
+  if (a==null) return;
+  const v=vs/3.6;
   vals.acc_g = a/9.81;
-  if (a<0 && v>1){
-    const need=MASS*(-a)*v, res=(0.5*1.2*0.28*2.25*v*v + 0.009*MASS*9.81)*v, regen = P!=null && P<0 ? -P*1000/0.88 : 0;
-    vals.brk_kw = Math.max(0, need-res-regen)/1000;
+  const brkFresh = ["brk0","brk1","brk2","brk3"].some(k=>valT[k] && now-valT[k]<2500) && vals.brake!=null;
+  const brkOn = brkFresh && vals.brake > 0.5;
+  const regen = P!=null && P<0 ? -P*1000/0.88 : 0;
+  if ((a<0 || brkOn) && v>1){
+    const need = a<0 ? MASS*(-a)*v : 0, res=(0.5*1.2*0.28*2.25*v*v + 0.009*MASS*9.81)*v;
+    vals.brk_kw = (brkFresh && !brkOn) ? 0 : Math.max(0, need-res-regen)/1000;
   } else vals.brk_kw = 0;
   const hard = vals.acc_g <= -BRK_G;
+  const dth = lastS ? Math.min(now-lastS.t, 15000)/3600e3 : 0;
+  const braking = !CHG.on && v>1 && (vals.brk_kw>0.05 || (brkOn && regen>200) || (a<-0.15 && regen>300));
   for (const x of accs()){
     if (hard && !x.inHard){ x.hardBrk=(x.hardBrk||0)+1; }
     x.inHard = hard;
     if (x.maxDec==null || -vals.acc_g > x.maxDec) x.maxDec = -vals.acc_g;
-    if (lastS && vals.brk_kw>0) x.eBrk=(x.eBrk||0) + vals.brk_kw*Math.min(now-lastS.t,15000)/3600e3;
+    if (dth>0 && vals.brk_kw>0 && !CHG.on) x.eBrk=(x.eBrk||0) + vals.brk_kw*dth;
+    if (dth>0 && braking && regen>0) x.eBrkReg=(x.eBrkReg||0) + (regen/1000)*dth;
   }
 }
 function aaosSoc(){ const l=aaos("EV_BATTERY_LEVEL"), c=aaos("EV_CURRENT_BATTERY_CAPACITY"); return l!=null && c ? l/c*100 : null; }
@@ -4036,8 +4166,8 @@ window.ex30Snap = () => { const n=v=>(v==null||!isFinite(v))?null:+v;
     inst: n(vals.inst), grade: n(gradeNow()), jt: journalNow(), batT: n(batTemp()), socAny: n(vals.soc ?? aaosSoc()), cab: n(aaos("HVAC_TEMPERATURE_CURRENT")), cabSet: n(aaos("HVAC_TEMPERATURE_SET")),
     yaw: geo.yaw!=null && Date.now()-geo.yawT<2500 ? geo.yaw : null,
     efull: n(vals.eused), mods: modT.length ? modT.slice() : null, v12b: n(vals.v12b),
-    x: (()=>{ const o={}; for (const k of ["ped","lacc","d_fl","d_fr","d_rl","d_rr","acp","pump","vlvA","vlvR","mcool","lvV","lvA","dcW","dcSet","acT1","acT2","igm","csum","pdis","pchg","odo","soh","soh2","socd","bout","bsup","csocMax","csocMin","lifeDis","lifeChg","obcT","acLife","lastChW","lastChWh","gridV"]) if (vals[k]!=null && isFinite(vals[k])) o[k]=+vals[k]; return o; })(),
-    ped: n(vals.ped), lacc: n(vals.lacc),
+    x: (()=>{ const o={}; for (const k of ["ped","lacc","d_fl","d_fr","d_rl","d_rr","acp","pump","pump2","fan","vlvA","vlvR","mcool","mt1","mt2","mt3","lvV","lvA","dcdcT","dcW","dcSet","acT1","acT2","igm","csum","pdis","pchg","odo","soh","soh2","socd","bout","bsup","csocMax","csocMin","lifeDis","lifeChg","obcT","obcTb","obcTc","acV","acA","acLife","lastChW","lastChWh","gridV"]) if (vals[k]!=null && isFinite(vals[k])) o[k]=+vals[k]; return o; })(),
+    ped: n(vals.ped), lacc: n(vals.lacc), laccT: valT.lacc || null,
     dsp: aaos("PERF_VEHICLE_SPEED_DISPLAY")!=null ? n(aaos("PERF_VEHICLE_SPEED_DISPLAY")*3.6) : null};
 };
 // Android Auto ekranı için tek seferde gönderilen özet
@@ -4146,7 +4276,11 @@ function render(){
   { const w=[vals.w_fl,vals.w_fr,vals.w_rl,vals.w_rr], ok=w.filter(x=>x!=null);
     const fresh = ["w_fl","w_fr","w_rl","w_rr"].every(k=>valT[k] && Date.now()-valT[k]<2500);
     tile("wheels", fresh && ok.length===4 ? (w[2]+w[3]-w[0]-w[1])/2 : null, "km/s arka−ön", 1, ok.length ? "ön "+fmt(w[0],0)+" / "+fmt(w[1],0)+" · arka "+fmt(w[2],0)+" / "+fmt(w[3],0) : ""); }
-  tile("v12", vals.v12, "V", 1, vals.v12==null?"":vals.v12>=13.2?"şarj ediliyor (DC-DC)":vals.v12>=12.2?"normal":"düşük");
+  { const v12 = vals.v12b ?? vals.lvV ?? vals.v12;
+    const v12Src = vals.v12b!=null ? "BMS" : vals.lvV!=null ? "DC/DC" : "Adaptör";
+    const sub12 = [vals.lvV!=null?"DC/DC "+fmt(vals.lvV,1)+" V":null, vals.lvA!=null?fmt(vals.lvA,1)+" A":null, vals.dcW!=null?fmt(vals.dcW,0)+" W":null, vals.dcdcT!=null?"kart "+fmt(vals.dcdcT,0)+"°":null].filter(Boolean);
+    tile("v12", v12, "V", 1, sub12.length ? sub12.join(" · ") : (v12==null?"":v12>=13.2?"şarj ediliyor (DC-DC)":v12>=12.2?"normal":"düşük"));
+    const el12=$("t-v12"); if (el12) el12.querySelector(".src").textContent = v12Src; }
   tile("volt", vals.volt, "V", 1); tile("amp", vals.cur!=null?vals.cur*sign:null, "A", 1);
   tile("kw", vals.kw, "kW", 1, vals.kw==null?"":vals.kw<-0.3?"Şarj / rejen":vals.kw>0.3?"Çekiş":"Bekleme", vals.kw>0.3?"pos":vals.kw<-0.3?"neg":"");
   for (const e of extras){ const v=vals[e.id]; const dg = v==null ? 1 : Math.abs(v)>=100 ? 0 : Math.abs(v)>=10 ? 1 : 2;
@@ -4158,9 +4292,35 @@ function render(){
       $("t-torque").classList.remove("na"); $("t-torque").querySelector(".src").textContent="Hesap"; continue;
     }
     const def=defined(k); $("t-"+id).classList.toggle("na", !def);
-    tile(id, vals[k], unit, d, def ? (raw[k]?"ham "+hex(raw[k]):"bekleniyor") : "Kaynak tanımlı değil (Ayarlar)", id==="rpm"||id==="torque" ? (vals[k]<0?"neg":vals[k]>0?"pos":"") : "");
+    let sub = def ? (raw[k]?"ham "+hex(raw[k]):"bekleniyor") : "Kaynak tanımlı değil (Ayarlar)";
+    if (id==="motor"){ const mi=[vals.mt1,vals.mt2,vals.mt3].filter(x=>x!=null&&isFinite(x));
+      const ms=[mi.length?"iç "+mi.map(x=>fmt(x,0)).join("/")+"°":null, vals.mcool!=null?"sıvı "+fmt(vals.mcool,0)+"°":null].filter(Boolean);
+      if (ms.length) sub = ms.join(" · "); }
+    tile(id, vals[k], unit, d, sub, id==="rpm"||id==="torque" ? (vals[k]<0?"neg":vals[k]>0?"pos":"") : "");
     $("t-"+id).querySelector(".src").textContent = def ? (UNIT_NAMES[pcfg.sources[k].tx.toUpperCase()]||"tanımlı") : "tanımsız";
   }
+  { const acp = vals.acp; $("t-acp").classList.toggle("na", acp==null);
+    tile("acp", acp, "kPa", 0, acp!=null ? (acp>450?"klima aktif":acp>250?"bekleme / düşük":"kapalı") : (defined("acp")?"bekleniyor":"tanımsız"));
+    const hv = [vals.h28,vals.h29,vals.h30,vals.h31,vals.h32], hvOk = hv.filter(x=>x!=null && isFinite(x));
+    $("t-hvac").classList.toggle("na", !hvOk.length);
+    if (hvOk.length){ const lo=Math.min(...hvOk), hi=Math.max(...hvOk);
+      $("t-hvac").querySelector(".v").innerHTML = `<span>${fmt(lo,1)}–${fmt(hi,1)}</span><small>°C</small>`;
+      $("t-hvac").querySelector(".s").textContent = "5 nokta: " + hv.map(x=>x==null?"–":fmt(x,1)).join(" · ") + " °C"; }
+    else tile("hvac", null, "°C", 1, "4A28–4A32 bekleniyor");
+    $("t-h33").classList.toggle("na", vals.h33==null);
+    tile("h33", vals.h33, "°C", 1, vals.h33!=null ? "VCU ısıtma devresi" : "bekleniyor");
+    const vlv=vals.vlvA, vlvR=vals.vlvR, p1=vals.pump, p2=vals.pump2, fn=vals.fan, bT=batTemp(), cIn=vals.cin;
+    const anyTh = [vlv,vlvR,p1,p2,fn].some(x=>x!=null && isFinite(x));
+    $("t-therm").classList.toggle("na", !anyTh);
+    const cool = (vlv!=null && vlv>0) || (cIn!=null && bT!=null && cIn-bT<=-3);
+    const heat_ = !cool && (cIn!=null && bT!=null && cIn-bT>=3);
+    const thTxt = cool ? "Soğutma" : heat_ ? "Isıtma" : anyTh ? "Boşta" : "–";
+    const thCls = cool ? "neg" : heat_ ? "pos" : "";
+    const thSub = [vlv!=null?`Valf %${fmt(vlv,0)}${vlvR!=null&&Math.round(vlvR)!==Math.round(vlv)?" (ist. %"+fmt(vlvR,0)+")":""}`:null,
+      (p2??p1)!=null?`Pompa %${fmt(p2??p1,0)}${p1!=null&&p2!=null&&Math.round(p1)!==Math.round(p2)?" / %"+fmt(p1,0):""}`:null,
+      fn!=null?`Fan %${fmt(fn,0)}`:null].filter(Boolean).join(" · ");
+    $("t-therm").querySelector(".v").innerHTML = `<span class="${thCls}">${thTxt}</span>`;
+    $("t-therm").querySelector(".s").textContent = thSub || "D901 / D922 / D923 / E349"; }
   const fresh = geo.t && now-geo.t<5000, gps = fresh ? geo.spd : null;
   const cs = carSpeed(), car = cs.v;
   if (vals.avg==null && aaos("EV_BATTERY_AVERAGE_TEMPERATURE")!=null) tile("avg", aaos("EV_BATTERY_AVERAGE_TEMPERATURE"), "°C", 1, "Kaynak: araç (Android Automotive)");
@@ -4258,7 +4418,8 @@ const LOG_COLS = [["avg","bat_ort_C"],["cin","sogutma_giris_C"],["cout","guc_akt
   ["acp","klima_basinc_kPa_aday"],["pump","sogutma_pompasi_yuzde"],["vlvA","bat_valf_yuzde"],["vlvR","bat_valf_istenen_yuzde"],["mcool","motor_sogutma_EE9A_C"],
   ["lvV","dcdc_12V_V"],["lvA","dcdc_12V_A"],["dcW","dcdc_giris_W"],["dcSet","dcdc_ayar_V"],["acT1","ac_soket1_C"],["acT2","ac_soket2_C"],["obcT","obc_A_C"],["gridV","sebeke_V"],["acLife","omur_AC_kWh"],["lastChWh","son_sarj_Wh"],["igm","bat_igm_sigorta_V"],["csum","hucre_toplam_V"],
   ["h28","vcu_4A28_C"],["h29","vcu_4A29_C"],["h30","vcu_4A30_C"],["h31","vcu_4A31_C"],["h32","vcu_4A32_C"],["h33","vcu_4A33_C"],["eused","doluya_kalan_kWh"],["modAvg","modul_ort_C"],["v12b","aku_12V_bms_V"],["socd","gosterge_sarj_yuzde"],["bout","bms_dis_hava_C"],["bsup","becm_besleme_V"],["csocMax","hucre_soc_maks"],["csocMin","hucre_soc_min"],["lifeDis","omur_desarj_Ah"],["lifeChg","omur_sarj_sayac"],["pdis","bms_desarj_sinir_kW"],["pchg","bms_sarj_sinir_kW"],
-  ["a_soc","aaos_sarj_yuzde"],["a_batT","aaos_bat_C"],["a_gear","aaos_vites"],["a_port","aaos_kablo_takili"],["a_tRem","aaos_sarj_kalan_dk"],["a_lim","aaos_sarj_hedef_yuzde"],["a_stop","aaos_durma_modu"],["a_pb","aaos_el_freni"],["a_ign","aaos_kontak"],["a_eff","aaos_anlik_verim_ham"],["grade","egim_yuzde_tahmini"],["acc_g","ivme_g"],["brk_kw","mekanik_fren_kW_tahmini"]];
+  ["a_soc","aaos_sarj_yuzde"],["a_batT","aaos_bat_C"],["a_gear","aaos_vites"],["a_port","aaos_kablo_takili"],["a_tRem","aaos_sarj_kalan_dk"],["a_lim","aaos_sarj_hedef_yuzde"],["a_stop","aaos_durma_modu"],["a_pb","aaos_el_freni"],["a_ign","aaos_kontak"],["a_eff","aaos_anlik_verim_ham"],["grade","egim_yuzde_tahmini"],["acc_g","ivme_g"],["brk_kw","mekanik_fren_kW_tahmini"],
+  ["pump2","pompa_hizi_D922_yuzde"],["fan","radyator_fani_D923_yuzde"],["mt1","motor_ic1_C"],["mt2","motor_ic2_C"],["mt3","motor_ic3_C"],["dcdcT","dcdc_kart_C"],["obcTb","obc_B_C"],["obcTc","obc_C_C"],["acV","ac_sebeke_EE66_V"],["acA","ac_akim_EE67_A"]];
 const p2=n=>String(n).padStart(2,"0");
 const localStamp = t => { const d=new Date(t); return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3,"0")}`; };
 const LOG_HEADER = "zaman," + LOG_COLS.map(c=>c[1]).join(",");
@@ -4502,6 +4663,7 @@ function tgTripText(h){
   if (h.dis_sicaklik_ort_C!=null) L.push(`Dış hava ${f(h.dis_sicaklik_ort_C,0)} °C`);
   if (h.tirmanis_m!=null) L.push(`Tırmanış ${f(h.tirmanis_m,0)} m, iniş ${f(h.inis_m,0)} m`);
   if (h.maks_yavaslama_g!=null) L.push(`Sert fren ${h.sert_fren_sayisi||0}, en sert ${f(h.maks_yavaslama_g,2)} g`);
+  if (h.fren_rejen_orani_yuzde!=null) L.push(`Fren rejen / sürtünme: %${f(h.fren_rejen_orani_yuzde,0)} / %${f(100-h.fren_rejen_orani_yuzde,0)}`);
   if (h.kaynak) L.push(`Kaynak: ${h.kaynak}`);
   return L.join("\n");
 }
@@ -4591,7 +4753,7 @@ window.ex30ReplayBegin = () => {
   REPLAY.on = true; running = true; Object.assign(CHG, {on:false, since:0, cand:0, idle:0});
   // gerçek saatle tutulmuş kısıtlayıcılar sanal saatte kilitlenmesin
   lastR=0; lastFeed=0; lastSampleT=0; lastCarT=0;
-  for (const k in vals) vals[k]=null; for (const k in valT) delete valT[k]; for (const k in carv) delete carv[k];
+  for (const k in vals) vals[k]=null; for (const k in valT) delete valT[k]; for (const k in carv) delete carv[k]; modT=[];
   for (const k of Object.keys(trips)) if (!["A","B"].includes(k)) delete trips[k];
   trips.A=newAcc("A"); trips.B=newAcc("B"); trips.auto=null;
   lastS=null; accBuf.length=0; icBuf.length=0; speed.cyc.length=0;
@@ -4613,16 +4775,16 @@ window.ex30ReplayApply = row => {
 window.ex30ReplayQuiet = q => { REPLAY.quiet = q; if (!q) render(); };
 // ---- Ayna: durum aktarımı ----
 window.ex30MirrorState = () => { const now=Date.now(), age={}; for (const k in valT) age[k]=now-valT[k];
-  return JSON.stringify({vals, trips, tripView, carv, geo, age, running, sT: now-lastSampleT, cT: lastCarT? now-lastCarT : 1e9}); };
+  return JSON.stringify({vals, modT, trips, tripView, carv, geo, age, running, sT: now-lastSampleT, cT: lastCarT? now-lastCarT : 1e9}); };
 window.ex30MirrorApply = s => { try{ if (typeof s==="string") s=JSON.parse(s); if (!s) return; const now=Date.now();
-  for (const k in vals) delete vals[k]; Object.assign(vals, s.vals||{});
+  for (const k in vals) delete vals[k]; Object.assign(vals, s.vals||{}); modT = Array.isArray(s.modT) ? s.modT : [];
   trips = s.trips || trips; tripView = s.tripView || tripView;
   for (const k in carv) delete carv[k]; Object.assign(carv, s.carv||{}); Object.assign(geo, s.geo||{});
   for (const k in s.age||{}) valT[k]=now-s.age[k]; running=!!s.running; lastSampleT=now-(s.sT||0); lastCarT=now-(s.cT??1e9); render(); }catch(e){} };
 window.ex30RemoteApply = st => { try{ if (typeof st==="string") st=JSON.parse(st); if (!st) return;
   if (!REMOTE.on){ REMOTE.on=true; REMOTE.saved=trips; if (logSess) logStop(); log("Orta ekrandaki uygulamanın canlı verisi gösteriliyor"); }
   REMOTE.t=Date.now(); const now=REMOTE.t;
-  for (const k in vals) delete vals[k]; Object.assign(vals, st.vals||{});
+  for (const k in vals) delete vals[k]; Object.assign(vals, st.vals||{}); modT = Array.isArray(st.modT) ? st.modT : [];
   trips = st.trips || trips; tripView = tripView || st.tripView;
   for (const k in carv) delete carv[k]; Object.assign(carv, st.carv||{}); Object.assign(geo, st.geo||{}); for (const k in carv) carT[k]=now-(st.cT||0);
   for (const k in st.age||{}) valT[k]=now-st.age[k]; lastSampleT=now-(st.sT||0); lastCarT=now-(st.cT??1e9); render(); }catch(e){} };

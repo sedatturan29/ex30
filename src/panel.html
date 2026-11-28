@@ -140,6 +140,11 @@
   <div class="t" id="t-cout"><div class="k">Güç aktarma soğutma sıvısı <span class="src">tanımsız</span></div><div class="v">–<small>°C</small></div><div class="s"></div></div>
   <div class="t" id="t-rpm"><div class="k">Motor devri <span class="src">tanımsız</span></div><div class="v">–<small>d/dk</small></div><div class="s"></div></div>
   <div class="t" id="t-torque"><div class="k">Motor torku <span class="src">tanımsız</span></div><div class="v">–<small>Nm</small></div><div class="s"></div></div>
+  <div class="sec-h">İklimlendirme ve ısı yönetimi</div>
+  <div class="t" id="t-acp"><div class="k">Klima basıncı <span class="src">VCU</span></div><div class="v">–<small>kPa</small></div><div class="s"></div></div>
+  <div class="t w2" id="t-hvac"><div class="k">Klima devresi (4A28–4A32) <span class="src">VCU</span></div><div class="v">–<small>°C</small></div><div class="s"></div></div>
+  <div class="t" id="t-h33"><div class="k">Isıtma devresi (4A33) <span class="src">VCU</span></div><div class="v">–<small>°C</small></div><div class="s"></div></div>
+  <div class="t w2" id="t-therm"><div class="k">Isı yönetimi <span class="src">VCU</span></div><div class="v">–<small></small></div><div class="s"></div></div>
   <div class="sec-h">Şasi</div>
   <div class="t" id="t-brake"><div class="k">Fren basıncı <span class="src">Şasi</span></div><div class="v">–<small>bar</small></div><div class="s"></div></div>
   <div class="t" id="t-wheels"><div class="k">Patinaj (teker hızları) <span class="src">Şasi</span></div><div class="v">–<small>km/s</small></div><div class="s"></div></div>
@@ -298,10 +303,11 @@ const CUSTOM_KEYS = [
   ["p_fl","Basınç sol ön (psi)"],["p_fr","Basınç sağ ön (psi)"],["p_rl","Basınç sol arka (psi)"],["p_rr","Basınç sağ arka (psi)"],
   ["ped","Gaz pedalı PWM (%)"],["lacc","Boylamsal ivme (g, ölçek aday)"],
   ["d_fl","Fren diski sol ön (°C)"],["d_fr","Fren diski sağ ön (°C)"],["d_rl","Fren diski sol arka (°C)"],["d_rr","Fren diski sağ arka (°C)"],
-  ["acp","Klima basıncı (kPa, aday)"],["pump","Soğutma pompası istenen (%, aday)"],["vlvA","Batarya soğutma valfi (%)"],["vlvR","Batarya soğutma valfi istenen (%)"],
-  ["mcool","Motor soğutma sıvısı EE9A (°C)"],["lvV","DC/DC 12 V gerilim (V)"],["lvA","DC/DC 12 V akım (A)"],["dcW","DC/DC giriş gücü (W)"],["dcSet","DC/DC çıkış ayarı (V)"],
+  ["acp","Klima basıncı (kPa, aday)"],["pump","Soğutma pompası istenen (%, aday)"],["pump2","Pompa hızı istenen D922 (%)"],["fan","Radyatör fanı istenen D923 (%)"],["vlvA","Batarya soğutma valfi (%)"],["vlvR","Batarya soğutma valfi istenen (%)"],
+  ["mcool","Motor soğutma sıvısı EE9A (°C)"],["mt1","Motor iç sıcaklık 1 E348 (°C)"],["mt2","Motor iç sıcaklık 2 E349 (°C)"],["mt3","Motor iç sıcaklık 3 E350 (°C)"],
+  ["lvV","DC/DC 12 V gerilim (V)"],["lvA","DC/DC 12 V akım (A)"],["dcW","DC/DC giriş gücü (W)"],["dcSet","DC/DC çıkış ayarı (V)"],["dcdcT","DC/DC kart sıcaklığı EE07 (°C)"],
   ["acT1","AC soket sıcaklığı 1 (°C, aday)"],["acT2","AC soket sıcaklığı 2 (°C, aday)"],
-  ["obcT","Şarj cihazı A sıcaklığı (°C)"],["acLife","Ömür boyu AC enerji (kWh)"],["lastChW","Son şarj ortalama güç (W)"],["lastChWh","Son şarj enerjisi (Wh)"],["gridV","AC şebeke gerilimi (V)"],
+  ["obcT","Şarj cihazı A sıcaklığı (°C)"],["obcTb","Şarj cihazı B sıcaklığı (°C)"],["obcTc","Şarj cihazı C sıcaklığı (°C)"],["acV","AC şebeke gerilimi EE66 (V, aday)"],["acA","AC şebeke akımı EE67 (A, aday)"],["acLife","Ömür boyu AC enerji (kWh)"],["lastChW","Son şarj ortalama güç (W)"],["lastChWh","Son şarj enerjisi (Wh)"],["gridV","AC şebeke gerilimi (V)"],
   ["t_fl","Lastik sıc. sol ön (°C)"],["t_fr","Lastik sıc. sağ ön (°C)"],["t_rl","Lastik sıc. sol arka (°C)"],["t_rr","Lastik sıc. sağ arka (°C)"],
 ];
 // Car Scanner EX30 profilinin kaydından çıkarılan kaynaklar (kullanıcı değiştirebilir)
@@ -320,20 +326,22 @@ for (const [w,d] of [["fl","2B06"],["fr","2B07"],["rl","2B08"],["rr","2B09"]]) D
 // 24.11 kaydı: E308 ×0,1 rejende eksiye inen tork (E304 ile r 0,90); E312/E341/E363 hızla orantılı; E314+E315 ≈ 16384
 // Arka motor taraması (15.11): E300 ≈ DC bara gerilimi ×0,25 (batarya voltajıyla örtüşüyor); diğerleri adaylar, logdan doğrulanacak
 const M=(did,len,scale,offset,every)=>({tx:"1DD01637", rx:"1EC6EE80", did, start:"0", len:String(len), scale:String(scale), offset:String(offset), every:String(every)});
-Object.assign(DEFAULT_SOURCES, {mdcv:M("E300",2,0.25,0,3), minv:M("E305",1,1,-50,6), mtq2:M("E301",2,1,-8192,2), mtq3:M("E308",2,0.1,-819.2,2), mrpm2:M("E312",2,1,-16384,4), mlim:M("E353",2,0.1,0,4), mx363:M("E363",1,1,0,4), mx314:M("E314",2,1,0,6), mx315:M("E315",2,1,0,6), mx341:M("E341",2,1,-13107,6)});
+Object.assign(DEFAULT_SOURCES, {mdcv:M("E300",2,0.25,0,3), minv:M("E305",1,1,-50,6), mtq2:M("E301",2,1,-8192,2), mtq3:M("E308",2,0.1,-819.2,2), mrpm2:M("E312",2,1,-16384,4), mlim:M("E353",2,0.1,0,4), mx363:M("E363",1,1,0,4), mx314:M("E314",2,1,0,6), mx315:M("E315",2,1,0,6), mx341:M("E341",2,1,-13107,6), mt1:M("E348",1,1,-40,10), mt2:M("E349",1,1,-40,10), mt3:M("E350",1,1,-40,10)});
 // VCU ısı yönetimi (15.11 tarama): 4 bayt, son iki bayt ×0,1 − 40 °C; yavaş değişir
 for (const [k,d] of [["h28","4A28"],["h29","4A29"],["h30","4A30"],["h31","4A31"],["h32","4A32"],["h33","4A33"]]) DEFAULT_SOURCES[k] = {tx:"1DD01601", rx:"1EC02E80", did:d, start:"2", len:"2", scale:"0.1", offset:"-40", every:"10"};
 // 27.11: Car Scanner'ın EX30 profilinin araca gönderdiği istekler (kendi günlüğünden) — değerler o günlükle doğrulandı
 { const S=(tx,rx,did,start,len,scale,offset,every,signed)=>({tx,rx,did,start:String(start),len:String(len),scale:String(scale),offset:String(offset),every:String(every),signed:!!signed});
   const V="1DD01601",VR="1EC02E80", A="1DD01701",AR="1EE02E80", C="1DD01650",CR="1ECA0E80", Mo="1DD01637",MoR="1EC6EE80";
   Object.assign(DEFAULT_SOURCES, {
-    ped:S(V,VR,"E301",0,1,1,0,1), acp:S(V,VR,"413A",0,4,1,0,10), pump:S(V,VR,"D901",0,4,0.1,0,10), vlvA:S(V,VR,"E349",0,1,1,0,10), vlvR:S(V,VR,"E34A",0,1,1,0,10),
+    ped:S(V,VR,"E301",0,1,1,0,1), acp:S(V,VR,"413A",0,4,1,0,10), pump:S(V,VR,"D901",0,4,0.1,0,10), pump2:S(V,VR,"D922",0,2,0.1,0,10), fan:S(V,VR,"D923",0,2,0.1,0,10), vlvA:S(V,VR,"E349",0,1,1,0,10), vlvR:S(V,VR,"E34A",0,1,1,0,10),
     lacc:S(A,AR,"2B11",0,2,1/4096,0,1,true),
     d_fl:S(A,AR,"FEE7",0,2,0.1,0,10), d_fr:S(A,AR,"FEE7",2,2,0.1,0,10), d_rl:S(A,AR,"FEE7",4,2,0.1,0,10), d_rr:S(A,AR,"FEE7",6,2,0.1,0,10),
     mcool:S(Mo,MoR,"EE9A",0,1,1,-40,10),
-    lvV:S(C,CR,"EE04",0,1,0.1,0,10), lvA:S(C,CR,"EE06",0,2,0.1,0,10), dcW:S(C,CR,"EE09",0,2,1,0,10), dcSet:S(C,CR,"EE0F",0,1,0.1,0,20),
+    lvV:S(C,CR,"EE04",0,1,0.1,0,10), lvA:S(C,CR,"EE06",0,2,0.1,0,10), dcdcT:S(C,CR,"EE07",0,1,1,-40,20), dcW:S(C,CR,"EE09",0,2,1,0,10), dcSet:S(C,CR,"EE0F",0,1,0.1,0,20),
     acT1:S(C,CR,"EE22",0,1,1,-40,20), acT2:S(C,CR,"EE22",1,1,1,-40,20),
-    obcT:S(C,CR,"EE1F",0,1,1,-40,20), acLife:S(C,CR,"EE71",0,3,1,0,60), lastChW:S(C,CR,"EE72",0,2,1,0,60), lastChWh:S(C,CR,"EE74",0,3,1,0,60), gridV:S(C,CR,"EE12",0,2,1,0,10) }); }
+    obcT:S(C,CR,"EE1F",0,1,1,-40,20), obcTb:S(C,CR,"EE1F",1,1,1,-40,20), obcTc:S(C,CR,"EE1F",2,1,1,-40,20),
+    acV:S(C,CR,"EE66",0,2,0.1,0,20), acA:S(C,CR,"EE67",0,2,0.1,0,20),
+    acLife:S(C,CR,"EE71",0,3,1,0,60), lastChW:S(C,CR,"EE72",0,2,1,0,60), lastChWh:S(C,CR,"EE74",0,3,1,0,60), gridV:S(C,CR,"EE12",0,2,1,0,10) }); }
 // D901 (göstergedeki şarj) bu araçta hep 0 döndü (15.11 log) → kaldırıldı
 const CANDIDATE = new Set([]);   // ekranda "aday" olarak işaretlenir
 const INIT = ["ATZ","ATE0","ATL0","ATS0","ATH1","ATAL","ATST64","ATAT1","ATSP7"];
@@ -693,30 +701,41 @@ function summarizeAcc(a, endT){
     guc_akt_sogutma_bas_C:r1(st("cout").f), guc_akt_sogutma_bit_C:r1(st("cout").l), guc_akt_sogutma_maks_C:r1(st("cout").max), motor_maks_C:r0(st("motor").max),
     basinc_ort_sol_on_psi:r1(avg("p_fl")), basinc_ort_sag_on_psi:r1(avg("p_fr")), basinc_ort_sol_arka_psi:r1(avg("p_rl")), basinc_ort_sag_arka_psi:r1(avg("p_rr")),
     dis_sicaklik_ort_C:r1(avg("outT")),
-    sert_fren_sayisi:a.hardBrk||0, maks_yavaslama_g:r2(a.maxDec), mekanik_fren_kWh_tahmini:r2(a.eBrk), kaynak:a.src||null};
+    sert_fren_sayisi:a.hardBrk||0, maks_yavaslama_g:r2(a.maxDec), mekanik_fren_kWh_tahmini:r2(a.eBrk),
+    fren_rejen_kWh:r2(a.eBrkReg), fren_rejen_orani_yuzde:((a.eBrk||0)+(a.eBrkReg||0))>0.01 ? r1((a.eBrkReg||0)/((a.eBrk||0)+(a.eBrkReg||0))*100) : null,
+    kaynak:a.src||null};
 }
-// ---- Yavaşlama ve mekanik fren tahmini (fren basıncı yoksa) ----
-// Gereken yavaşlatma gücü m·a·v; bunun aerodinamik + yuvarlanma direnci ve rejen (batarya gücü / verim) ile
-// açıklanamayan kısmı mekanik frene yazılır. Kaba bir tahmindir; OBD'den fren basıncı geliyorsa o esas alınır.
+// ---- Yavaşlama ve fren rejen / sürtünme oranı (FD00–FD03 fren basıncı + 2B11 ivme sensörü, yoksa hız türevi) ----
+// Gereken yavaşlatma gücü m·a·v; OBD'den fren basıncı (FD00–FD03) geliyorsa hidrolik fren 0 bar iken sürtünme sıfır sayılır.
 const MASS=1960, BRK_G=0.3;
 const accBuf=[];
 function brakeEst(now, vs, P){
   vals.acc_g=null; vals.brk_kw=null;
   if (vs==null) return;
   accBuf.push({t:now, v:vs/3.6}); while (accBuf.length && now-accBuf[0].t>1500) accBuf.shift();
-  if (accBuf.length<2 || now-accBuf[0].t<700) return;
-  const a=(accBuf.at(-1).v-accBuf[0].v)/((accBuf.at(-1).t-accBuf[0].t)/1000), v=vs/3.6;
+  const laccFresh = vals.lacc!=null && valT.lacc && now-valT.lacc<2500 && Math.abs(vals.lacc)<1.8;
+  let a = null;
+  if (laccFresh) a = vals.lacc * 9.81;
+  else if (accBuf.length>=2 && now-accBuf[0].t>=700) a = (accBuf.at(-1).v-accBuf[0].v)/((accBuf.at(-1).t-accBuf[0].t)/1000);
+  if (a==null) return;
+  const v=vs/3.6;
   vals.acc_g = a/9.81;
-  if (a<0 && v>1){
-    const need=MASS*(-a)*v, res=(0.5*1.2*0.28*2.25*v*v + 0.009*MASS*9.81)*v, regen = P!=null && P<0 ? -P*1000/0.88 : 0;
-    vals.brk_kw = Math.max(0, need-res-regen)/1000;
+  const brkFresh = ["brk0","brk1","brk2","brk3"].some(k=>valT[k] && now-valT[k]<2500) && vals.brake!=null;
+  const brkOn = brkFresh && vals.brake > 0.5;
+  const regen = P!=null && P<0 ? -P*1000/0.88 : 0;
+  if ((a<0 || brkOn) && v>1){
+    const need = a<0 ? MASS*(-a)*v : 0, res=(0.5*1.2*0.28*2.25*v*v + 0.009*MASS*9.81)*v;
+    vals.brk_kw = (brkFresh && !brkOn) ? 0 : Math.max(0, need-res-regen)/1000;
   } else vals.brk_kw = 0;
   const hard = vals.acc_g <= -BRK_G;
+  const dth = lastS ? Math.min(now-lastS.t, 15000)/3600e3 : 0;
+  const braking = !CHG.on && v>1 && (vals.brk_kw>0.05 || (brkOn && regen>200) || (a<-0.15 && regen>300));
   for (const x of accs()){
     if (hard && !x.inHard){ x.hardBrk=(x.hardBrk||0)+1; }
     x.inHard = hard;
     if (x.maxDec==null || -vals.acc_g > x.maxDec) x.maxDec = -vals.acc_g;
-    if (lastS && vals.brk_kw>0) x.eBrk=(x.eBrk||0) + vals.brk_kw*Math.min(now-lastS.t,15000)/3600e3;
+    if (dth>0 && vals.brk_kw>0 && !CHG.on) x.eBrk=(x.eBrk||0) + vals.brk_kw*dth;
+    if (dth>0 && braking && regen>0) x.eBrkReg=(x.eBrkReg||0) + (regen/1000)*dth;
   }
 }
 function aaosSoc(){ const l=aaos("EV_BATTERY_LEVEL"), c=aaos("EV_CURRENT_BATTERY_CAPACITY"); return l!=null && c ? l/c*100 : null; }
@@ -856,8 +875,8 @@ window.ex30Snap = () => { const n=v=>(v==null||!isFinite(v))?null:+v;
     inst: n(vals.inst), grade: n(gradeNow()), jt: journalNow(), batT: n(batTemp()), socAny: n(vals.soc ?? aaosSoc()), cab: n(aaos("HVAC_TEMPERATURE_CURRENT")), cabSet: n(aaos("HVAC_TEMPERATURE_SET")),
     yaw: geo.yaw!=null && Date.now()-geo.yawT<2500 ? geo.yaw : null,
     efull: n(vals.eused), mods: modT.length ? modT.slice() : null, v12b: n(vals.v12b),
-    x: (()=>{ const o={}; for (const k of ["ped","lacc","d_fl","d_fr","d_rl","d_rr","acp","pump","vlvA","vlvR","mcool","lvV","lvA","dcW","dcSet","acT1","acT2","igm","csum","pdis","pchg","odo","soh","soh2","socd","bout","bsup","csocMax","csocMin","lifeDis","lifeChg","obcT","acLife","lastChW","lastChWh","gridV"]) if (vals[k]!=null && isFinite(vals[k])) o[k]=+vals[k]; return o; })(),
-    ped: n(vals.ped), lacc: n(vals.lacc),
+    x: (()=>{ const o={}; for (const k of ["ped","lacc","d_fl","d_fr","d_rl","d_rr","acp","pump","pump2","fan","vlvA","vlvR","mcool","mt1","mt2","mt3","lvV","lvA","dcdcT","dcW","dcSet","acT1","acT2","igm","csum","pdis","pchg","odo","soh","soh2","socd","bout","bsup","csocMax","csocMin","lifeDis","lifeChg","obcT","obcTb","obcTc","acV","acA","acLife","lastChW","lastChWh","gridV"]) if (vals[k]!=null && isFinite(vals[k])) o[k]=+vals[k]; return o; })(),
+    ped: n(vals.ped), lacc: n(vals.lacc), laccT: valT.lacc || null,
     dsp: aaos("PERF_VEHICLE_SPEED_DISPLAY")!=null ? n(aaos("PERF_VEHICLE_SPEED_DISPLAY")*3.6) : null};
 };
 // Android Auto ekranı için tek seferde gönderilen özet
@@ -966,7 +985,11 @@ function render(){
   { const w=[vals.w_fl,vals.w_fr,vals.w_rl,vals.w_rr], ok=w.filter(x=>x!=null);
     const fresh = ["w_fl","w_fr","w_rl","w_rr"].every(k=>valT[k] && Date.now()-valT[k]<2500);
     tile("wheels", fresh && ok.length===4 ? (w[2]+w[3]-w[0]-w[1])/2 : null, "km/s arka−ön", 1, ok.length ? "ön "+fmt(w[0],0)+" / "+fmt(w[1],0)+" · arka "+fmt(w[2],0)+" / "+fmt(w[3],0) : ""); }
-  tile("v12", vals.v12, "V", 1, vals.v12==null?"":vals.v12>=13.2?"şarj ediliyor (DC-DC)":vals.v12>=12.2?"normal":"düşük");
+  { const v12 = vals.v12b ?? vals.lvV ?? vals.v12;
+    const v12Src = vals.v12b!=null ? "BMS" : vals.lvV!=null ? "DC/DC" : "Adaptör";
+    const sub12 = [vals.lvV!=null?"DC/DC "+fmt(vals.lvV,1)+" V":null, vals.lvA!=null?fmt(vals.lvA,1)+" A":null, vals.dcW!=null?fmt(vals.dcW,0)+" W":null, vals.dcdcT!=null?"kart "+fmt(vals.dcdcT,0)+"°":null].filter(Boolean);
+    tile("v12", v12, "V", 1, sub12.length ? sub12.join(" · ") : (v12==null?"":v12>=13.2?"şarj ediliyor (DC-DC)":v12>=12.2?"normal":"düşük"));
+    const el12=$("t-v12"); if (el12) el12.querySelector(".src").textContent = v12Src; }
   tile("volt", vals.volt, "V", 1); tile("amp", vals.cur!=null?vals.cur*sign:null, "A", 1);
   tile("kw", vals.kw, "kW", 1, vals.kw==null?"":vals.kw<-0.3?"Şarj / rejen":vals.kw>0.3?"Çekiş":"Bekleme", vals.kw>0.3?"pos":vals.kw<-0.3?"neg":"");
   for (const e of extras){ const v=vals[e.id]; const dg = v==null ? 1 : Math.abs(v)>=100 ? 0 : Math.abs(v)>=10 ? 1 : 2;
@@ -978,9 +1001,35 @@ function render(){
       $("t-torque").classList.remove("na"); $("t-torque").querySelector(".src").textContent="Hesap"; continue;
     }
     const def=defined(k); $("t-"+id).classList.toggle("na", !def);
-    tile(id, vals[k], unit, d, def ? (raw[k]?"ham "+hex(raw[k]):"bekleniyor") : "Kaynak tanımlı değil (Ayarlar)", id==="rpm"||id==="torque" ? (vals[k]<0?"neg":vals[k]>0?"pos":"") : "");
+    let sub = def ? (raw[k]?"ham "+hex(raw[k]):"bekleniyor") : "Kaynak tanımlı değil (Ayarlar)";
+    if (id==="motor"){ const mi=[vals.mt1,vals.mt2,vals.mt3].filter(x=>x!=null&&isFinite(x));
+      const ms=[mi.length?"iç "+mi.map(x=>fmt(x,0)).join("/")+"°":null, vals.mcool!=null?"sıvı "+fmt(vals.mcool,0)+"°":null].filter(Boolean);
+      if (ms.length) sub = ms.join(" · "); }
+    tile(id, vals[k], unit, d, sub, id==="rpm"||id==="torque" ? (vals[k]<0?"neg":vals[k]>0?"pos":"") : "");
     $("t-"+id).querySelector(".src").textContent = def ? (UNIT_NAMES[pcfg.sources[k].tx.toUpperCase()]||"tanımlı") : "tanımsız";
   }
+  { const acp = vals.acp; $("t-acp").classList.toggle("na", acp==null);
+    tile("acp", acp, "kPa", 0, acp!=null ? (acp>450?"klima aktif":acp>250?"bekleme / düşük":"kapalı") : (defined("acp")?"bekleniyor":"tanımsız"));
+    const hv = [vals.h28,vals.h29,vals.h30,vals.h31,vals.h32], hvOk = hv.filter(x=>x!=null && isFinite(x));
+    $("t-hvac").classList.toggle("na", !hvOk.length);
+    if (hvOk.length){ const lo=Math.min(...hvOk), hi=Math.max(...hvOk);
+      $("t-hvac").querySelector(".v").innerHTML = `<span>${fmt(lo,1)}–${fmt(hi,1)}</span><small>°C</small>`;
+      $("t-hvac").querySelector(".s").textContent = "5 nokta: " + hv.map(x=>x==null?"–":fmt(x,1)).join(" · ") + " °C"; }
+    else tile("hvac", null, "°C", 1, "4A28–4A32 bekleniyor");
+    $("t-h33").classList.toggle("na", vals.h33==null);
+    tile("h33", vals.h33, "°C", 1, vals.h33!=null ? "VCU ısıtma devresi" : "bekleniyor");
+    const vlv=vals.vlvA, vlvR=vals.vlvR, p1=vals.pump, p2=vals.pump2, fn=vals.fan, bT=batTemp(), cIn=vals.cin;
+    const anyTh = [vlv,vlvR,p1,p2,fn].some(x=>x!=null && isFinite(x));
+    $("t-therm").classList.toggle("na", !anyTh);
+    const cool = (vlv!=null && vlv>0) || (cIn!=null && bT!=null && cIn-bT<=-3);
+    const heat_ = !cool && (cIn!=null && bT!=null && cIn-bT>=3);
+    const thTxt = cool ? "Soğutma" : heat_ ? "Isıtma" : anyTh ? "Boşta" : "–";
+    const thCls = cool ? "neg" : heat_ ? "pos" : "";
+    const thSub = [vlv!=null?`Valf %${fmt(vlv,0)}${vlvR!=null&&Math.round(vlvR)!==Math.round(vlv)?" (ist. %"+fmt(vlvR,0)+")":""}`:null,
+      (p2??p1)!=null?`Pompa %${fmt(p2??p1,0)}${p1!=null&&p2!=null&&Math.round(p1)!==Math.round(p2)?" / %"+fmt(p1,0):""}`:null,
+      fn!=null?`Fan %${fmt(fn,0)}`:null].filter(Boolean).join(" · ");
+    $("t-therm").querySelector(".v").innerHTML = `<span class="${thCls}">${thTxt}</span>`;
+    $("t-therm").querySelector(".s").textContent = thSub || "D901 / D922 / D923 / E349"; }
   const fresh = geo.t && now-geo.t<5000, gps = fresh ? geo.spd : null;
   const cs = carSpeed(), car = cs.v;
   if (vals.avg==null && aaos("EV_BATTERY_AVERAGE_TEMPERATURE")!=null) tile("avg", aaos("EV_BATTERY_AVERAGE_TEMPERATURE"), "°C", 1, "Kaynak: araç (Android Automotive)");
@@ -1078,7 +1127,8 @@ const LOG_COLS = [["avg","bat_ort_C"],["cin","sogutma_giris_C"],["cout","guc_akt
   ["acp","klima_basinc_kPa_aday"],["pump","sogutma_pompasi_yuzde"],["vlvA","bat_valf_yuzde"],["vlvR","bat_valf_istenen_yuzde"],["mcool","motor_sogutma_EE9A_C"],
   ["lvV","dcdc_12V_V"],["lvA","dcdc_12V_A"],["dcW","dcdc_giris_W"],["dcSet","dcdc_ayar_V"],["acT1","ac_soket1_C"],["acT2","ac_soket2_C"],["obcT","obc_A_C"],["gridV","sebeke_V"],["acLife","omur_AC_kWh"],["lastChWh","son_sarj_Wh"],["igm","bat_igm_sigorta_V"],["csum","hucre_toplam_V"],
   ["h28","vcu_4A28_C"],["h29","vcu_4A29_C"],["h30","vcu_4A30_C"],["h31","vcu_4A31_C"],["h32","vcu_4A32_C"],["h33","vcu_4A33_C"],["eused","doluya_kalan_kWh"],["modAvg","modul_ort_C"],["v12b","aku_12V_bms_V"],["socd","gosterge_sarj_yuzde"],["bout","bms_dis_hava_C"],["bsup","becm_besleme_V"],["csocMax","hucre_soc_maks"],["csocMin","hucre_soc_min"],["lifeDis","omur_desarj_Ah"],["lifeChg","omur_sarj_sayac"],["pdis","bms_desarj_sinir_kW"],["pchg","bms_sarj_sinir_kW"],
-  ["a_soc","aaos_sarj_yuzde"],["a_batT","aaos_bat_C"],["a_gear","aaos_vites"],["a_port","aaos_kablo_takili"],["a_tRem","aaos_sarj_kalan_dk"],["a_lim","aaos_sarj_hedef_yuzde"],["a_stop","aaos_durma_modu"],["a_pb","aaos_el_freni"],["a_ign","aaos_kontak"],["a_eff","aaos_anlik_verim_ham"],["grade","egim_yuzde_tahmini"],["acc_g","ivme_g"],["brk_kw","mekanik_fren_kW_tahmini"]];
+  ["a_soc","aaos_sarj_yuzde"],["a_batT","aaos_bat_C"],["a_gear","aaos_vites"],["a_port","aaos_kablo_takili"],["a_tRem","aaos_sarj_kalan_dk"],["a_lim","aaos_sarj_hedef_yuzde"],["a_stop","aaos_durma_modu"],["a_pb","aaos_el_freni"],["a_ign","aaos_kontak"],["a_eff","aaos_anlik_verim_ham"],["grade","egim_yuzde_tahmini"],["acc_g","ivme_g"],["brk_kw","mekanik_fren_kW_tahmini"],
+  ["pump2","pompa_hizi_D922_yuzde"],["fan","radyator_fani_D923_yuzde"],["mt1","motor_ic1_C"],["mt2","motor_ic2_C"],["mt3","motor_ic3_C"],["dcdcT","dcdc_kart_C"],["obcTb","obc_B_C"],["obcTc","obc_C_C"],["acV","ac_sebeke_EE66_V"],["acA","ac_akim_EE67_A"]];
 const p2=n=>String(n).padStart(2,"0");
 const localStamp = t => { const d=new Date(t); return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3,"0")}`; };
 const LOG_HEADER = "zaman," + LOG_COLS.map(c=>c[1]).join(",");
@@ -1322,6 +1372,7 @@ function tgTripText(h){
   if (h.dis_sicaklik_ort_C!=null) L.push(`Dış hava ${f(h.dis_sicaklik_ort_C,0)} °C`);
   if (h.tirmanis_m!=null) L.push(`Tırmanış ${f(h.tirmanis_m,0)} m, iniş ${f(h.inis_m,0)} m`);
   if (h.maks_yavaslama_g!=null) L.push(`Sert fren ${h.sert_fren_sayisi||0}, en sert ${f(h.maks_yavaslama_g,2)} g`);
+  if (h.fren_rejen_orani_yuzde!=null) L.push(`Fren rejen / sürtünme: %${f(h.fren_rejen_orani_yuzde,0)} / %${f(100-h.fren_rejen_orani_yuzde,0)}`);
   if (h.kaynak) L.push(`Kaynak: ${h.kaynak}`);
   return L.join("\n");
 }
@@ -1411,7 +1462,7 @@ window.ex30ReplayBegin = () => {
   REPLAY.on = true; running = true; Object.assign(CHG, {on:false, since:0, cand:0, idle:0});
   // gerçek saatle tutulmuş kısıtlayıcılar sanal saatte kilitlenmesin
   lastR=0; lastFeed=0; lastSampleT=0; lastCarT=0;
-  for (const k in vals) vals[k]=null; for (const k in valT) delete valT[k]; for (const k in carv) delete carv[k];
+  for (const k in vals) vals[k]=null; for (const k in valT) delete valT[k]; for (const k in carv) delete carv[k]; modT=[];
   for (const k of Object.keys(trips)) if (!["A","B"].includes(k)) delete trips[k];
   trips.A=newAcc("A"); trips.B=newAcc("B"); trips.auto=null;
   lastS=null; accBuf.length=0; icBuf.length=0; speed.cyc.length=0;
@@ -1433,16 +1484,16 @@ window.ex30ReplayApply = row => {
 window.ex30ReplayQuiet = q => { REPLAY.quiet = q; if (!q) render(); };
 // ---- Ayna: durum aktarımı ----
 window.ex30MirrorState = () => { const now=Date.now(), age={}; for (const k in valT) age[k]=now-valT[k];
-  return JSON.stringify({vals, trips, tripView, carv, geo, age, running, sT: now-lastSampleT, cT: lastCarT? now-lastCarT : 1e9}); };
+  return JSON.stringify({vals, modT, trips, tripView, carv, geo, age, running, sT: now-lastSampleT, cT: lastCarT? now-lastCarT : 1e9}); };
 window.ex30MirrorApply = s => { try{ if (typeof s==="string") s=JSON.parse(s); if (!s) return; const now=Date.now();
-  for (const k in vals) delete vals[k]; Object.assign(vals, s.vals||{});
+  for (const k in vals) delete vals[k]; Object.assign(vals, s.vals||{}); modT = Array.isArray(s.modT) ? s.modT : [];
   trips = s.trips || trips; tripView = s.tripView || tripView;
   for (const k in carv) delete carv[k]; Object.assign(carv, s.carv||{}); Object.assign(geo, s.geo||{});
   for (const k in s.age||{}) valT[k]=now-s.age[k]; running=!!s.running; lastSampleT=now-(s.sT||0); lastCarT=now-(s.cT??1e9); render(); }catch(e){} };
 window.ex30RemoteApply = st => { try{ if (typeof st==="string") st=JSON.parse(st); if (!st) return;
   if (!REMOTE.on){ REMOTE.on=true; REMOTE.saved=trips; if (logSess) logStop(); log("Orta ekrandaki uygulamanın canlı verisi gösteriliyor"); }
   REMOTE.t=Date.now(); const now=REMOTE.t;
-  for (const k in vals) delete vals[k]; Object.assign(vals, st.vals||{});
+  for (const k in vals) delete vals[k]; Object.assign(vals, st.vals||{}); modT = Array.isArray(st.modT) ? st.modT : [];
   trips = st.trips || trips; tripView = tripView || st.tripView;
   for (const k in carv) delete carv[k]; Object.assign(carv, st.carv||{}); Object.assign(geo, st.geo||{}); for (const k in carv) carT[k]=now-(st.cT||0);
   for (const k in st.age||{}) valT[k]=now-st.age[k]; lastSampleT=now-(st.sT||0); lastCarT=now-(st.cT??1e9); render(); }catch(e){} };
