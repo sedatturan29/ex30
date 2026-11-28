@@ -994,7 +994,11 @@ async function connect(all=false, auto=false){
     }
     log("Adaptör el sıkışması "+Math.round(performance.now()-tH)+" ms: "+tries.join(", "));
     store.set("lastHandshake", `${new Date().toLocaleString("tr-TR")} · ${window.AndroidCar?"orta ekran":"telefon"} · ${Math.round(performance.now()-tH)} ms\n${tries.join("\n")}`);
-    if (!/ELM|OK|v\d/i.test(elmId)) throw Object.assign(new Error("Adaptör komutlara cevap vermedi ("+tries.join(", ")+"). Adaptörü çıkarıp takın; telefonda başka bir uygulama bağlıysa kapatın."), {step:"elm"});
+    if (!/ELM|OK|v\d/i.test(elmId)){
+      const phoneHolds = window.AndroidCar && typeof phoneObdT!=="undefined" && Date.now()-phoneObdT < 12000;
+      if (phoneHolds){ linkSend({k:"release"}); log("Telefon adaptöre bağlı: bırakması istendi"); }
+      throw Object.assign(new Error(phoneHolds ? "Telefondaki EX30 Reader adaptöre bağlıydı; adaptör aynı anda iki cihazla konuşmaz. Telefondan bırakması istendi, birkaç saniye sonra tekrar Bağlan'a basın." : "Adaptör komutlara cevap vermedi ("+tries.join(", ")+"). Adaptörü çıkarıp takın; telefonda ya da başka bir yerde Car Scanner gibi bir uygulama bağlıysa kapatın."), {step:"elm"});
+    }
     store.set("bleWriteAck", writeAck);
     await sleep(300);
     for (const c of INIT.slice(1)){ let r = await send(c, 2000); if (/TIMEOUT/.test(r)) r = await send(c, 2500); log(c+" → "+r.replace(/\s+/g," ")); }
@@ -2522,7 +2526,9 @@ function linkRecv(m){
   if (m.k==="logm"||m.k==="logc"||m.k==="loge"){ if (m.k==="loge") linkGot.logs++; return withPanel(pw=>pw.ex30Sync.logRecv(m)); }
   if (m.k==="cfg") return linkApplyCfg(m);
   // Canlı: telefon isterse orta ekran durumunu saniyede bir yollar
-  if (m.k==="live"){ liveWanted = m.on ? Date.now() : 0; return; }
+  if (m.k==="live"){ liveWanted = m.on ? Date.now() : 0; phoneObdT = m.obd ? Date.now() : 0; return; }
+  // Orta ekran adaptörü istiyor: telefon elle bağlandıysa da bırakır (iki cihaz aynı adaptörle konuşamaz)
+  if (m.k==="release"){ if (!window.AndroidCar && chW){ log("Orta ekran adaptörü istedi: telefonun OBD bağlantısı bırakılıyor"); disconnect(); } return; }
   if (m.k==="st"){ if (linkSt.role==="phone" && !chW && m.p) withPanel(pw=>{ pw.ex30RemoteApply(m.p); remoteT=Date.now(); }); return; }
   if (m.k==="prog"){ linkProg(m.n ? `Alınıyor: sürüş kaydı ${m.n}/${m.total}` : `Eşitleniyor: ${m.total} sürüş kaydı gelecek`); return; }
   if (m.k==="done"){ linkProg(""); linkStat={t:Date.now(), peer:linkSt.peer, got:Object.assign({}, linkGot)}; store.set("linkStat", linkStat); renderLink(); }
@@ -2536,7 +2542,7 @@ function linkApplyCfg(m){
   if (!chW && !moving && !window.ex30Replay){ log("Ayarlar diğer cihazdan alındı, uygulama yenileniyor"); setTimeout(()=>{ try{ sessionStorage.setItem("linkGot", JSON.stringify(linkGot)); }catch{} location.reload(); }, 1500); }
   else { window.__cfgApplied = false; log("Ayarlar diğer cihazdan alındı; uygulama yeniden açılınca geçerli olur"); }
 }
-let linkLastCar=0, liveWanted=0, remoteT=0, linkDogT=0;
+let linkLastCar=0, liveWanted=0, remoteT=0, linkDogT=0, phoneObdT=0;
 // Bağlantı "bağlı" görünüp araç verisi 12 sn'den uzun donarsa (daha önce akıyorduysa) bağlantıyı yenile; en sık dakikada bir
 setInterval(()=>{ if (!LINK || !linkSt.up || linkSt.role!=="phone" || Date.now()-linkDogT<60000) return;
   let cS=0; try{ const cv = panelWin && panelWin.ex30Car ? panelWin.ex30Car() : null; if (cv) for (const k in cv.t) if (/^(PERF_VEHICLE_SPEED|EV_BATTERY_INSTANTANEOUS)/.test(k) && cv.t[k]>cS) cS=cv.t[k]; }catch{}
@@ -2546,7 +2552,7 @@ setInterval(()=>{ if (!LINK || !linkSt.up || linkSt.role!=="car" || Date.now()-l
   try{ ensurePanel(); const p = panelWin && panelWin.ex30MirrorState ? panelWin.ex30MirrorState() : null; if (p) linkSend({k:"st", p}); }catch{} }, 1000);
 // Telefon: kendi OBD'si bağlı değilken ve uygulama ekrandayken orta ekrandan canlı veri iste
 setInterval(()=>{ if (!LINK || !linkSt.up || linkSt.role!=="phone") return;
-  const want = !chW && document.visibilityState==="visible"; linkSend({k:"live", on: want?1:0}); }, 4000);
+  const want = !chW && document.visibilityState==="visible"; linkSend({k:"live", on: want?1:0, obd: chW?1:0}); }, 4000);
 const linkProg = t => { const el=$("lkProg"); if (el){ el.textContent=t; el.style.display=t?"":"none"; } };
 function renderLink(){
   if (!LINK) return; $("lkCard").style.display="";
