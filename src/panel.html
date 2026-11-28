@@ -852,15 +852,31 @@ const __tw=new Set();
 window.__ex30tick=()=>{ const n=performance.now(); for (const t of [...__tw]) if (n>=t.at){ __tw.delete(t); t.r(); } };
 const sleep = ms => new Promise(r=>{ const t={at:performance.now()+ms, r}; __tw.add(t); setTimeout(()=>{ if (__tw.delete(t)) r(); }, ms); });
 const fmt=(v,d=1)=>v==null||!isFinite(v)?"–":v.toFixed(d).replace(".",",");
-// Anlık tüketim: son 10 saniyedeki enerji / yol (kWh/100 km); 5 km/s altında ve 40 m'den kısa yolda gösterilmez
+// Anlık tüketim (10 sn, ekonomi LED'i) ve son 60 sn tüketimi (dinamik menzil): enerji / yol (kWh/100 km)
 const icBuf=[];
 function instCons(){
   const now=Date.now(), kw = vals.kw ?? aaosPower(), sp = carSpeed().v ?? geo.spd;
   if (kw!=null && sp!=null && (!icBuf.length || now-icBuf.at(-1).t>=200)) icBuf.push({t:now, kw, sp});
-  while (icBuf.length && now-icBuf[0].t>10000) icBuf.shift();
+  while (icBuf.length && now-icBuf[0].t>60000) icBuf.shift();
   if (icBuf.length<3 || sp==null || sp<5) return null;
-  let e=0, d=0; for (let i=1;i<icBuf.length;i++){ const dt=(icBuf[i].t-icBuf[i-1].t)/3600000; e+=icBuf[i].kw*dt; d+=icBuf[i].sp*dt; }
+  const cut = now - 10000;
+  let e=0, d=0;
+  for (let i=1;i<icBuf.length;i++){
+    if (icBuf[i].t < cut) continue;
+    const dt=(icBuf[i].t-icBuf[i-1].t)/3600000; if (dt<=0 || dt>15/3600) continue;
+    e+=icBuf[i].kw*dt; d+=icBuf[i].sp*dt;
+  }
   return d>0.04 ? e/d*100 : null;
+}
+function cons60(){
+  if (icBuf.length<3) return null;
+  let e=0, d=0;
+  for (let i=1;i<icBuf.length;i++){
+    const dt=(icBuf[i].t-icBuf[i-1].t)/3600000; if (dt<=0 || dt>15/3600) continue;
+    e += ((icBuf[i].kw + icBuf[i-1].kw)/2)*dt;
+    d += ((icBuf[i].sp + icBuf[i-1].sp)/2)*dt;
+  }
+  return d>0.05 ? e/d*100 : null;
 }
 function tile(id, v, unit, d=1, sub, cls){ const el=$("t-"+id); if(!el) return; el.querySelector(".v").innerHTML=`<span class="${cls||""}">${fmt(v,d)}</span><small>${unit}</small>`; if (sub!=null) el.querySelector(".s").textContent=sub; }
 let lastR=0;
@@ -885,7 +901,7 @@ window.ex30Snap = () => { const n=v=>(v==null||!isFinite(v))?null:+v;
     kwhLeft: aaos("EV_BATTERY_LEVEL")!=null ? n(aaos("EV_BATTERY_LEVEL")/1000) : n(vals.erem),
     kwhCap: aaos("EV_CURRENT_BATTERY_CAPACITY")!=null ? n(aaos("EV_CURRENT_BATTERY_CAPACITY")/1000) : null,
     slip: (()=>{ const k=["w_fl","w_fr","w_rl","w_rr"]; if (!k.every(x=>vals[x]!=null && valT[x] && Date.now()-valT[x]<2500)) return null; return (vals.w_rl+vals.w_rr-vals.w_fl-vals.w_fr)/2; })(),
-    inst: n(vals.inst), grade: n(gradeNow()), jt: journalNow(), batT: n(batTemp()), socAny: n(vals.soc ?? aaosSoc()), cab: n(aaos("HVAC_TEMPERATURE_CURRENT")), cabSet: n(aaos("HVAC_TEMPERATURE_SET")),
+    inst: n(vals.inst), cons60: n(vals.cons60), grade: n(gradeNow()), jt: journalNow(), batT: n(batTemp()), socAny: n(vals.soc ?? aaosSoc()), cab: n(aaos("HVAC_TEMPERATURE_CURRENT")), cabSet: n(aaos("HVAC_TEMPERATURE_SET")),
     yaw: geo.yaw!=null && Date.now()-geo.yawT<2500 ? geo.yaw : null,
     efull: n(vals.eused), mods: modT.length ? modT.slice() : null, v12b: n(vals.v12b),
     x: (()=>{ const o={}; for (const k of ["ped","lacc","d_fl","d_fr","d_rl","d_rr","acp","pump","pump2","fan","vlvA","vlvR","mcool","mt1","mt2","mt3","lvV","lvA","dcdcT","dcW","dcSet","acT1","acT2","igm","csum","pdis","pchg","odo","soh","soh2","socd","socRaw","cmaxNo","cminNo","maxNo","bout","bsup","csocMax","csocMin","lifeDis","lifeChg","obcT","obcTb","obcTc","obcInV","obcInA","obcOutV","obcOutKw","acV","acA","acLife","lastChW","lastChWh","gridV"]) if (vals[k]!=null && isFinite(vals[k])) o[k]=+vals[k]; return o; })(),
@@ -1047,7 +1063,7 @@ function render(){
   const cs = carSpeed(), car = cs.v;
   if (vals.avg==null && aaos("EV_BATTERY_AVERAGE_TEMPERATURE")!=null) tile("avg", aaos("EV_BATTERY_AVERAGE_TEMPERATURE"), "°C", 1, "Kaynak: araç (Android Automotive)");
   if (vals.kw==null && aaos("EV_BATTERY_INSTANTANEOUS_CHARGE_RATE")!=null){ const k=aaosPower(); tile("kw", k, "kW", 1, "Kaynak: araç (Android Automotive)", k>0.3?"pos":k<-0.3?"neg":""); }
-  { const ic=instCons(); vals.inst=ic; const s=$("t-kw").querySelector(".s"); if (ic!=null) s.textContent = (s.textContent.split(" · anlık")[0]) + " · anlık " + fmt(ic,1) + " kWh/100 km"; }
+  { const ic=instCons(); vals.inst=ic; vals.cons60=cons60(); const s=$("t-kw").querySelector(".s"); if (ic!=null) s.textContent = (s.textContent.split(" · anlık")[0]) + " · anlık " + fmt(ic,1) + " kWh/100 km"; }
   { const out=aaos("ENV_OUTSIDE_TEMPERATURE"), rng=aaos("RANGE_REMAINING"); const el=$("t-soc").querySelector(".s");
     const extra=[out!=null?`Dış ${fmt(out,1)} °C`:null, rng!=null?`Menzil ${fmt(rng/1000,0)} km`:null].filter(Boolean);
     if (extra.length) el.textContent = [el.textContent, ...extra].filter(Boolean).join(" · "); }

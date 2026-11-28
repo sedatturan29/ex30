@@ -39,19 +39,21 @@
   .dv{background:var(--dv-line);display:flex;flex-direction:column;gap:1px;
     height:calc(100vh - var(--dv-top,150px));min-height:420px;border-radius:14px;overflow:hidden;outline:1px solid var(--dv-line)}
   body.mirror .dv{height:100vh;min-height:0;border-radius:0;outline:0}
-  .dv-hero{flex:none;background:var(--dv-bg);display:flex;align-items:center;gap:min(3vmin,28px);padding:min(1.6vmin,14px) min(3vmin,28px)}
-  .dv-kw{display:flex;align-items:baseline;gap:.25em;line-height:.9;min-width:4.2ch;flex:none}
-  .dv-kw b{font-weight:700;font-size:min(9vmin,84px);letter-spacing:-.02em;font-variant-numeric:tabular-nums;transition:color .25s}
-  .dv-kw i,.dv-hs i{font-style:normal;font-weight:500;font-size:min(2.6vmin,22px);color:var(--dv-mut)}
+  .dv-hero{flex:none;background:var(--dv-bg);display:flex;align-items:center;gap:min(2.2vmin,22px);padding:min(1.5vmin,14px) min(2.4vmin,24px)}
+  .dv-kw{display:flex;align-items:baseline;gap:.2em;line-height:.9;min-width:3.8ch;flex:none}
+  .dv-kw b{font-weight:700;font-size:min(7.6vmin,72px);letter-spacing:-.02em;font-variant-numeric:tabular-nums;transition:color .25s}
+  .dv-kw i,.dv-hs i{font-style:normal;font-weight:500;font-size:min(2.3vmin,20px);color:var(--dv-mut)}
   .dv-hero.pos .dv-kw b{color:var(--dv-draw)} .dv-hero.neg .dv-kw b{color:var(--dv-regen)}
-  .dv-rib{flex:1;min-width:60px;position:relative;height:min(1.4vmin,12px);background:#1B2227;border-radius:999px}
+  .dv-rib{flex:1;min-width:44px;position:relative;height:min(1.4vmin,12px);background:#1B2227;border-radius:999px}
   .dv-rib .f{position:absolute;top:0;bottom:0;border-radius:999px;transition:left .2s,width .2s}
   .dv-rib .f.p{background:var(--dv-draw)} .dv-rib .f.n{background:var(--dv-regen)}
   .dv-rib .z{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--dv-fg);opacity:.5}
   .dv-rib .pk{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--dv-fg);opacity:.85}
-  .dv-hs{display:flex;align-items:baseline;gap:.25em;line-height:.9;flex:none}
-  .dv-hs b{font-weight:700;font-size:min(9vmin,84px);font-variant-numeric:tabular-nums}
+  .dv-hs{display:flex;align-items:baseline;gap:.2em;line-height:.9;flex:none}
+  .dv-hs b{font-weight:700;font-size:min(7.6vmin,72px);font-variant-numeric:tabular-nums}
   .dv-hs b small{font-size:.5em;font-weight:600;color:var(--dv-mut)}
+  .dv-rng b.cold{color:var(--dv-regen)} .dv-rng b.warn{color:var(--dv-warn)} .dv-rng b.hot{color:var(--dv-hot)}
+  @media (max-width: 600px){ .dv-hero{gap:10px;padding:10px 12px} .dv-kw b,.dv-hs b{font-size:min(6.4vmin,36px)} .dv-kw i,.dv-hs i{font-size:13px} .dv-rib{min-width:28px} }
   .dv-grid{flex:1;min-height:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:auto auto;grid-auto-rows:minmax(0,1fr);gap:1px;background:var(--dv-line)}
   /* Yolculuk satırı */
   .dv-band{grid-column:1/-1;background:#161D22;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1.3fr) repeat(3,minmax(0,1fr));align-items:end;gap:min(1.2vmin,10px) min(2.4vmin,22px);padding:min(1.6vmin,14px) min(3vmin,28px) min(1.4vmin,12px);box-shadow:inset .6vmin 0 0 #3A444C;container-type:inline-size}
@@ -673,6 +675,7 @@
         <div class="dv-rib" id="dvRib" title="rejen −80 … 0 … 200 kW çekiş"><div class="f n"></div><div class="f p"></div><div class="z"></div><div class="pk"></div></div>
         <div class="dv-hs"><b id="dvSpd">–</b><i>km/s</i></div>
         <div class="dv-hs"><b id="dvSoc">–</b><i id="dvSocL">%</i></div>
+        <div class="dv-hs dv-rng" title="Son 60 saniyedeki tüketime göre tahmini menzil"><b id="dvRng">–</b><i>km</i></div>
       </div>
       <div class="dv-grid" id="dvGrid"></div>
     </div>
@@ -2965,6 +2968,17 @@ function dvTick(){
   $("dvSpd").textContent = live ? f1(s.dsp ?? s.spd,0) : "–";
   { const v = live && s.soc!=null && isFinite(s.soc) ? Math.round(s.soc*100)/100 : null;   // büyük tam kısım + yarı boyda iki ondalık
     $("dvSoc").innerHTML = v==null ? "–" : `${Math.trunc(v)}<small>,${String(Math.round((v-Math.trunc(v))*100)).padStart(2,"0")}</small>`; }
+  { const el = $("dvRng");
+    const kwh = live ? (s.kwhLeft ?? (s.socAny!=null && (s.kwhCap ?? cfg.capNew) ? s.socAny/100*(s.kwhCap ?? cfg.capNew) : null)) : null;
+    const c60 = live ? s.cons60 : null;
+    if (kwh!=null && kwh>0 && c60!=null){
+      if (c60 <= 0){ el.textContent = "999+"; el.className = "cold"; }
+      else {
+        const km = kwh * 100 / c60;
+        el.textContent = km > 999 ? "999+" : f1(km, 0);
+        el.className = km > 999 ? "cold" : km < 50 ? "hot" : km < 100 ? "warn" : "";
+      }
+    } else { el.textContent = "–"; el.className = ""; } }
   $("dvInst").textContent = live && s.inst!=null ? f1(Math.max(-99,Math.min(99,s.inst)),0) : "–";
   dvEco(live ? s.inst : null, s.jt && s.jt.cons, live ? s.spd : null);
   { const j = s.jt, band=$("dv-band");
