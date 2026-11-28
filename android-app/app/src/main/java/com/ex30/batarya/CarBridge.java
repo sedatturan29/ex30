@@ -153,6 +153,7 @@ public class CarBridge {
             if (cpm == null) { status("Araç servisi yok"); return; }
             List<CarPropertyConfig> configs = cpm.getPropertyList();
             int n = 0;
+            StringBuilder cat = new StringBuilder();
             for (CarPropertyConfig cfg : configs) {
                 int id = cfg.getPropertyId();
                 float rate = 0f;
@@ -165,14 +166,25 @@ public class CarBridge {
                 try {
                     int[] areas = cfg.getAreaIds();
                     if (areas == null || areas.length == 0) areas = new int[]{0};
+                    String nm = NAMES.get(id) != null ? NAMES.get(id) : "0x" + Integer.toHexString(id);
+                    StringBuilder rs = new StringBuilder();
                     for (int a : areas) {
                         try {
                             CarPropertyValue<?> v = cpm.getProperty(id, a);
-                            if (v != null) push(v);
-                        } catch (Throwable ignored) { }
+                            if (v != null) { push(v); rs.append(a).append(":ok "); }
+                            else rs.append(a).append(":bos ");
+                        } catch (Throwable t) { rs.append(a).append(":").append(t.getClass().getSimpleName()).append(" "); }
                     }
+                    cat.append(nm).append(" [").append(rs.toString().trim()).append("]\n");
                 } catch (Throwable ignored) { }
             }
+            try {
+                JSONObject o = new JSONObject();
+                o.put("id", -1); o.put("name", "_OZELLIK_KATALOG"); o.put("area", 0); o.put("value", cat.toString());
+                String j = o.toString();
+                synchronized (batch) { if (batch.length() > 0) batch.append(','); batch.append(j); sendLink(j, "_OZELLIK_KATALOG@0"); }
+                scheduleFlush();
+            } catch (Throwable ignored) { }
             status(n + " araç özelliği okunuyor");
         } catch (Throwable e) {
             status("Araç verisine bağlanılamadı: " + e);
