@@ -1479,6 +1479,12 @@ const TESTS = [
    how:["Kontak açık, araç duruyor. Ölç'e bas.","Aynı anda Volvo ekranında dört lastiğin basıncını nota yaz (sol ön, sağ ön, sol arka, sağ arka; kPa, bar ya da psi, ekranda ne görünüyorsa).","Lastik havasıyla oynamana gerek yok. Dört basınç farklıysa baytları basınçlarla eşleştiririm.","Uygunsa 10 dk sürüşten sonra bir kez daha Ölç'e bas ve basınçları yine yaz (ısınınca sıcaklık baytları değişir)."],
    read:tsList(TA,["FD05","FD07","FD08","FD1E","FD31","FD32","FD33","FD34","FD35","FD36","FD37","FD38","FD39","FD3A","FD40","FD41","FD42","FD43","FD44","FD45","FD46","FD47","FD48","FD49","FD4A","FDE0","FE43","FEE0","FEE9","FEEA","F41C","F430","F431","F4D6"]), n:3, ms:300,
    sum:r=>{ const s=r.samples.at(-1); if(!s) return ""; const g=d=>s.v["1701:"+d]||"–"; return `FD05 ${g("FD05")} · FD31 ${g("FD31")} · FD35 ${g("FD35")} · FD40 ${g("FD40")} · FD44 ${g("FD44")}`; }},
+  {id:"aaostpms", t:"Orta ekran lastik verisi (AAOS)", why:"Volvo lastik basıncını sayı yerine durum (uygun / düşük) olarak veriyor olabilir. Aracın verdiği lastik ve adı bilinmeyen tüm özellikleri ham haliyle kaydeder.",
+   how:["Orta ekran bağlıyken (ya da orta ekranda uygulamayı açıp telefonla bağlıyken) bu sayfayı aç; aşağıdaki kayıt kendiliğinden güncellenir.","Aynı anda Volvo ekranındaki lastik basınç ekranına bak ve nota yaz: sayı mı gösteriyor (kaç, hangi birim) yoksa sadece uygun / düşük mü?","Sürüşten sonra bir kez daha bu sayfaya gel ve notu güncelle."], read:null,
+   auto:()=>{ let cv=null; try{ cv = panelWin && panelWin.ex30Car ? panelWin.ex30Car() : null; }catch{} if (!cv) return "Araç verisi gelmedi (orta ekran bağlı değil).";
+     const now=Date.now(), ks=Object.keys(cv.v), sh=x=>{ const t=JSON.stringify(x); return t.length>90?t.slice(0,90)+"…":t; };
+     const ln=ks.filter(k=>/TIRE|^0x/.test(k)).sort().map(k=>`${k} = ${sh(cv.v[k])} (${Math.round((now-(cv.t[k]||0))/1000)} sn önce)`);
+     return `Toplam ${ks.length} özellik. Lastik ve bilinmeyen özellikler:\n`+(ln.length?ln.join("\n"):"yok")+`\n\nTüm adlar: `+ks.map(k=>k.split("@")[0]).filter((x,j,a)=>a.indexOf(x)===j).sort().join(", "); }},
   {id:"klima", t:"Klima kapalı / açık", why:"Klima basıncı ve 5 klima sıcaklığının hangi kod olduğunu ayırmak.",
    how:["Klima kapalıyken Ölç'e bas.","Klimayı aç (soğutma), 2 dakika bekle, tekrar Ölç'e bas.","Car Scanner'daki 5 klima sıcaklığını ve klima basıncını nota yaz (uygunsa)."],
    read:tsList(TV,["413A","4A28","4A29","4A30","4A31","4A32","4A33","4A34","D901","D911","D912","D913","D922","D923","E349","E34A"]), n:2, ms:1500},
