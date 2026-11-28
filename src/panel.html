@@ -253,8 +253,8 @@ const BMS_PIDS = [
   {id:"volt", did:"4803", every:1,  f:d => 0.01*u16(d)},
   {id:"avg",  did:"491B", every:3,  f:d => u16(d)/100 - 50},
   {id:"cin",  did:"4804", every:3,  f:d => d[d.length-1] - 50},
-  {id:"max",  did:"4945", every:6,  f:d => u16(d)/100 - 50},
-  {id:"soc",  did:"4801", every:10, f:d => 1.0625*0.002*u16(d) - 3.125},
+  {id:"max",  did:"4945", every:6,  f:d => { if (d.length>=3) vals.maxNo=d[0]; return u16(d)/100 - 50; }},
+  {id:"soc",  did:"4801", every:10, f:d => { const r=0.002*u16(d); if (isFinite(r)) vals.socRaw=r; return 1.0625*r - 3.125; }},
   // Bataryanın şu an izin verdiği en yüksek deşarj (çekiş) ve şarj (rejen/şarj) gücü, W → kW
   // 489E/489C: limit DEĞİL — anlık deşarj/şarj gücü (mW). Akım×voltajla örtüşüyor (15.11 tarama).
   // 27.11 Car Scanner günlüğü + OBDb Polestar 2: 489E/489C şarj/deşarj GÜÇ SINIRI, 3 bayt ×4/15625 kW (park: deşarj sınırı 73,6 kW)
@@ -273,8 +273,8 @@ const BMS_PIDS = [
   {id:"igm",  did:"4809", every:20, slow:true, f:d => u16(d)/100},
   {id:"csum", did:"497C", every:10, f:d => u16(d)/100},
   // Hücre gerilimi en yüksek/en düşük (ilk bayt hücre no, sonra mV) ve en düşük sensör sıcaklığı
-  {id:"cmax", did:"4907", every:6,  f:d => d.length>=3 ? (d[1]*256+d[2])/1000 : NaN},
-  {id:"cmin", did:"4908", every:6,  f:d => d.length>=3 ? (d[1]*256+d[2])/1000 : NaN},
+  {id:"cmax", did:"4907", every:6,  f:d => { if (d.length>=3){ vals.cmaxNo=d[0]; return (d[1]*256+d[2])/1000; } return NaN; }},
+  {id:"cmin", did:"4908", every:6,  f:d => { if (d.length>=3){ vals.cminNo=d[0]; return (d[1]*256+d[2])/1000; } return NaN; }},
   {id:"tmin", did:"49A1", every:6,  f:d => d.length>=3 ? (d[1]*256+d[2])/100-50 : NaN},
   {id:"soh2", did:"489A", every:60, slow:true, f:d => u16(d)/100},
   // ABRP'nin okuduğu SoH (Car Scanner "HV Battery SoH"): 0x2710 = %100,00
@@ -307,7 +307,7 @@ const CUSTOM_KEYS = [
   ["mcool","Motor soğutma sıvısı EE9A (°C)"],["mt1","Motor iç sıcaklık 1 E348 (°C)"],["mt2","Motor iç sıcaklık 2 E349 (°C)"],["mt3","Motor iç sıcaklık 3 E350 (°C)"],
   ["lvV","DC/DC 12 V gerilim (V)"],["lvA","DC/DC 12 V akım (A)"],["dcW","DC/DC giriş gücü (W)"],["dcSet","DC/DC çıkış ayarı (V)"],["dcdcT","DC/DC kart sıcaklığı EE07 (°C)"],
   ["acT1","AC soket sıcaklığı 1 (°C, aday)"],["acT2","AC soket sıcaklığı 2 (°C, aday)"],
-  ["obcT","Şarj cihazı A sıcaklığı (°C)"],["obcTb","Şarj cihazı B sıcaklığı (°C)"],["obcTc","Şarj cihazı C sıcaklığı (°C)"],["acV","AC şebeke gerilimi EE66 (V, aday)"],["acA","AC şebeke akımı EE67 (A, aday)"],["acLife","Ömür boyu AC enerji (kWh)"],["lastChW","Son şarj ortalama güç (W)"],["lastChWh","Son şarj enerjisi (Wh)"],["gridV","AC şebeke gerilimi (V)"],
+  ["obcT","Şarj cihazı A sıcaklığı (°C)"],["obcTb","Şarj cihazı B sıcaklığı (°C)"],["obcTc","Şarj cihazı C sıcaklığı (°C)"],["obcInV","AC şebeke gerilimi EE1C (V)"],["obcInA","AC giriş akımı EE19 (A)"],["obcOutV","OBC DC çıkış gerilimi EE1A (V)"],["obcOutKw","OBC çıkış gücü EE1B (kW)"],["acV","AC şebeke gerilimi EE66 (V, aday)"],["acA","AC şebeke akımı EE67 (A, aday)"],["acLife","Ömür boyu AC enerji (kWh)"],["lastChW","Son şarj ortalama güç (W)"],["lastChWh","Son şarj enerjisi (Wh)"],["gridV","AC şebeke gerilimi (V)"],
   ["t_fl","Lastik sıc. sol ön (°C)"],["t_fr","Lastik sıc. sağ ön (°C)"],["t_rl","Lastik sıc. sol arka (°C)"],["t_rr","Lastik sıc. sağ arka (°C)"],
 ];
 // Car Scanner EX30 profilinin kaydından çıkarılan kaynaklar (kullanıcı değiştirebilir)
@@ -340,6 +340,7 @@ for (const [k,d] of [["h28","4A28"],["h29","4A29"],["h30","4A30"],["h31","4A31"]
     lvV:S(C,CR,"EE04",0,1,0.1,0,10), lvA:S(C,CR,"EE06",0,2,0.1,0,10), dcdcT:S(C,CR,"EE07",0,1,1,-40,20), dcW:S(C,CR,"EE09",0,2,1,0,10), dcSet:S(C,CR,"EE0F",0,1,0.1,0,20),
     acT1:S(C,CR,"EE22",0,1,1,-40,20), acT2:S(C,CR,"EE22",1,1,1,-40,20),
     obcT:S(C,CR,"EE1F",0,1,1,-40,20), obcTb:S(C,CR,"EE1F",1,1,1,-40,20), obcTc:S(C,CR,"EE1F",2,1,1,-40,20),
+    obcInV:S(C,CR,"EE1C",0,2,0.01,0,20), obcInA:S(C,CR,"EE19",0,2,0.1,0,20), obcOutV:S(C,CR,"EE1A",0,2,0.1,0,20), obcOutKw:S(C,CR,"EE1B",0,2,0.001,0,20),
     acV:S(C,CR,"EE66",0,2,0.1,0,20), acA:S(C,CR,"EE67",0,2,0.1,0,20),
     acLife:S(C,CR,"EE71",0,3,1,0,60), lastChW:S(C,CR,"EE72",0,2,1,0,60), lastChWh:S(C,CR,"EE74",0,3,1,0,60), gridV:S(C,CR,"EE12",0,2,1,0,10) }); }
 // D901 (göstergedeki şarj) bu araçta hep 0 döndü (15.11 log) → kaldırıldı
@@ -487,7 +488,19 @@ function disconnect(){ manual=true; try{ dev?.gatt?.disconnect(); }catch{} setPi
 // ============ Okuma döngüsü ============
 const valT={};   // kaynak değerlerinin son okunma zamanı (eski değerleri loga yazmamak için)
 let lastSampleT=0; const vals={}, raw={}; let running=false, cycle=0; const speed={req:[], cyc:[]};
-async function readDid(did){ const t0=performance.now(); const r=await send("22"+did+suffix); speed.req.push(performance.now()-t0); if (speed.req.length>50) speed.req.shift(); return r; }
+// Çok çerçeveli (ISO-TP >4 veri baytı) kodlarda '1' soneki ilk çerçeveden sonra cevabı keser: soneksiz oku
+const MULTI_FRAME = new Set(["FEE7","EE83","DA17","DA18"]);
+async function readDid(did, rxA){
+  const useSfx = suffix && !MULTI_FRAME.has(did);
+  const t0=performance.now();
+  let r = await send("22"+did+(useSfx?suffix:""));
+  if (useSfx && rxA && !isoPayload(r, rxA) && new RegExp(rxA+"1[0-9A-F]{3}","i").test(r.replace(/[^0-9A-F]/gi,""))){
+    MULTI_FRAME.add(did);
+    r = await send("22"+did);
+  }
+  speed.req.push(performance.now()-t0); if (speed.req.length>50) speed.req.shift();
+  return r;
+}
 async function loop(){
   if (running || loopBusy) return; running=true; loopBusy=true;
   try{ await loopBody(); } finally { loopBusy=false; }
@@ -543,7 +556,7 @@ async function readEcu(txA, rxA, dids){   // → {did: bayt dizisi | null}
       if (++st.fails>=2) nextMode(st.ok ? "kararsız" : "desteklenmiyor");
       todo.unshift(...pack.slice(1));
     }
-    const b = parseDid(await readDid(d1), d1, rxA);
+    const b = parseDid(await readDid(d1, rxA), d1, rxA);
     out[d1] = b; if (b && b.length<=4) didLen[ek+d1] = b.length;
     if (!b) misses.push(d1); else if (missMap[ek+d1]) missMap[ek+d1].n=0;
   }
@@ -875,7 +888,7 @@ window.ex30Snap = () => { const n=v=>(v==null||!isFinite(v))?null:+v;
     inst: n(vals.inst), grade: n(gradeNow()), jt: journalNow(), batT: n(batTemp()), socAny: n(vals.soc ?? aaosSoc()), cab: n(aaos("HVAC_TEMPERATURE_CURRENT")), cabSet: n(aaos("HVAC_TEMPERATURE_SET")),
     yaw: geo.yaw!=null && Date.now()-geo.yawT<2500 ? geo.yaw : null,
     efull: n(vals.eused), mods: modT.length ? modT.slice() : null, v12b: n(vals.v12b),
-    x: (()=>{ const o={}; for (const k of ["ped","lacc","d_fl","d_fr","d_rl","d_rr","acp","pump","pump2","fan","vlvA","vlvR","mcool","mt1","mt2","mt3","lvV","lvA","dcdcT","dcW","dcSet","acT1","acT2","igm","csum","pdis","pchg","odo","soh","soh2","socd","bout","bsup","csocMax","csocMin","lifeDis","lifeChg","obcT","obcTb","obcTc","acV","acA","acLife","lastChW","lastChWh","gridV"]) if (vals[k]!=null && isFinite(vals[k])) o[k]=+vals[k]; return o; })(),
+    x: (()=>{ const o={}; for (const k of ["ped","lacc","d_fl","d_fr","d_rl","d_rr","acp","pump","pump2","fan","vlvA","vlvR","mcool","mt1","mt2","mt3","lvV","lvA","dcdcT","dcW","dcSet","acT1","acT2","igm","csum","pdis","pchg","odo","soh","soh2","socd","socRaw","cmaxNo","cminNo","maxNo","bout","bsup","csocMax","csocMin","lifeDis","lifeChg","obcT","obcTb","obcTc","obcInV","obcInA","obcOutV","obcOutKw","acV","acA","acLife","lastChW","lastChWh","gridV"]) if (vals[k]!=null && isFinite(vals[k])) o[k]=+vals[k]; return o; })(),
     ped: n(vals.ped), lacc: n(vals.lacc), laccT: valT.lacc || null,
     dsp: aaos("PERF_VEHICLE_SPEED_DISPLAY")!=null ? n(aaos("PERF_VEHICLE_SPEED_DISPLAY")*3.6) : null};
 };
@@ -979,8 +992,8 @@ function render(){
   const now=Date.now(); if (now-lastR<250) return; lastR=now;
   tile("avg", vals.avg, "°C", 1, raw.avg?"ham "+hex(raw.avg):"");
   tile("cin", vals.cin, "°C", 0);
-  tile("soc", vals.soc, "%", 1, [vals.socd!=null ? "göstergede %"+fmt(vals.socd,0) : "", aaos("EV_BATTERY_LEVEL")!=null ? "kalan "+fmt(aaos("EV_BATTERY_LEVEL")/1000,1)+(aaos("EV_CURRENT_BATTERY_CAPACITY")!=null?" / "+fmt(aaos("EV_CURRENT_BATTERY_CAPACITY")/1000,1):"")+" kWh" : vals.erem!=null ? "kalan ≈ "+fmt(vals.erem,1)+" kWh" : ""].filter(Boolean).join(" · "));
-  tile("cells", vals.cmax!=null&&vals.cmin!=null ? (vals.cmax-vals.cmin)*1000 : null, "mV fark", 0, vals.cmax!=null ? "maks "+fmt(vals.cmax,3)+" V · min "+fmt(vals.cmin,3)+" V" : "");
+  tile("soc", vals.soc, "%", 1, [vals.socRaw!=null ? "ham BMS %"+fmt(vals.socRaw,1) : "", vals.socd!=null ? "gösterge %"+fmt(vals.socd,0) : "", aaos("EV_BATTERY_LEVEL")!=null ? "kalan "+fmt(aaos("EV_BATTERY_LEVEL")/1000,1)+(aaos("EV_CURRENT_BATTERY_CAPACITY")!=null?" / "+fmt(aaos("EV_CURRENT_BATTERY_CAPACITY")/1000,1):"")+" kWh" : vals.erem!=null ? "kalan ≈ "+fmt(vals.erem,1)+" kWh" : ""].filter(Boolean).join(" · "));
+  tile("cells", vals.cmax!=null&&vals.cmin!=null ? (vals.cmax-vals.cmin)*1000 : null, "mV fark", 0, vals.cmax!=null ? `maks ${vals.cmaxNo!=null?"#"+vals.cmaxNo+" ":""}${fmt(vals.cmax,3)} V · min ${vals.cminNo!=null?"#"+vals.cminNo+" ":""}${fmt(vals.cmin,3)} V` : "");
   { const b=[vals.brk0,vals.brk1,vals.brk2,vals.brk3]; tile("brake", vals.brake, "bar", 1, b.some(x=>x!=null) ? "dört devre: "+b.map(x=>fmt(x,0)).join(" / ") : ""); }
   { const w=[vals.w_fl,vals.w_fr,vals.w_rl,vals.w_rr], ok=w.filter(x=>x!=null);
     const fresh = ["w_fl","w_fr","w_rl","w_rr"].every(k=>valT[k] && Date.now()-valT[k]<2500);
@@ -1036,7 +1049,8 @@ function render(){
   if (vals.kw==null && aaos("EV_BATTERY_INSTANTANEOUS_CHARGE_RATE")!=null){ const k=aaosPower(); tile("kw", k, "kW", 1, "Kaynak: araç (Android Automotive)", k>0.3?"pos":k<-0.3?"neg":""); }
   { const ic=instCons(); vals.inst=ic; const s=$("t-kw").querySelector(".s"); if (ic!=null) s.textContent = (s.textContent.split(" · anlık")[0]) + " · anlık " + fmt(ic,1) + " kWh/100 km"; }
   { const out=aaos("ENV_OUTSIDE_TEMPERATURE"), rng=aaos("RANGE_REMAINING"); const el=$("t-soc").querySelector(".s");
-    el.textContent = [out!=null?`Dış ${fmt(out,1)} °C`:null, rng!=null?`Menzil ${fmt(rng/1000,0)} km`:null].filter(Boolean).join(" · "); }
+    const extra=[out!=null?`Dış ${fmt(out,1)} °C`:null, rng!=null?`Menzil ${fmt(rng/1000,0)} km`:null].filter(Boolean);
+    if (extra.length) el.textContent = [el.textContent, ...extra].filter(Boolean).join(" · "); }
   const pct = (a,b) => (a!=null && b!=null && b>5) ? ` · fark ${(a-b>=0?"+":"")}${fmt((a-b)/b*100,1)}%` : "";
   $("spdSrc").textContent = cs.src;
   const dispS = aaos("PERF_VEHICLE_SPEED_DISPLAY");
@@ -1128,7 +1142,8 @@ const LOG_COLS = [["avg","bat_ort_C"],["cin","sogutma_giris_C"],["cout","guc_akt
   ["lvV","dcdc_12V_V"],["lvA","dcdc_12V_A"],["dcW","dcdc_giris_W"],["dcSet","dcdc_ayar_V"],["acT1","ac_soket1_C"],["acT2","ac_soket2_C"],["obcT","obc_A_C"],["gridV","sebeke_V"],["acLife","omur_AC_kWh"],["lastChWh","son_sarj_Wh"],["igm","bat_igm_sigorta_V"],["csum","hucre_toplam_V"],
   ["h28","vcu_4A28_C"],["h29","vcu_4A29_C"],["h30","vcu_4A30_C"],["h31","vcu_4A31_C"],["h32","vcu_4A32_C"],["h33","vcu_4A33_C"],["eused","doluya_kalan_kWh"],["modAvg","modul_ort_C"],["v12b","aku_12V_bms_V"],["socd","gosterge_sarj_yuzde"],["bout","bms_dis_hava_C"],["bsup","becm_besleme_V"],["csocMax","hucre_soc_maks"],["csocMin","hucre_soc_min"],["lifeDis","omur_desarj_Ah"],["lifeChg","omur_sarj_sayac"],["pdis","bms_desarj_sinir_kW"],["pchg","bms_sarj_sinir_kW"],
   ["a_soc","aaos_sarj_yuzde"],["a_batT","aaos_bat_C"],["a_gear","aaos_vites"],["a_port","aaos_kablo_takili"],["a_tRem","aaos_sarj_kalan_dk"],["a_lim","aaos_sarj_hedef_yuzde"],["a_stop","aaos_durma_modu"],["a_pb","aaos_el_freni"],["a_ign","aaos_kontak"],["a_eff","aaos_anlik_verim_ham"],["grade","egim_yuzde_tahmini"],["acc_g","ivme_g"],["brk_kw","mekanik_fren_kW_tahmini"],
-  ["pump2","pompa_hizi_D922_yuzde"],["fan","radyator_fani_D923_yuzde"],["mt1","motor_ic1_C"],["mt2","motor_ic2_C"],["mt3","motor_ic3_C"],["dcdcT","dcdc_kart_C"],["obcTb","obc_B_C"],["obcTc","obc_C_C"],["acV","ac_sebeke_EE66_V"],["acA","ac_akim_EE67_A"]];
+  ["pump2","pompa_hizi_D922_yuzde"],["fan","radyator_fani_D923_yuzde"],["mt1","motor_ic1_C"],["mt2","motor_ic2_C"],["mt3","motor_ic3_C"],["dcdcT","dcdc_kart_C"],["obcTb","obc_B_C"],["obcTc","obc_C_C"],["acV","ac_sebeke_EE66_V"],["acA","ac_akim_EE67_A"],
+  ["socRaw","bms_ham_sarj_yuzde"],["cmaxNo","hucre_maks_no"],["cminNo","hucre_min_no"],["obcInV","obc_sebeke_EE1C_V"],["obcInA","obc_akim_EE19_A"],["obcOutV","obc_cikis_EE1A_V"],["obcOutKw","obc_cikis_EE1B_kW"]];
 const p2=n=>String(n).padStart(2,"0");
 const localStamp = t => { const d=new Date(t); return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3,"0")}`; };
 const LOG_HEADER = "zaman," + LOG_COLS.map(c=>c[1]).join(",");
