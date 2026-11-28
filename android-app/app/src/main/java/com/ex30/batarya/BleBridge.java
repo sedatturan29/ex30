@@ -161,6 +161,8 @@ public class BleBridge {
     // ---------------------------------------------------------------- JS yardımcıları
     private static String q(String s) { return JSONObject.quote(s == null ? "" : s); }
 
+    private int bleLogN = 0, notifyN = 0, writeNoAck = 0;
+    private void blog(String m) { if (bleLogN++ < 60) js("window.ex30BleLog&&ex30BleLog(" + q(m) + ")"); }
     private void js(final String code) { main.post(() -> web.evaluateJavascript(code, null)); }
 
     private void resolve(String cb, String jsonValue) {
@@ -245,22 +247,37 @@ public class BleBridge {
     @JavascriptInterface
     public void startNotifications(final String id, final String svc, final String chr, final String cb) {
         if (id.startsWith(SPP_PREFIX)) { resolve(cb, "null"); return; }
-        main.post(() -> {
-            BluetoothGatt g = gatts.get(id);
-            BluetoothGattCharacteristic c = find(g, svc, chr);
-            if (g == null || c == null) { reject(cb, "NotFoundError", "Karakteristik bulunamadı"); return; }
-            g.setCharacteristicNotification(c, true);
-            BluetoothGattDescriptor d = c.getDescriptor(CCCD);
-            if (d == null) { resolve(cb, "null"); return; }
-            byte[] val = (c.getProperties() & BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0
-                    ? BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE : BluetoothGattDescriptor.ENABLE_INDICATION_VALUE;
-            notifyCb = cb;
-            boolean ok;
-            if (Build.VERSION.SDK_INT >= 33) ok = g.writeDescriptor(d, val) == BluetoothStatusCodes.SUCCESS;
-            else { d.setValue(val); ok = g.writeDescriptor(d); }
-            if (!ok) { notifyCb = null; reject(cb, "NetworkError", "Bildirimler açılamadı"); return; }
-            main.postDelayed(() -> { if (cb.equals(notifyCb)) { notifyCb = null; resolve(cb, "null"); } }, 3000);
-        });
+        // Servis aramasından hemen sonra yazılan CCCD bazı araç Bluetooth yığınlarında kayboluyor: kısa bekle, cevap gelmezse bir kez daha dene
+        main.postDelayed(() -> enableNotify(id, svc, chr, cb, 0), 350);
+    }
+
+    private void enableNotify(final String id, final String svc, final String chr, final String cb, final int attempt) {
+        BluetoothGatt g = gatts.get(id);
+        BluetoothGattCharacteristic c = find(g, svc, chr);
+        if (g == null || c == null) { reject(cb, "NotFoundError", "Karakteristik bulunamadı"); return; }
+        g.setCharacteristicNotification(c, true);
+        BluetoothGattDescriptor d = c.getDescriptor(CCCD);
+        if (d == null) { blog("bildirim: CCCD yok"); resolve(cb, "null"); return; }
+        byte[] val = (c.getProperties() & BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0
+                ? BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE : BluetoothGattDescriptor.ENABLE_INDICATION_VALUE;
+        notifyCb = cb;
+        boolean ok;
+        if (Build.VERSION.SDK_INT >= 33) ok = g.writeDescriptor(d, val) == BluetoothStatusCodes.SUCCESS;
+        else { d.setValue(val); ok = g.writeDescriptor(d); }
+        if (!ok) {
+            notifyCb = null;
+            blog("bildirim: CCCD yazma isteği reddedildi (deneme " + (attempt + 1) + ")");
+            if (attempt < 3) main.postDelayed(() -> enableNotify(id, svc, chr, cb, attempt + 1), 300);
+            else reject(cb, "NetworkError", "Bildirimler açılamadı");
+            return;
+        }
+        main.postDelayed(() -> {
+            if (cb.equals(notifyCb)) {
+                notifyCb = null;
+                blog("bildirim: CCCD yazma onayı 3 sn içinde gelmedi (deneme " + (attempt + 1) + ")");
+                if (attempt < 1) enableNotify(id, svc, chr, cb, attempt + 1); else resolve(cb, "null");
+            }
+        }, 3000);
     }
 
     @JavascriptInterface
@@ -642,7 +659,7 @@ public class BleBridge {
             else reject(cb, "NetworkError", "Adaptör meşgul, yazılamadı");
             return;
         }
-        main.postDelayed(() -> { if (cb.equals(writeCb)) { writeCb = null; resolve(cb, "null"); } }, 1000);
+        main.postDelayed(() -> { if (cb.equals(writeCb)) { writeCb = null; if (writeNoAck++ < 3) blog("yazma onayı 1 sn içinde gelmedi (" + (withResponse ? "onaylı" : "onaysız") + ")"); resolve(cb, "null"); } }, 1000);
     }
 
     private void rejectPending(String msg) {
@@ -655,6 +672,7 @@ public class BleBridge {
 
     private void onNotify(BluetoothGatt g, BluetoothGattCharacteristic c, byte[] v) {
         if (v == null) return;
+        if (notifyN++ == 0) blog("ilk bildirim alındı (" + v.length + " bayt)");
         js("window.__ble&&__ble._notify(" + q(g.getDevice().getAddress()) + "," + q(c.getService().getUuid().toString())
                 + "," + q(c.getUuid().toString()) + "," + q(Base64.encodeToString(v, Base64.NO_WRAP)) + ")");
     }
@@ -739,6 +757,7 @@ public class BleBridge {
                 String cb = notifyCb;
                 notifyCb = null;
                 if (cb == null) return;
+                blog("bildirim: CCCD yazma sonucu kod " + status);
                 if (status == BluetoothGatt.GATT_SUCCESS) resolve(cb, "null");
                 else reject(cb, "NetworkError", "Bildirimler açılamadı (kod " + status + ")");
             });

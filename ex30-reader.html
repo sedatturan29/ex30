@@ -982,6 +982,7 @@ async function connect(all=false, auto=false){
     const both = chW.properties.write && chW.properties.writeWithoutResponse;
     for (let attempt=0; attempt<5 && !/ELM|OK|v\d/i.test(elmId); attempt++){
       // Orta ekranın Bluetooth'u onaysız yazmaları kaybedebiliyor: ilk cevapsız denemeden sonra yazma biçimini değiştir
+      if (attempt===2){ try{ await chN.startNotifications(); log("Bildirimler yeniden açıldı"); }catch(e){ log("Bildirimler yeniden açılamadı: "+e.message); } }
       if ((attempt===1 || attempt===3) && both){ writeAck=!writeAck; log("Yazma biçimi değiştirildi: "+(writeAck?"onaylı":"onaysız")); }
       setStep("elm","run", attempt ? `Adaptör ayarlanıyor (deneme ${attempt+1}/5${both?", "+(writeAck?"onaylı":"onaysız")+" yazma":""})` : "Adaptör ayarlanıyor");
       await send("", 500);                                       // uyandır, yarım kalan satırı temizle
@@ -2361,6 +2362,7 @@ window.__ex30tick=()=>{ const n=performance.now(); for (const t of [...__tw]) if
 const sleep = ms => new Promise(r=>{ const t={at:performance.now()+ms, r}; __tw.add(t); setTimeout(()=>{ if (__tw.delete(t)) r(); }, ms); });
 var evPre=[];
 function evFwd(s){ try{ if (panelWin && panelWin.ex30Ev){ while (evPre.length){ const e=evPre.shift(); panelWin.ex30Ev(e,"uygulama"); } panelWin.ex30Ev(s,"uygulama"); return; } }catch{} if (evPre.length<200) evPre.push(s); }
+window.ex30BleLog = m => { try{ log("BLE: "+m); }catch{} };
 function log(s){ evFwd(s); const el=$("log"); const t=new Date().toLocaleTimeString("tr-TR"); el.textContent += t+"  "+s+"\n"; if (el.textContent.length>40000) el.textContent=el.textContent.slice(-30000); el.scrollTop=el.scrollHeight; }
 function setPill(cls,txt){ const p=$("pill"); p.className="pill "+cls; p.textContent=txt; }
 function showBanner(t){ const b=$("banner"); b.textContent=t; b.style.display="block"; }
