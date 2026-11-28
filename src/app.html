@@ -75,19 +75,22 @@
   .dv-led.off .g{opacity:0}
   .dv-eco .t{flex:none;font-size:min(2.2vmin,17px);color:var(--dv-mut);font-weight:500;white-space:nowrap;font-variant-numeric:tabular-nums}
   .dv-eco .t b{font-weight:700;color:var(--dv-fg);font-size:1.25em}
-  /* Sıcaklık satırı: tek sırada küçük değerler + iki yarım daire ısınma/soğuma göstergesi */
-  .dv-temps{grid-column:1/-1;background:var(--dv-bg);display:grid;grid-template-columns:repeat(7,minmax(0,1fr)) repeat(2,minmax(0,1.15fr));align-items:center;gap:0 min(1.6vmin,14px);padding:min(1.4vmin,12px) min(3vmin,28px);container-type:inline-size}
-  .dv-temps .tt{display:flex;flex-direction:column;gap:.25em;min-width:0}
-  .dv-temps .tt b{font-weight:700;font-size:min(5vmin,4.4cqw,46px);line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap}
+  /* Sıcaklık kutuları: alt hücrelerle aynı 1 px çizgili 2 satır (üstte 4 ana sıcaklık, altta 3 sıcaklık + 2 ısınma/soğuma göstergesi) */
+  .dv-temps{grid-column:1/-1;background:var(--dv-line);display:grid;grid-template-columns:repeat(20,minmax(0,1fr));gap:1px;padding:0;container-type:inline-size}
+  .dv-temps > :nth-child(-n+4){grid-column:span 5}
+  .dv-temps > :nth-child(n+5){grid-column:span 4}
+  .dv-temps .tt{background:var(--dv-bg);padding:min(1.5vmin,14px) min(2vmin,18px);display:flex;flex-direction:column;justify-content:center;gap:min(.8vmin,6px);min-width:0}
+  .dv-temps .tt b{font-weight:700;font-size:min(5.2vmin,5.6cqw,52px);line-height:.95;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .dv-temps .tt:nth-child(n+5) b{font-size:min(4.4vmin,4.6cqw,44px)}
   .dv-temps .tt b.cold{color:var(--dv-regen)} .dv-temps .tt b.warn{color:var(--dv-warn)} .dv-temps .tt b.hot{color:var(--dv-hot)}
-  .dv-temps span{font-size:min(2vmin,1.7cqw,15px);color:var(--dv-mut);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .dv-g{display:flex;flex-direction:column;align-items:center;min-width:0;--gc:#5D6870;position:relative}
-  .dv-g svg{width:100%;max-width:120px;height:auto;overflow:visible}
+  .dv-temps span{font-size:min(2vmin,2.1cqw,17px);color:var(--dv-mut);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dv-g{background:var(--dv-bg);padding:min(1vmin,10px) min(1.2vmin,12px);display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;--gc:#5D6870;position:relative}
+  .dv-g svg{width:100%;max-width:96px;height:auto;overflow:visible}
   .dv-g .bg{fill:none;stroke:#232B32;stroke-width:8;stroke-linecap:round}
   .dv-g .fg{fill:none;stroke:var(--gc);stroke-width:8;stroke-linecap:round;filter:drop-shadow(0 0 4px var(--gc))}
   .dv-g .nd{stroke:var(--gc);stroke-width:3;stroke-linecap:round;transition:all .6s}
   .dv-g circle{fill:var(--gc)}
-  .dv-g b{font-weight:700;font-size:min(3.8vmin,3.4cqw,32px);line-height:1;margin-top:-.15em;color:var(--gc);font-variant-numeric:tabular-nums}
+  .dv-g b{font-weight:700;font-size:min(3.4vmin,3.2cqw,28px);line-height:1;margin-top:-.15em;color:var(--gc);font-variant-numeric:tabular-nums}
   .dv-g.idle .nd,.dv-g.idle circle{opacity:.45} .dv-g.idle b{color:var(--dv-mut)}
   @media (prefers-reduced-motion: reduce){ .dv-g .nd{transition:none} }
   /* Değer hücreleri: yazı boyu hücre yüksekliğine ve genişliğine bağlı */
@@ -111,18 +114,19 @@
     .dv-band .bl{grid-column:1/-1;flex-direction:row;align-items:baseline;gap:2vmin}
     .dv-band .bv b{font-size:min(7vmin,11cqw,88px)} .dv-band .bv.main b{font-size:min(9.5vmin,14cqw,116px)}
     #dv-tire{grid-column:span 2} #dv-tire .dv-tires{grid-template-columns:repeat(4,auto)}
-    .dv-temps{grid-template-columns:repeat(4,minmax(0,1fr));row-gap:min(1.6vmin,12px)}
-    .dv-temps .tt b{font-size:min(6vmin,8cqw,46px)} .dv-temps span{font-size:min(2.6vmin,3.2cqw,15px)} .dv-g b{font-size:min(4.6vmin,6cqw,32px)}
-    .dv-g{grid-column:span 2;flex-direction:row;gap:10px;justify-content:center} .dv-g svg{max-width:96px;width:45%} .dv-g b{margin:0}
-    .dv-g span{white-space:normal}
+  }
+  @media (max-width: 600px){
+    .dv-temps{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .dv-temps > :nth-child(n){grid-column:auto}
+    .dv-temps .tt{padding:10px 12px}
+    .dv-temps .tt b,.dv-temps .tt:nth-child(n+5) b{font-size:min(6.4vmin,28px)}
+    .dv-temps span{font-size:13px}
+    .dv-g svg{max-width:74px} .dv-g b{font-size:20px}
   }
   /* Orta ekran gibi geniş dikey ekranlar: 4 sütun, 4 satır (16 hücre tam oturur) */
   @media (max-aspect-ratio: 1/1) and (min-width: 700px){
     .dv-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
     #dv-tire{grid-column:span 2}
-    .dv-temps{grid-template-columns:repeat(7,minmax(0,1fr)) repeat(2,minmax(0,1.15fr))}
-    .dv-temps .tt b{font-size:min(5vmin,4.4cqw,46px)} .dv-temps span{font-size:min(2vmin,1.8cqw,15px)}
-    .dv-g{grid-column:auto;flex-direction:column;gap:0} .dv-g svg{width:100%} .dv-g b{font-size:min(3.8vmin,3.4cqw,32px)}
   }
   @media (prefers-reduced-motion: reduce){ .dv-rib .f,.dv-kw b,.dv-led .g{transition:none} }
 
@@ -2934,8 +2938,8 @@ const DV_CELLS = [
   ["tire", "Lastikler (psi)",     null],
 ];
 // Yolculuk bandı: ilk satırdan sonra, tüm genişlikte. Süren otomatik yolculuk; yoksa son yolculuk.
-// Sıcaklık satırı: dış, kabin, batarya, en sıcak hücre, soğutma girişi, güç devresi, motor + ısınma/soğuma göstergeleri
-const DV_TEMPS = [["out","Dış"],["cab","Kabin"],["avg","Batarya"],["max","En sıcak hücre"],["cin","Soğutma girişi"],["cout","Güç devresi"],["motor","Motor"]];
+// Sıcaklık kutuları: üst satırda Batarya, Soğutma suyu, Motor, En sıcak hücre; alt satırda Güç devresi, Kabin, Dış + 2 ısınma/soğuma göstergesi
+const DV_TEMPS = [["avg","Batarya"],["cin","Soğutma suyu"],["motor","Motor"],["max","En sıcak hücre"],["cout","Güç devresi"],["cab","Kabin"],["out","Dış"]];
 const DV_RATE = [["avg","Batarya",1.2],["motor","Motor",3]];   // [anahtar, ad, tam sapma °C/dk]
 const dvGauge = (k,l) => `<div class="dv-g" id="dvg-${k}"><svg viewBox="-60 -56 120 66" aria-hidden="true"><path class="bg" d="M-48 0 A48 48 0 0 1 48 0"/><path class="fg" d=""/><line class="nd" x1="0" y1="0" x2="0" y2="-40"/><circle r="4"/></svg><b>–</b><span>${l} °C/dk</span></div>`;
 const DV_TROW = `<div class="dv-temps" id="dvTemps">${DV_TEMPS.map(([k,l])=>`<div class="tt" id="dvt-${k}"><b>–</b><span>${l}</span></div>`).join("")}${DV_RATE.map(([k,l])=>dvGauge(k,l)).join("")}</div>`;
